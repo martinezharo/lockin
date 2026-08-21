@@ -63,6 +63,11 @@ async function rebuildRules() {
     }
   }
 
+  // Every build replaces the whole set, so the ids currently installed are
+  // exactly what needs clearing first.
+  const existing = await chrome.declarativeNetRequest.getDynamicRules();
+  const removeRuleIds = existing.map((r) => r.id);
+
   const addRules = Array.from(activeDomains).map((domain, i) => ({
     id: i + 1,
     priority: 1,
