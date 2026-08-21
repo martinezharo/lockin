@@ -1,23 +1,7 @@
-:root {
-  --bg: #14150f;
-  --panel: #1c1d16;
-  --ink: #f2f1ec;
-  --muted: #9a9a8e;
-  --brass: #d9b25c;
-  --line: #33342a;
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', Consolas, monospace;
-}
-
-* { box-sizing: border-box; }
+/* Lock In — the page a blocked site redirects to. Dark theme. */
 
 html, body {
-  margin: 0;
   height: 100%;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-body);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -57,7 +41,7 @@ h1 {
   color: #c9c8bd;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
   margin-bottom: 26px;
 }
@@ -68,18 +52,8 @@ h1 {
   justify-content: center;
 }
 
-.ghost {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--ink);
-  border-radius: 9px;
+/* Slightly denser than the shared default so the two buttons sit as a pair. */
+.actions .ghost {
   padding: 10px 16px;
-  font-weight: 600;
   font-size: 13px;
-  cursor: pointer;
-  font-family: var(--font-body);
-}
-
-.ghost:hover {
-  background: var(--panel);
 }

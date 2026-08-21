@@ -1,14 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="theme-light">
 <head>
   <meta charset="utf-8" />
   <title>Lock In — Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
-    rel="stylesheet"
-  />
+  <link rel="stylesheet" href="../../styles/fonts.css" />
+  <link rel="stylesheet" href="../../styles/tokens.css" />
+  <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
@@ -20,7 +17,7 @@
 
   <header class="topbar">
     <div class="brand">
-      <img src="icons/icon48.png" alt="" width="26" height="26" />
+      <img src="../../../icons/icon48.png" alt="" width="26" height="26" />
       <div>
         <div class="brand-title">Lock In</div>
         <div class="brand-sub">site blocker &amp; focus vault</div>
@@ -74,25 +71,9 @@
 
         <div class="field schedule-field" id="scheduleField" hidden>
           <span class="field-label">Which days</span>
-          <div class="day-toggle" id="dayToggle">
-            <label><input type="checkbox" name="day" value="1" /> Mon</label>
-            <label><input type="checkbox" name="day" value="2" /> Tue</label>
-            <label><input type="checkbox" name="day" value="3" /> Wed</label>
-            <label><input type="checkbox" name="day" value="4" /> Thu</label>
-            <label><input type="checkbox" name="day" value="5" /> Fri</label>
-            <label><input type="checkbox" name="day" value="6" /> Sat</label>
-            <label><input type="checkbox" name="day" value="0" /> Sun</label>
-          </div>
-          <div class="field-row schedule-time-row">
-            <label class="field">
-              <span class="field-label">From</span>
-              <input type="time" id="scheduleStart" value="09:00" />
-            </label>
-            <label class="field">
-              <span class="field-label">Until</span>
-              <input type="time" id="scheduleEnd" value="17:00" />
-            </label>
-          </div>
+          <!-- Day pills and the from/until pair are rendered from the same
+               template the inline "edit hours" editor uses. -->
+          <div id="scheduleControls"></div>
           <p class="schedule-hint">
             Blocked only during this window, on the days you pick. Times crossing midnight
             (e.g. 22:00 &rarr; 06:00) work too.
@@ -147,9 +128,9 @@
     </div>
   </div>
 
-  <script src="env.js"></script>
-  <script src="common.js"></script>
-  <script src="challenge.js"></script>
-  <script src="options.js"></script>
+  <!-- Plain script on purpose: env.js is git-ignored and optional, and a
+       missing module import would take the whole page down with it. -->
+  <script src="../../../env.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

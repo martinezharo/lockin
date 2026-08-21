@@ -1,0 +1,85 @@
+/* Lock In — the reset, page ground, and button system every page shares.
+   Load order is always: fonts.css, tokens.css, base.css, then the page's own
+   stylesheet. Everything here is driven by the semantic tokens, so the same
+   rules produce the light dashboard and the dark popup without being written
+   out twice. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+/* The `hidden` attribute has to beat the display rules pages set. */
+[hidden] { display: none !important; }
+
+/* ---------- Buttons ----------
+   One shape, three intents. Pages override padding/font-size where they need a
+   denser button; they never restate the colors. */
+
+.primary,
+.ghost,
+.btn-danger {
+  border-radius: var(--radius-md);
+  padding: 11px 18px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border: none;
+}
+
+.primary:hover { background: var(--btn-primary-bg-hover); }
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.ghost:hover { background: var(--btn-ghost-hover-bg); }
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--rust-line);
+  color: var(--rust);
+}
+
+.btn-danger:hover { background: var(--rust-wash); }
+
+/* ---------- Dev mode banner ----------
+   Shown on the dashboard and in the popup whenever env.js turns DEV_MODE on,
+   so the skip-the-challenge shortcut is never a silent state. */
+
+.dev-banner {
+  background: var(--lcd-bg);
+  color: var(--lcd-text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.dev-banner strong { color: var(--c-brass-pale); }
+
+.dev-banner code,
+.dev-banner kbd {
+  font-family: var(--font-mono);
+  /* the banner is a dark strip in both themes, so this wash is fixed */
+  background: rgba(217, 178, 92, 0.14);
+  border-radius: 4px;
+  padding: 1px 5px;
+}

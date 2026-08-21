@@ -1,35 +1,9 @@
-:root {
-  --bg: #eeede8;
-  --panel: #ffffff;
-  --ink: #17181c;
-  --muted: #6b6d66;
-  --line: #dedcd2;
-  --brass: #9c7a2e;
-  --brass-bright: #c79a3e;
-  --rust: #a8382c;
-  --lcd-bg: #14150f;
-  --lcd-text: #d9b25c;
-  --lcd-text-dim: #7a6a3e;
-
-  --font-display: 'Space Grotesk', 'Inter', sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-}
-
-* { box-sizing: border-box; }
+/* Lock In — dashboard. Light theme; the reset, palette and button system come
+   from styles/tokens.css and styles/base.css. */
 
 html, body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-body);
   font-size: 14.5px;
   line-height: 1.5;
-}
-
-h1, h2, h3 {
-  font-family: var(--font-display);
-  margin: 0;
 }
 
 .container {
@@ -75,7 +49,7 @@ h1, h2, h3 {
   gap: 10px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 8px 16px 8px 12px;
   cursor: pointer;
   font-family: var(--font-body);
@@ -110,7 +84,7 @@ h1, h2, h3 {
 }
 
 .lock-switch[aria-pressed="true"] .lock-switch-label {
-  color: #9a9a94;
+  color: var(--c-grey-cool);
 }
 
 .lock-switch[aria-pressed="true"] .lock-switch-state {
@@ -118,17 +92,16 @@ h1, h2, h3 {
 }
 
 .lock-explainer {
-  max-width: 920px;
+  max-width: 640px;
   margin: 0 auto;
   padding: 4px 28px 18px;
   color: var(--muted);
   font-size: 13px;
-  max-width: 640px;
 }
 
 .lock-explainer strong { color: var(--ink); }
 
-/* ---------- Panels ---------- */
+/* ---------- Panels and fields ---------- */
 
 .panel {
   background: var(--panel);
@@ -141,11 +114,6 @@ h1, h2, h3 {
 .panel h2 {
   font-size: 16px;
   margin-bottom: 16px;
-}
-
-/* The `hidden` attribute has to beat the display rules below. */
-[hidden] {
-  display: none !important;
 }
 
 .field {
@@ -170,19 +138,20 @@ h1, h2, h3 {
 }
 
 input[type="text"],
+input[type="time"],
 textarea,
 select {
   font-family: var(--font-mono);
   font-size: 13.5px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   padding: 9px 11px;
-  background: #fbfaf7;
+  background: var(--field-bg);
   color: var(--ink);
   resize: vertical;
 }
 
-input[type="text"]:focus,
+input:focus,
 textarea:focus,
 select:focus {
   outline: 2px solid var(--brass);
@@ -203,8 +172,10 @@ select:focus {
   cursor: pointer;
 }
 
+/* ---------- Schedule controls (shared by the form and the inline editor) ---------- */
+
 .schedule-field {
-  background: #f7f6f1;
+  background: var(--panel-sunken);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px 16px 6px;
@@ -232,16 +203,10 @@ select:focus {
 
 .day-toggle label.checked {
   border-color: var(--brass);
-  background: #fbf3e2;
+  background: var(--brass-wash);
 }
 
-.schedule-time-row {
-  gap: 14px;
-}
-
-.schedule-time-row input[type="time"] {
-  font-family: var(--font-mono);
-}
+.schedule-time-row { gap: 14px; }
 
 .schedule-hint {
   color: var(--muted);
@@ -249,10 +214,16 @@ select:focus {
   margin: 0 0 10px;
 }
 
-/* ---------- Schedule editor (inline, inside a group card) ---------- */
+/* Replaces the alert() this used to fire — same validation, in the form. */
+.sched-error {
+  color: var(--rust);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
 
 .schedule-editor {
-  background: #f7f6f1;
+  background: var(--panel-sunken);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px 4px;
@@ -264,13 +235,9 @@ select:focus {
   font-size: 12px;
 }
 
-.schedule-editor .schedule-time-row {
-  gap: 10px;
-}
+.schedule-editor .schedule-time-row { gap: 10px; }
 
-.schedule-editor .field-label {
-  font-size: 10.5px;
-}
+.schedule-editor .field-label { font-size: 10.5px; }
 
 .schedule-actions {
   display: flex;
@@ -282,34 +249,6 @@ select:focus {
   font-size: 12px;
   padding: 7px 11px;
 }
-
-.primary {
-  background: var(--ink);
-  color: #f4f3ee;
-  border: none;
-  border-radius: 9px;
-  padding: 11px 18px;
-  font-weight: 600;
-  font-size: 13.5px;
-  cursor: pointer;
-  font-family: var(--font-body);
-}
-
-.primary:hover { background: #2a2b31; }
-
-.ghost {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--ink);
-  border-radius: 9px;
-  padding: 11px 18px;
-  font-weight: 600;
-  font-size: 13.5px;
-  cursor: pointer;
-  font-family: var(--font-body);
-}
-
-.ghost:hover { background: #f2f1ec; }
 
 /* ---------- Groups ---------- */
 
@@ -333,7 +272,7 @@ select:focus {
 .group-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 16px 16px 14px;
   position: relative;
   overflow: hidden;
@@ -347,9 +286,7 @@ select:focus {
   background: var(--line);
 }
 
-.group-card.active::before {
-  background: var(--brass);
-}
+.group-card.active::before { background: var(--brass); }
 
 .group-card-head {
   display: flex;
@@ -375,7 +312,7 @@ select:focus {
   font-family: var(--font-mono);
   background: var(--lcd-bg);
   color: var(--lcd-text-dim);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 7px 10px;
   font-size: 11.5px;
   letter-spacing: 0.04em;
@@ -396,9 +333,9 @@ select:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #f2f1ec;
+  background: var(--c-bone);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 6px 4px 10px;
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -448,25 +385,15 @@ select:focus {
   padding: 8px 12px;
 }
 
-.btn-danger {
-  background: transparent;
-  border: 1px solid #e3cdc8;
-  color: var(--rust);
-  border-radius: 9px;
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-weight: 600;
-}
-
-.btn-danger:hover { background: #fbf0ee; }
-
 .empty-state {
   color: var(--muted);
   font-size: 13.5px;
   padding: 18px 4px;
 }
 
-/* ---------- Challenge modal (deliberately loud) ---------- */
+/* ---------- Challenge modal (deliberately loud) ----------
+   The one place that ignores the palette on purpose: the pastel gradient is
+   meant to feel nothing like the rest of the dashboard. */
 
 .modal-overlay {
   position: fixed;
@@ -485,15 +412,13 @@ select:focus {
   width: 100%;
   max-width: 520px;
   background: linear-gradient(155deg, #ffe6f2 0%, #ffeecb 45%, #e3f6ff 100%);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
   padding: 26px 26px 22px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   border: 3px solid #ffffff;
 }
 
-.modal-overlay.shake .modal-card {
-  animation: shake 0.4s ease;
-}
+.modal-overlay.shake .modal-card { animation: shake 0.4s ease; }
 
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
@@ -527,7 +452,7 @@ select:focus {
 .challenge-text {
   background: rgba(255, 255, 255, 0.75);
   border: 2px dashed #d9a9c4;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   font-size: 14px;
   font-weight: 500;
@@ -557,10 +482,25 @@ select:focus {
 
 .challenge-error {
   min-height: 18px;
-  color: #a8382c;
+  color: var(--c-rust);
   font-size: 12.5px;
   font-weight: 600;
   margin: 8px 0 4px;
+}
+
+.challenge-dev-hint {
+  margin: 6px 0 0;
+  color: #5c4a55;
+  font-size: 12px;
+}
+
+.challenge-dev-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: rgba(23, 24, 28, 0.07);
+  border: 1px solid rgba(23, 24, 28, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 .modal-actions {
@@ -570,52 +510,17 @@ select:focus {
   margin-top: 8px;
 }
 
-.modal-actions .primary {
-  background: #4a2b52;
-}
+.modal-actions .primary { background: #4a2b52; }
 
-.modal-actions .primary:hover {
-  background: #3a2140;
-}
-
-@media (max-width: 640px) {
-  .field-row { flex-direction: column; gap: 0; }
-}
+.modal-actions .primary:hover { background: #3a2140; }
 
 /* ---------- Dev mode banner ---------- */
 
 .dev-banner {
-  background: var(--lcd-bg);
-  color: var(--lcd-text);
   border-bottom: 1px solid var(--brass);
   padding: 10px 28px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  text-align: center;
 }
 
-.dev-banner strong { color: var(--brass-bright); }
-
-.dev-banner code,
-.dev-banner kbd {
-  font-family: var(--font-mono);
-  background: rgba(217, 178, 92, 0.14);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
-.challenge-dev-hint {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.challenge-dev-hint kbd {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  background: rgba(23, 24, 28, 0.07);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 1px 5px;
+@media (max-width: 640px) {
+  .field-row { flex-direction: column; gap: 0; }
 }

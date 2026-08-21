@@ -1,3 +1,8 @@
+import { Storage } from '../../shared/storage.js';
+import { domainMatches } from '../../shared/domains.js';
+import { isGroupActive, formatSchedule } from '../../shared/schedule.js';
+import { pickChallengeParagraph } from '../../shared/challenge.js';
+
 async function init() {
   const params = new URLSearchParams(location.search);
   const domain = params.get('domain') || '';
@@ -8,7 +13,7 @@ async function init() {
   const groups = await Storage.getGroups();
   const now = Date.now();
   const matches = groups.filter(
-    (g) => isGroupActive(g, now) && g.domains.some((d) => domain === d || domain.endsWith('.' + d))
+    (g) => isGroupActive(g, now) && g.domains.some((d) => domainMatches(domain, d))
   );
 
   const statusEl = document.getElementById('statusLine');
@@ -20,11 +25,9 @@ async function init() {
   const names = matches.map((g) => g.name).join(', ');
   const scheduled = matches.find((g) => g.mode === 'schedule');
 
-  if (scheduled) {
-    statusEl.textContent = `is locked by "${names}" · ${formatSchedule(scheduled.schedule)}`;
-  } else {
-    statusEl.textContent = `is locked by "${names}" · permanent`;
-  }
+  statusEl.textContent = scheduled
+    ? `is locked by "${names}" · ${formatSchedule(scheduled.schedule)}`
+    : `is locked by "${names}" · permanent`;
 }
 
 document.getElementById('backBtn').addEventListener('click', () => {

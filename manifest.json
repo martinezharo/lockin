@@ -6,10 +6,11 @@
   "permissions": ["storage", "declarativeNetRequest", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js",
+    "type": "module"
   },
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/pages/popup/popup.html",
     "default_title": "Lock In",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -17,10 +18,10 @@
       "128": "icons/icon128.png"
     }
   },
-  "options_page": "options.html",
+  "options_page": "src/pages/options/options.html",
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "icons/*"],
+      "resources": ["src/pages/blocked/blocked.html", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ],

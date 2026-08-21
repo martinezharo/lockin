@@ -1,3 +1,7 @@
+import { Storage } from '../../shared/storage.js';
+import { isGroupActive } from '../../shared/schedule.js';
+import { isDevMode } from '../../shared/dev-mode.js';
+
 async function init() {
   const [groups, lockMode] = await Promise.all([Storage.getGroups(), Storage.getLockMode()]);
   const now = Date.now();

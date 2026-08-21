@@ -1,16 +1,8 @@
-* { box-sizing: border-box; }
+/* Lock In — popup. Dark theme; colors come from tokens.css. */
 
-body {
-  margin: 0;
-  width: 260px;
-  background: #17181c;
-  color: #f2f1ec;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
+body { width: 260px; }
 
-.wrap {
-  padding: 18px;
-}
+.wrap { padding: 18px; }
 
 .brand {
   display: flex;
@@ -30,8 +22,8 @@ body {
 
 .stat {
   flex: 1;
-  background: #1f2026;
-  border: 1px solid #2c2d34;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 8px;
   text-align: center;
@@ -39,16 +31,16 @@ body {
 
 .stat .num {
   display: block;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 20px;
   font-weight: 600;
-  color: #d9b25c;
+  color: var(--brass);
 }
 
 .stat .label {
   display: block;
   font-size: 10.5px;
-  color: #9a9a94;
+  color: var(--muted);
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -56,38 +48,24 @@ body {
 
 .lock-row {
   font-size: 12.5px;
-  color: #9a9a94;
+  color: var(--muted);
   margin-bottom: 14px;
   text-align: center;
 }
 
-.lock-row.on {
-  color: #d9b25c;
-}
+.lock-row.on { color: var(--brass); }
 
+/* Denser than the shared default — the popup is only 260px wide. */
 .primary {
   width: 100%;
   padding: 10px 12px;
-  border: none;
-  border-radius: 9px;
-  background: #f2f1ec;
-  color: #17181c;
-  font-weight: 600;
   font-size: 13px;
-  cursor: pointer;
-}
-
-.primary:hover {
-  background: #ffffff;
 }
 
 .dev-banner {
-  margin-top: 8px;
+  margin-bottom: 14px;
   padding: 7px 9px;
-  border: 1px solid #9c7a2e;
+  border: 1px solid var(--brass);
   border-radius: 8px;
-  background: #14150f;
-  color: #d9b25c;
   font-size: 11.5px;
-  text-align: center;
 }

@@ -1,0 +1,118 @@
+/* Lock In — design tokens.
+   Two layers on purpose:
+
+   1. The palette (--c-*) is the raw brand: theme-independent hex values that
+      only ever get defined here.
+   2. A theme class maps that palette onto semantic roles (--bg, --ink, --line,
+      button colors...). Pages pick a theme with a class on <html> and then
+      only ever reference the semantic names.
+
+   The dashboard is light, the popup and the blocked page are dark. Before this
+   split each of the three redefined the same variable names with different
+   values — --brass alone meant two different colors — which is why the pages
+   had quietly drifted apart. */
+
+:root {
+  /* ---------- Palette ---------- */
+  --c-ink: #17181c;
+  --c-ink-soft: #2a2b31;
+
+  --c-charcoal: #14150f;
+  --c-charcoal-panel: #1c1d16;
+  --c-charcoal-line: #33342a;
+
+  --c-paper: #ffffff;
+  --c-paper-warm: #fbfaf7;
+  --c-bone: #f2f1ec;
+  --c-bone-bright: #f4f3ee;
+  --c-sand: #eeede8;
+  --c-sand-sunken: #f7f6f1;
+  --c-sand-line: #dedcd2;
+
+  --c-brass: #d9b25c;      /* reads on dark surfaces */
+  --c-brass-deep: #9c7a2e; /* reads on light surfaces */
+  --c-brass-mid: #c79a3e;
+  --c-brass-pale: #e6c47a;
+  --c-brass-dim: #7a6a3e;
+
+  --c-rust: #a8382c;
+  --c-rust-pale: #e08579;
+  --c-rust-line: #e3cdc8;
+  --c-rust-wash: #fbf0ee;
+
+  --c-grey: #6b6d66;
+  --c-grey-warm: #9a9a8e;
+  --c-grey-cool: #9a9a94;
+
+  /* ---------- Type ---------- */
+  --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* ---------- Shape ---------- */
+  --radius-sm: 7px;
+  --radius-md: 9px;
+  --radius-lg: 14px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+}
+
+/* ---------- Light theme (dashboard) ---------- */
+
+.theme-light {
+  --bg: var(--c-sand);
+  --panel: var(--c-paper);
+  --panel-sunken: var(--c-sand-sunken);
+  --field-bg: var(--c-paper-warm);
+
+  --ink: var(--c-ink);
+  --muted: var(--c-grey);
+  --line: var(--c-sand-line);
+
+  --brass: var(--c-brass-deep);
+  --brass-bright: var(--c-brass-mid);
+  --brass-wash: #fbf3e2;
+
+  --rust: var(--c-rust);
+  --rust-line: var(--c-rust-line);
+  --rust-wash: var(--c-rust-wash);
+
+  --btn-primary-bg: var(--c-ink);
+  --btn-primary-fg: var(--c-bone-bright);
+  --btn-primary-bg-hover: var(--c-ink-soft);
+  --btn-ghost-hover-bg: var(--c-bone);
+}
+
+/* ---------- Dark theme (popup, blocked page) ---------- */
+
+.theme-dark {
+  --bg: var(--c-charcoal);
+  --panel: var(--c-charcoal-panel);
+  --panel-sunken: var(--c-charcoal-panel);
+  --field-bg: var(--c-charcoal-panel);
+
+  --ink: var(--c-bone);
+  --muted: var(--c-grey-warm);
+  --line: var(--c-charcoal-line);
+
+  --brass: var(--c-brass);
+  --brass-bright: var(--c-brass-pale);
+  --brass-wash: rgba(217, 178, 92, 0.14);
+
+  --rust: var(--c-rust-pale);
+  --rust-line: var(--c-charcoal-line);
+  --rust-wash: var(--c-charcoal-panel);
+
+  --btn-primary-bg: var(--c-bone);
+  --btn-primary-fg: var(--c-ink);
+  --btn-primary-bg-hover: var(--c-paper);
+  --btn-ghost-hover-bg: var(--c-charcoal-panel);
+}
+
+/* The little LCD strip on group cards is always a dark readout, whatever the
+   surrounding theme is, so its colors sit outside the theme mapping. */
+:root {
+  --lcd-bg: var(--c-charcoal);
+  --lcd-text: var(--c-brass);
+  --lcd-text-dim: var(--c-brass-dim);
+}

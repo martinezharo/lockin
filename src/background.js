@@ -1,42 +1,49 @@
-// Lock In — background service worker
+// Lock In — background service worker.
 // Owns declarativeNetRequest rule state and schedule (block-by-hours)
 // transitions.
 
-importScripts('common.js');
+import { Storage } from './shared/storage.js';
+import { normalizeDomainInput } from './shared/domains.js';
+import { isGroupActive } from './shared/schedule.js';
 
-const ALARM_NAME = 'lockin-expiry-check';
+const ALARM_NAME = 'lockin-schedule-tick';
+const BLOCKED_PAGE = '/src/pages/blocked/blocked.html';
+
+// Schedule windows open and close on their own without any storage change, so
+// a periodic tick is the only thing that catches those transitions (~1 min
+// latency). Re-created on startup too, in case the alarm was ever lost.
+async function ensureAlarm() {
+  // Drop alarms from older versions (this one used to be 'lockin-expiry-check')
+  // so a renamed tick can't leave a stale one firing forever.
+  await chrome.alarms.clearAll();
+  chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+  await ensureAlarm();
   await migrateTemporaryGroups();
   rebuildRules();
 });
 
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
+  await ensureAlarm();
   rebuildRules();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME) {
-    // Schedule windows open and close on their own without any storage
-    // change, so rebuild on every tick to catch those transitions
-    // (~1 min latency).
-    rebuildRules();
-  }
+  if (alarm.name === ALARM_NAME) rebuildRules();
 });
 
 // Any change to groups (from popup/options) triggers a fresh rule build.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.groups) {
-    rebuildRules();
-  }
+  if (area === 'local' && changes.groups) rebuildRules();
 });
 
 // Temporary blocks were removed; any group still stored with that mode
 // becomes a permanent one so it keeps blocking instead of silently
 // falling through.
 async function migrateTemporaryGroups() {
-  const { groups = [] } = await chrome.storage.local.get('groups');
+  const groups = await Storage.getGroups();
   let changed = false;
   for (const g of groups) {
     if (g.mode === 'temporary') {
@@ -45,13 +52,11 @@ async function migrateTemporaryGroups() {
       changed = true;
     }
   }
-  if (changed) {
-    await chrome.storage.local.set({ groups });
-  }
+  if (changed) await Storage.saveGroups(groups);
 }
 
 async function rebuildRules() {
-  const { groups = [] } = await chrome.storage.local.get('groups');
+  const groups = await Storage.getGroups();
   const now = Date.now();
   const activeDomains = new Set();
 
@@ -73,7 +78,7 @@ async function rebuildRules() {
     priority: 1,
     action: {
       type: 'redirect',
-      redirect: { extensionPath: `/blocked.html?domain=${encodeURIComponent(domain)}` }
+      redirect: { extensionPath: `${BLOCKED_PAGE}?domain=${encodeURIComponent(domain)}` }
     },
     condition: {
       urlFilter: `||${domain}^`,

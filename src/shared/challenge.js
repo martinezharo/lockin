@@ -13,7 +13,7 @@ const PRODUCTIVITY_PARAGRAPHS = [
   "to the moon and back bestie, that's how far real focus can take you 🚀🌙 one small locked in session today is basically a rocket launch for tomorrow's you ✨🪐 so let's ditch the distractions, protect that precious attention span, and watch your goals go from someday to done bestie, you're stellar 🌟💫"
 ];
 
-function pickChallengeParagraph() {
+export function pickChallengeParagraph() {
   return PRODUCTIVITY_PARAGRAPHS[Math.floor(Math.random() * PRODUCTIVITY_PARAGRAPHS.length)];
 }
 
@@ -48,7 +48,7 @@ function levenshtein(a, b) {
 
 // Allows a small typo margin (a few characters) so the challenge is
 // friction, not a frustrating exact-match trap.
-function isChallengeMatch(input, target) {
+export function isChallengeMatch(input, target) {
   const a = normalizeForMatch(input);
   const b = normalizeForMatch(target);
   if (!a) return false;

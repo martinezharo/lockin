@@ -1,14 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="theme-dark">
 <head>
   <meta charset="utf-8" />
   <title>Lock In</title>
+  <link rel="stylesheet" href="../../styles/fonts.css" />
+  <link rel="stylesheet" href="../../styles/tokens.css" />
+  <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <div class="wrap">
     <div class="brand">
-      <img src="icons/icon48.png" alt="" width="22" height="22" />
+      <img src="../../../icons/icon48.png" alt="" width="22" height="22" />
       <span>Lock In</span>
     </div>
 
@@ -29,8 +32,9 @@
     <button id="openDash" class="primary">Open dashboard</button>
   </div>
 
-  <script src="env.js"></script>
-  <script src="common.js"></script>
-  <script src="popup.js"></script>
+  <!-- Plain script on purpose: env.js is git-ignored and optional, and a
+       missing module import would take the whole page down with it. -->
+  <script src="../../../env.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
