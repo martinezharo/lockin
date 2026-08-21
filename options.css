@@ -581,3 +581,41 @@ select:focus {
 @media (max-width: 640px) {
   .field-row { flex-direction: column; gap: 0; }
 }
+
+/* ---------- Dev mode banner ---------- */
+
+.dev-banner {
+  background: var(--lcd-bg);
+  color: var(--lcd-text);
+  border-bottom: 1px solid var(--brass);
+  padding: 10px 28px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.dev-banner strong { color: var(--brass-bright); }
+
+.dev-banner code,
+.dev-banner kbd {
+  font-family: var(--font-mono);
+  background: rgba(217, 178, 92, 0.14);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.challenge-dev-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.challenge-dev-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: rgba(23, 24, 28, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}

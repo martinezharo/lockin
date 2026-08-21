@@ -67,6 +67,18 @@ document.getElementById('challengeSubmit').addEventListener('click', () => {
   }
 });
 
+// Dev-mode escape hatch: the modal still shows up exactly as usual, but with
+// DEV_MODE on in env.js this shortcut runs the pending action without typing.
+document.addEventListener('keydown', (e) => {
+  if (!isDevMode()) return;
+  if (modal.classList.contains('hidden')) return;
+  if (!(e.ctrlKey && e.shiftKey && e.key === 'Enter')) return;
+  e.preventDefault();
+  const action = pendingAction;
+  closeChallenge();
+  if (action) action();
+});
+
 document.getElementById('challengeCancel').addEventListener('click', closeChallenge);
 modal.addEventListener('click', (e) => {
   if (e.target === modal) closeChallenge();
@@ -102,6 +114,16 @@ lockSwitch.addEventListener('click', async () => {
     });
   }
 });
+
+/* ---------------- Dev mode banner ---------------- */
+
+// The shortcut is only worth advertising while it actually works, so both the
+// top banner and the in-modal hint follow DEV_MODE.
+function refreshDevBanner() {
+  const on = isDevMode();
+  document.getElementById('devBanner').hidden = !on;
+  document.getElementById('challengeDevHint').hidden = !on;
+}
 
 /* ---------------- New group form ---------------- */
 
@@ -476,4 +498,5 @@ setInterval(() => {
   refreshGroupCountLabel();
 }, 1000);
 
+refreshDevBanner();
 render();

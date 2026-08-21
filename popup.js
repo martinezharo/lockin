@@ -10,6 +10,8 @@ async function init() {
   const lockRow = document.getElementById('lockRow');
   lockRow.textContent = lockMode ? '🔒 Edit lock is on' : '🔓 Edit lock is off';
   lockRow.classList.toggle('on', lockMode);
+
+  document.getElementById('devBanner').hidden = !isDevMode();
 }
 
 document.getElementById('openDash').addEventListener('click', () => {

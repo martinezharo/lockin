@@ -42,6 +42,30 @@ a typing challenge so you can't casually undo a block mid-scroll.
   which group blocked it and, for scheduled blocks, its window. There's
   no quick-unblock button there on purpose — go to the dashboard for that.
 
+## Dev mode
+
+While working on the extension, typing a whole paragraph every time you touch a
+locked action gets old. Dev mode adds a keyboard escape hatch: the challenge
+modal still appears exactly as usual, but **Ctrl+Shift+Enter** runs the pending
+action without typing anything. Blocking itself is untouched — sites still get
+blocked normally.
+
+It is a single hand-edited flag in `env.js` at the repo root:
+
+```js
+globalThis.LOCKIN_ENV = {
+  DEV_MODE: true
+};
+```
+
+Write `true` or `false`, save, and refresh the dashboard (F5) — no rebuild
+step and no extension reload. The file is git-ignored, so the flag never ships
+and never shows up in a diff; on a fresh clone just create it with the snippet
+above. If `env.js` is missing entirely, dev mode is simply off.
+
+While it is on, a banner shows in the dashboard and the popup, and the modal
+itself spells out the shortcut, so it is never a silent state.
+
 ## Notes
 
 - All data stays local in `chrome.storage.local` — nothing leaves your

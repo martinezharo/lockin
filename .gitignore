@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.zip
+
+# Local dev config (see the Dev mode section in README.md)
+env.js

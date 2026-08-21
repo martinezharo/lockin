@@ -12,6 +12,12 @@
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
+  <div id="devBanner" class="dev-banner" hidden>
+    ⚡ <strong>Dev mode is on</strong> — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>
+    to skip any typing challenge. Set <code>DEV_MODE: false</code> in <code>env.js</code>
+    and refresh to lock back in.
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <img src="icons/icon48.png" alt="" width="26" height="26" />
@@ -131,6 +137,9 @@
         spellcheck="false"
       ></textarea>
       <div id="challengeError" class="challenge-error"></div>
+      <p id="challengeDevHint" class="challenge-dev-hint" hidden>
+        ⚡ dev mode: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> to skip
+      </p>
       <div class="modal-actions">
         <button id="challengeCancel" class="ghost" type="button">Cancel</button>
         <button id="challengeSubmit" class="primary" type="button">Unlock this action</button>
@@ -138,6 +147,7 @@
     </div>
   </div>
 
+  <script src="env.js"></script>
   <script src="common.js"></script>
   <script src="challenge.js"></script>
   <script src="options.js"></script>

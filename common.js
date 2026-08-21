@@ -90,3 +90,11 @@ function formatSchedule(schedule) {
       : `${formatMinutes(schedule.start)}\u2013${formatMinutes(schedule.end)}`;
   return `${formatScheduleDays(schedule.days)} \u00b7 ${range}`;
 }
+
+// ---------- Dev mode ----------
+// Read from env.js, a git-ignored local file (see README). It is a function,
+// not a constant, so the load order between env.js and common.js never
+// matters, and a missing env.js just means "off".
+function isDevMode() {
+  return Boolean(globalThis.LOCKIN_ENV && globalThis.LOCKIN_ENV.DEV_MODE === true);
+}

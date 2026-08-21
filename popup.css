@@ -80,3 +80,14 @@ body {
 .primary:hover {
   background: #ffffff;
 }
+
+.dev-banner {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid #9c7a2e;
+  border-radius: 8px;
+  background: #14150f;
+  color: #d9b25c;
+  font-size: 11.5px;
+  text-align: center;
+}
