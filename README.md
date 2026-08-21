@@ -17,11 +17,8 @@ a typing challenge so you can't casually undo a block mid-scroll.
 
 - **Groups**: bundle related sites (e.g. "Social media" → x.com,
   instagram.com, reddit.com) and block/unblock them as a unit.
-- **Permanent vs. temporary vs. scheduled**:
+- **Permanent vs. scheduled**:
   - *Permanent* blocks stay on until you disable them.
-  - *Temporary* blocks pick a duration (15 min up to 7 days) and auto-expire
-    — the group just flips to "not blocking," it isn't deleted, so you can
-    re-enable it later.
   - *Scheduled* blocks pick specific days of the week plus a "from / until"
     time window (e.g. weekdays, 9:00–17:00). The group only blocks its sites
     during that window and automatically opens back up outside it — no need
@@ -42,7 +39,7 @@ a typing challenge so you can't casually undo a block mid-scroll.
   Adding new sites or groups is always free — the friction only applies to
   actions that would let a distraction back in.
 - **Blocked page**: visiting a blocked site redirects to a local page showing
-  which group blocked it and, for temporary blocks, a live countdown. There's
+  which group blocked it and, for scheduled blocks, its window. There's
   no quick-unblock button there on purpose — go to the dashboard for that.
 
 ## Notes

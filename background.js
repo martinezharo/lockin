@@ -1,13 +1,14 @@
 // Lock In — background service worker
-// Owns declarativeNetRequest rule state, temporary-block expiry, and
-// schedule (block-by-hours) transitions.
+// Owns declarativeNetRequest rule state and schedule (block-by-hours)
+// transitions.
 
 importScripts('common.js');
 
 const ALARM_NAME = 'lockin-expiry-check';
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+  await migrateTemporaryGroups();
   rebuildRules();
 });
 
@@ -17,10 +18,9 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
-    checkExpiredGroups();
-    // Temporary expiry above only rebuilds rules when it flips `enabled`.
-    // Schedule windows open/close on their own without any storage change,
-    // so rebuild on every tick to catch those transitions (~1 min latency).
+    // Schedule windows open and close on their own without any storage
+    // change, so rebuild on every tick to catch those transitions
+    // (~1 min latency).
     rebuildRules();
   }
 });
@@ -32,13 +32,16 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-async function checkExpiredGroups() {
+// Temporary blocks were removed; any group still stored with that mode
+// becomes a permanent one so it keeps blocking instead of silently
+// falling through.
+async function migrateTemporaryGroups() {
   const { groups = [] } = await chrome.storage.local.get('groups');
-  const now = Date.now();
   let changed = false;
   for (const g of groups) {
-    if (g.enabled && g.mode === 'temporary' && g.expiresAt && g.expiresAt <= now) {
-      g.enabled = false;
+    if (g.mode === 'temporary') {
+      g.mode = 'permanent';
+      g.expiresAt = null;
       changed = true;
     }
   }
@@ -59,9 +62,6 @@ async function rebuildRules() {
       if (d) activeDomains.add(d);
     }
   }
-
-  const existing = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = existing.map((r) => r.id);
 
   const addRules = Array.from(activeDomains).map((domain, i) => ({
     id: i + 1,

@@ -18,30 +18,14 @@ async function init() {
   }
 
   const names = matches.map((g) => g.name).join(', ');
-  const temp = matches.find((g) => g.mode === 'temporary' && g.expiresAt);
   const scheduled = matches.find((g) => g.mode === 'schedule');
 
-  if (temp) {
-    statusEl.dataset.expires = temp.expiresAt;
-    statusEl.textContent = `is locked by "${names}" · ${formatRemaining(temp.expiresAt - now)}`;
-  } else if (scheduled) {
+  if (scheduled) {
     statusEl.textContent = `is locked by "${names}" · ${formatSchedule(scheduled.schedule)}`;
   } else {
     statusEl.textContent = `is locked by "${names}" · permanent`;
   }
 }
-
-setInterval(() => {
-  const statusEl = document.getElementById('statusLine');
-  const expires = Number(statusEl?.dataset.expires);
-  if (!expires) return;
-  const remaining = expires - Date.now();
-  if (remaining <= 0) {
-    location.reload();
-  } else {
-    statusEl.textContent = statusEl.textContent.replace(/·.*$/, `· ${formatRemaining(remaining)}`);
-  }
-}, 1000);
 
 document.getElementById('backBtn').addEventListener('click', () => {
   if (history.length > 1) history.back();

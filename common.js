@@ -32,22 +32,8 @@ function normalizeDomainInput(raw) {
   return d;
 }
 
-function formatRemaining(ms) {
-  if (ms <= 0) return 'expired';
-  const s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (d > 0) return `${d}d ${h}h remaining`;
-  if (h > 0) return `${h}h ${m}m remaining`;
-  if (m > 0) return `${m}m ${sec}s remaining`;
-  return `${sec}s remaining`;
-}
-
 function isGroupActive(g, now = Date.now()) {
   if (!g.enabled) return false;
-  if (g.mode === 'temporary' && g.expiresAt && g.expiresAt <= now) return false;
   if (g.mode === 'schedule') return isWithinSchedule(g.schedule, new Date(now));
   return true;
 }
@@ -104,15 +90,3 @@ function formatSchedule(schedule) {
       : `${formatMinutes(schedule.start)}\u2013${formatMinutes(schedule.end)}`;
   return `${formatScheduleDays(schedule.days)} \u00b7 ${range}`;
 }
-
-const DURATION_PRESETS = [
-  { label: '15 minutes', ms: 15 * 60 * 1000 },
-  { label: '30 minutes', ms: 30 * 60 * 1000 },
-  { label: '1 hour', ms: 60 * 60 * 1000 },
-  { label: '2 hours', ms: 2 * 60 * 60 * 1000 },
-  { label: '4 hours', ms: 4 * 60 * 60 * 1000 },
-  { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
-  { label: '24 hours', ms: 24 * 60 * 60 * 1000 },
-  { label: '3 days', ms: 3 * 24 * 60 * 60 * 1000 },
-  { label: '7 days', ms: 7 * 24 * 60 * 60 * 1000 }
-];

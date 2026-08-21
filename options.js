@@ -105,17 +105,6 @@ lockSwitch.addEventListener('click', async () => {
 
 /* ---------------- New group form ---------------- */
 
-const durationSelect = document.getElementById('durationSelect');
-const durationField = document.getElementById('durationField');
-
-DURATION_PRESETS.forEach((preset, i) => {
-  const opt = document.createElement('option');
-  opt.value = String(preset.ms);
-  opt.textContent = preset.label;
-  if (i === 2) opt.selected = true; // default: 1 hour
-  durationSelect.appendChild(opt);
-});
-
 const scheduleField = document.getElementById('scheduleField');
 const scheduleStartInput = document.getElementById('scheduleStart');
 const scheduleEndInput = document.getElementById('scheduleEnd');
@@ -145,7 +134,6 @@ function minutesToTimeString(mins) {
 document.querySelectorAll('input[name="mode"]').forEach((radio) => {
   radio.addEventListener('change', () => {
     const mode = document.querySelector('input[name="mode"]:checked').value;
-    durationField.hidden = mode !== 'temporary';
     scheduleField.hidden = mode !== 'schedule';
   });
 });
@@ -188,7 +176,6 @@ document.getElementById('newGroupForm').addEventListener('submit', async (e) => 
     domains,
     enabled: true,
     mode,
-    expiresAt: mode === 'temporary' ? Date.now() + Number(durationSelect.value) : null,
     schedule,
     createdAt: Date.now()
   };
@@ -196,7 +183,6 @@ document.getElementById('newGroupForm').addEventListener('submit', async (e) => 
   await Storage.saveGroups(groups);
 
   e.target.reset();
-  durationField.hidden = true;
   scheduleField.hidden = true;
   document.querySelectorAll('#dayToggle label.checked').forEach((l) => l.classList.remove('checked'));
   render();
@@ -224,14 +210,11 @@ async function disableGroup(id) {
   });
 }
 
-async function enableGroup(id, newDurationMs) {
+async function enableGroup(id) {
   const groups = await Storage.getGroups();
   const g = groups.find((g) => g.id === id);
   if (!g) return;
   g.enabled = true;
-  if (g.mode === 'temporary') {
-    g.expiresAt = Date.now() + newDurationMs;
-  }
   await Storage.saveGroups(groups);
   render();
 }
@@ -289,11 +272,7 @@ function groupCardHtml(g, now) {
     .join('');
 
   let lcdHtml;
-  if (g.mode === 'permanent') {
-    lcdHtml = active
-      ? `<div class="lcd on" data-permanent>&#9679; permanent &middot; blocking</div>`
-      : `<div class="lcd">&#9675; not blocking</div>`;
-  } else if (g.mode === 'schedule') {
+  if (g.mode === 'schedule') {
     const days = (g.schedule && g.schedule.days) || [];
     lcdHtml = `<div class="lcd ${active ? 'on' : ''}" data-sched-lcd data-group="${g.id}"
         data-enabled="${g.enabled}" data-days="${days.join(',')}"
@@ -302,11 +281,9 @@ function groupCardHtml(g, now) {
         &middot; ${escapeHtml(formatSchedule(g.schedule))}
       </div>`;
   } else {
-    if (active && g.expiresAt) {
-      lcdHtml = `<div class="lcd on" data-expires="${g.expiresAt}" data-group="${g.id}">${formatRemaining(g.expiresAt - now)}</div>`;
-    } else {
-      lcdHtml = `<div class="lcd">&#9675; not blocking</div>`;
-    }
+    lcdHtml = active
+      ? `<div class="lcd on" data-permanent>&#9679; permanent &middot; blocking</div>`
+      : `<div class="lcd">&#9675; not blocking</div>`;
   }
 
   let actionsHtml;
@@ -322,15 +299,6 @@ function groupCardHtml(g, now) {
   } else if (active) {
     actionsHtml = `
       <button type="button" class="ghost" data-action="disable" data-group="${g.id}">Disable</button>
-      <button type="button" class="btn-danger" data-action="delete" data-group="${g.id}">Delete</button>
-    `;
-  } else if (g.mode === 'temporary') {
-    const options = DURATION_PRESETS.map(
-      (p, i) => `<option value="${p.ms}" ${i === 2 ? 'selected' : ''}>${p.label}</option>`
-    ).join('');
-    actionsHtml = `
-      <select class="reenable-duration" data-group="${g.id}">${options}</select>
-      <button type="button" class="primary" data-action="enable-temp" data-group="${g.id}">Enable</button>
       <button type="button" class="btn-danger" data-action="delete" data-group="${g.id}">Delete</button>
     `;
   } else {
@@ -432,12 +400,8 @@ groupsListEl.addEventListener('click', (e) => {
 
   if (action === 'delete') deleteGroup(groupId);
   else if (action === 'disable') disableGroup(groupId);
-  else if (action === 'enable') enableGroup(groupId, 0);
-  else if (action === 'enable-temp') {
-    const card = btn.closest('.group-card');
-    const select = card.querySelector('.reenable-duration');
-    enableGroup(groupId, Number(select.value));
-  } else if (action === 'remove-domain') {
+  else if (action === 'enable') enableGroup(groupId);
+  else if (action === 'remove-domain') {
     removeDomain(groupId, btn.dataset.domain);
   } else if (action === 'add-domain') {
     const card = btn.closest('.group-card');
@@ -496,17 +460,6 @@ function refreshGroupCountLabel() {
 
 setInterval(() => {
   const now = Date.now();
-  let anyExpired = false;
-  document.querySelectorAll('.lcd[data-expires]').forEach((el) => {
-    const expiresAt = Number(el.dataset.expires);
-    const remaining = expiresAt - now;
-    if (remaining <= 0) {
-      anyExpired = true;
-    } else {
-      el.textContent = formatRemaining(remaining);
-    }
-  });
-
   document.querySelectorAll('.lcd[data-sched-lcd]').forEach((el) => {
     const enabled = el.dataset.enabled === 'true';
     const days = el.dataset.days ? el.dataset.days.split(',').filter((d) => d !== '').map(Number) : [];
@@ -521,7 +474,6 @@ setInterval(() => {
   });
 
   refreshGroupCountLabel();
-  if (anyExpired) render();
 }, 1000);
 
 render();
