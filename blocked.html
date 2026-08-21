@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Locked — Lock In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="blocked.css" />
+</head>
+<body>
+  <main class="card">
+    <div class="lock-icon">🔒</div>
+    <h1 id="domainName">this site</h1>
+    <p id="statusLine" class="status-line">is locked</p>
+    <p id="flavorText" class="flavor"></p>
+    <div class="actions">
+      <button id="backBtn" class="ghost">Go back</button>
+      <button id="dashBtn" class="ghost">Manage blocks</button>
+    </div>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="challenge.js"></script>
+  <script src="blocked.js"></script>
+</body>
+</html>

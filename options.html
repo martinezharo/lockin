@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lock In — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="" width="26" height="26" />
+      <div>
+        <div class="brand-title">Lock In</div>
+        <div class="brand-sub">site blocker &amp; focus vault</div>
+      </div>
+    </div>
+
+    <button id="lockSwitch" class="lock-switch" type="button" aria-pressed="false">
+      <span class="lock-switch-icon">🔓</span>
+      <span class="lock-switch-text">
+        <span class="lock-switch-label">Edit lock</span>
+        <span class="lock-switch-state" id="lockSwitchState">off</span>
+      </span>
+    </button>
+  </header>
+
+  <p class="lock-explainer">
+    When edit lock is <strong>on</strong>, disabling a block, deleting a group, removing a site,
+    or turning the lock back off all require typing out a short paragraph first — no copy, no
+    paste. Adding new sites or groups is always free.
+  </p>
+
+  <main class="container">
+    <section class="panel new-group-panel">
+      <h2>Create a group</h2>
+      <form id="newGroupForm">
+        <label class="field">
+          <span class="field-label">Group name</span>
+          <input type="text" id="groupName" placeholder="e.g. Social media" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Sites (one per line, or comma separated)</span>
+          <textarea id="groupDomains" rows="3" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
+        </label>
+
+        <div class="field-row">
+          <div class="field">
+            <span class="field-label">Block type</span>
+            <div class="mode-toggle">
+              <label>
+                <input type="radio" name="mode" value="permanent" checked />
+                Permanent
+              </label>
+              <label>
+                <input type="radio" name="mode" value="temporary" />
+                Temporary
+              </label>
+              <label>
+                <input type="radio" name="mode" value="schedule" />
+                Scheduled
+              </label>
+            </div>
+          </div>
+
+          <div class="field" id="durationField" hidden>
+            <span class="field-label">For how long</span>
+            <select id="durationSelect"></select>
+          </div>
+        </div>
+
+        <div class="field schedule-field" id="scheduleField" hidden>
+          <span class="field-label">Which days</span>
+          <div class="day-toggle" id="dayToggle">
+            <label><input type="checkbox" name="day" value="1" /> Mon</label>
+            <label><input type="checkbox" name="day" value="2" /> Tue</label>
+            <label><input type="checkbox" name="day" value="3" /> Wed</label>
+            <label><input type="checkbox" name="day" value="4" /> Thu</label>
+            <label><input type="checkbox" name="day" value="5" /> Fri</label>
+            <label><input type="checkbox" name="day" value="6" /> Sat</label>
+            <label><input type="checkbox" name="day" value="0" /> Sun</label>
+          </div>
+          <div class="field-row schedule-time-row">
+            <label class="field">
+              <span class="field-label">From</span>
+              <input type="time" id="scheduleStart" value="09:00" />
+            </label>
+            <label class="field">
+              <span class="field-label">Until</span>
+              <input type="time" id="scheduleEnd" value="17:00" />
+            </label>
+          </div>
+          <p class="schedule-hint">
+            Blocked only during this window, on the days you pick. Times crossing midnight
+            (e.g. 22:00 &rarr; 06:00) work too.
+          </p>
+        </div>
+
+        <button type="submit" class="primary">Create group &amp; block now</button>
+      </form>
+    </section>
+
+    <section class="groups-section">
+      <div class="groups-header">
+        <h2>Your groups</h2>
+        <span id="groupCountLabel" class="muted"></span>
+      </div>
+      <div id="groupsList" class="groups-grid"></div>
+      <p id="emptyState" class="empty-state" hidden>
+        No groups yet. Create one above to start blocking sites.
+      </p>
+    </section>
+  </main>
+
+  <!-- Challenge modal -->
+  <div id="challengeModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span id="modalEmoji" class="modal-emoji">🔒</span>
+        <h3>prove you mean it bestie</h3>
+      </div>
+      <p class="modal-instructions">
+        type the paragraph below <strong>exactly</strong> to continue. no copy, no paste —
+        gotta actually type it 👀
+      </p>
+      <div id="challengeText" class="challenge-text" tabindex="-1"></div>
+      <textarea
+        id="challengeInput"
+        class="challenge-input"
+        rows="4"
+        placeholder="start typing here..."
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      ></textarea>
+      <div id="challengeError" class="challenge-error"></div>
+      <div class="modal-actions">
+        <button id="challengeCancel" class="ghost" type="button">Cancel</button>
+        <button id="challengeSubmit" class="primary" type="button">Unlock this action</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="challenge.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
