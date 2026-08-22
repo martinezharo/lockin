@@ -1,8 +1,8 @@
 # Lock In — Site Blocker 👹
 
 A Chrome extension (Manifest V3) for **tiny mammal containment**: block distracting
-sites permanently, on a schedule, or after a daily allowance runs out, organize
-them into groups, and lock the settings behind a typing challenge so impulsive
+sites on a schedule or after a daily allowance runs out, organize them into
+groups, and lock the settings behind a typing challenge so impulsive
 future-you cannot casually negotiate the distractions back in.
 
 The serious bit underneath the propaganda is simple: make the useful decision
@@ -32,10 +32,8 @@ minutes.
     open (e.g. 30 minutes). Time is counted only while one of the zone's sites is
     the active tab of the focused window; when the allowance runs out the zone
     shuts until midnight — the open tab included, not just the next visit.
-  - **Neither rule is the strict case, not the loose one**: a zone with no
-    schedule and no allowance is contained around the clock. That is what used to
-    be called *permanent* containment, and groups created by older versions are
-    migrated to it automatically.
+  - At least one rule is required to create a zone. A zone can use either rule
+    on its own or both together; an empty rule set is rejected and never saved.
   - Any zone can also be disarmed entirely. Editing rules is lock-gated because
     later gate hours, a bigger allowance, or a rule switched off can all weaken
     an existing block.

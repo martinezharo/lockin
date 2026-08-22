@@ -10,9 +10,9 @@
 // `start`/`end` are minutes since local midnight. `start > end` means the
 // window crosses midnight (e.g. 22:00 -> 06:00), anchored to the start day.
 //
-// Neither rule set is the strictest state, not the loosest: a group with no
-// rules at all is contained around the clock. That is the old "permanent"
-// mode, expressed as the absence of anything rather than as a mode of its own.
+// Both rules are optional, but a group without either one is invalid and must
+// not be active. The dashboard rejects empty rule sets before saving them;
+// this guard also keeps malformed or legacy data from blocking sites.
 
 import { isAllowanceSpent, formatAllowance } from './usage.js';
 
@@ -60,7 +60,7 @@ export function hasRules(g) {
 // callers with no interest in allowances can keep leaving them out.
 export function isGroupActive(g, now = Date.now(), usage = null, session = null) {
   if (!g.enabled) return false;
-  if (!hasRules(g)) return true;
+  if (!hasRules(g)) return false;
   if (isInWindow(g, now)) return true;
   return isAllowanceSpent(g, usage, session, now);
 }

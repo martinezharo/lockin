@@ -6,13 +6,12 @@ import { pruneUsage } from './usage.js';
 
 /* Groups used to carry a `mode` of 'permanent' | 'schedule' (and, further
    back, 'temporary'). The current code reads independent `schedule` and
-   `limit` rules, but writes a compatibility mode as well. This matters during
-   unpacked development: refreshing the dashboard does not reload the service
-   worker, and the previous worker treats a missing mode as permanent.
+   `limit` rules and keeps a schedule marker for the older service worker.
 
    A limit-only group is serialized as `mode: 'schedule', schedule: null`.
-   Previous workers therefore leave it open, while current workers normalize
-   the mode away and enforce its allowance. */
+   Empty rule sets are invalid in the current UI and also use the schedule
+   marker when legacy data is rewritten, so an older worker does not interpret
+   them as permanent containment. */
 export function normalizeGroup(g) {
   const legacy = 'mode' in g;
   const { mode, expiresAt, ...rest } = g;
@@ -27,7 +26,7 @@ export function serializeGroup(g) {
   const normalized = normalizeGroup(g);
   return {
     ...normalized,
-    mode: normalized.schedule || normalized.limit ? 'schedule' : 'permanent'
+    mode: 'schedule'
   };
 }
 

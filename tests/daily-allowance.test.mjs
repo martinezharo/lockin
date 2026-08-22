@@ -24,6 +24,17 @@ test('a limit-only group starts open in the current worker', () => {
   assert.equal(isGroupActive(group, NOW, {}, null), false);
 });
 
+test('a group without rules is inactive in the current worker', () => {
+  const group = normalizeGroup({
+    id: 'empty-rules',
+    enabled: true,
+    schedule: null,
+    limit: null
+  });
+
+  assert.equal(isGroupActive(group, NOW, {}, null), false);
+});
+
 test('a limit-only group blocks after its allowance is spent', () => {
   const group = normalizeGroup({
     id: 'allowance-only',
@@ -56,15 +67,15 @@ test('a limit-only group does not become permanent under the previous worker', (
   assert.equal(isGroupActive(current, NOW, {}, null), false);
 });
 
-test('compatibility serialization preserves scheduled and permanent behavior', () => {
+test('compatibility serialization keeps empty legacy groups inactive', () => {
   const scheduled = serializeGroup({
     id: 'scheduled',
     enabled: true,
     schedule: { days: [6], start: 9 * 60, end: 17 * 60 },
     limit: null
   });
-  const permanent = serializeGroup({
-    id: 'permanent',
+  const empty = serializeGroup({
+    id: 'empty-rules',
     enabled: true,
     schedule: null,
     limit: null
@@ -72,6 +83,7 @@ test('compatibility serialization preserves scheduled and permanent behavior', (
 
   assert.equal(scheduled.mode, 'schedule');
   assert.equal(previousWorkerIsActive(scheduled), true);
-  assert.equal(permanent.mode, 'permanent');
-  assert.equal(previousWorkerIsActive(permanent), true);
+  assert.equal(empty.mode, 'schedule');
+  assert.equal(previousWorkerIsActive(empty), false);
+  assert.equal(isGroupActive(normalizeGroup(empty), NOW, {}, null), false);
 });

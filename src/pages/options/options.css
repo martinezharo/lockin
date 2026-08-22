@@ -311,8 +311,7 @@ select:focus {
   margin: 0 0 8px;
 }
 
-/* Switching every rule off is a valid choice — and the strictest one — so this
-   says what happens rather than refusing to save. */
+/* Empty rule sets are rejected on submit; this explains what is missing. */
 .no-rules-hint {
   color: var(--rust);
   font-size: 12.5px;

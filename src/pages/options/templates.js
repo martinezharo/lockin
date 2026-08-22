@@ -27,9 +27,8 @@ export function escapeHtml(str) {
    The "create a group" form and the inline "edit rules" editor ask for exactly
    the same thing, so they render from these templates and are read back by
    readRules(). The `data-rule-*` and `data-sched-*` hooks tie the two
-   together. Both rules are optional and independent: a group can be shut on a
-   schedule, capped by a daily allowance, both, or neither — and neither is the
-   strict case, since a group with no rules is contained around the clock. */
+   together. Both rules are optional and independent, but every zone needs at
+   least one of them before it can be created or saved. */
 
 const LIMIT_PRESETS = [15, 30, 60, 120];
 
@@ -111,8 +110,8 @@ export function rulesControlsHtml({ schedule = null, limit = null } = {}) {
       Boolean(limit),
       limitControlsHtml(limit || {})
     )}
-    <p class="no-rules-hint" data-no-rules-hint ${schedule || limit ? 'hidden' : ''}>
-      ⚠ No rules set — this zone stays contained 24/7.
+    <p class="no-rules-hint" data-no-rules-hint hidden role="alert">
+      ⚠ No rules set — add at least one rule before creating this zone.
     </p>
   `;
 }
@@ -152,9 +151,18 @@ function readLimit(root) {
   return { minutes };
 }
 
-// Returns { schedule, limit } — either of which may be null — or null if
-// something the user asked for does not validate.
+// Returns { schedule, limit } — either of which may be null — or null if the
+// selected rules do not validate or no rule is enabled. Empty rule sets are
+// rejected here so every caller gets the same save guard.
 export function readRules(root) {
+  const toggles = Array.from(root.querySelectorAll('[data-rule-toggle]'));
+  if (!toggles.some((cb) => cb.checked)) {
+    root.dataset.noRulesAttempted = 'true';
+    const hint = root.querySelector('[data-no-rules-hint]');
+    if (hint) hint.hidden = false;
+    return null;
+  }
+
   const wants = (key) => root.querySelector(`[data-rule-toggle="${key}"]`).checked;
 
   const schedule = wants('schedule') ? readSchedule(root) : null;
@@ -173,7 +181,7 @@ export function readRules(root) {
 
 export function lcdText(g, now = Date.now(), usage = null, session = null) {
   if (!g.enabled) return hasRules(g) ? `○ containment disarmed · ${formatRules(g)}` : '○ tiny mammal roaming free';
-  if (!hasRules(g)) return '● containment active · permanent';
+  if (!hasRules(g)) return '○ no rules set · zone inactive';
 
   const parts = [];
   const shut = isInWindow(g, now);

@@ -161,7 +161,8 @@ const CARD_ACTIONS = {
     render();
   },
   'save-rules': (id, btn) => {
-    const rules = readRules(btn.closest('.rules-editor'));
+    const editor = btn.closest('.rules-editor');
+    const rules = readRules(editor);
     if (rules) saveRules(id, rules);
   }
 };
@@ -197,7 +198,8 @@ function markPresets(root) {
 function refreshNoRulesHint(root) {
   const hint = root.querySelector('[data-no-rules-hint]');
   if (!hint) return;
-  hint.hidden = Array.from(root.querySelectorAll('[data-rule-toggle]')).some((cb) => cb.checked);
+  hint.hidden = root.dataset.noRulesAttempted !== 'true' ||
+    Array.from(root.querySelectorAll('[data-rule-toggle]')).some((cb) => cb.checked);
 }
 
 document.addEventListener('change', (e) => {
