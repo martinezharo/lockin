@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lock In — Site Blocker",
   "version": "1.1.0",
-  "description": "Block distracting sites permanently or on a timer, organize them into groups, and lock your settings behind a typing challenge so you can't talk yourself out of focus.",
+  "description": "Tiny mammal containment for distracting sites: permanent and scheduled blocks, groups, and a typing challenge before you can escape your own focus rules.",
   "permissions": ["storage", "declarativeNetRequest", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
