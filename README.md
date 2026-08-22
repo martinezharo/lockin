@@ -1,8 +1,13 @@
-# Lock In — Site Blocker
+# Lock In — Site Blocker 👹
 
-A Chrome extension (Manifest V3) that blocks distracting sites permanently or
-on a timer, organizes them into groups, and can lock its own settings behind
-a typing challenge so you can't casually undo a block mid-scroll.
+A Chrome extension (Manifest V3) for **tiny mammal containment**: block distracting
+sites permanently or on a schedule, organize them into groups, and lock the
+settings behind a typing challenge so impulsive future-you cannot casually
+negotiate the distractions back in.
+
+The serious bit underneath the propaganda is simple: make the useful decision
+once, then add enough friction that you do not have to remake it every seven
+minutes.
 
 ## Install (unpacked, developer mode)
 
@@ -11,36 +16,56 @@ a typing challenge so you can't casually undo a block mid-scroll.
 2. Open `chrome://extensions` in Chrome.
 3. Turn on **Developer mode** (top right).
 4. Click **Load unpacked** and select the `lockin-extension` folder.
-5. Pin the extension (puzzle-piece icon → pin) for quick access.
+5. Pin the extension (puzzle-piece icon → pin) for quick access to containment HQ.
 
 ## How it works
 
-- **Groups**: bundle related sites (e.g. "Social media" → x.com,
-  instagram.com, reddit.com) and block/unblock them as a unit.
+- **Containment zones (groups)**: bundle related sites (e.g. "Scroll pit" →
+  x.com, instagram.com, reddit.com) and arm/disarm them as a unit.
 - **Permanent vs. scheduled**:
-  - *Permanent* blocks stay on until you disable them.
-  - *Scheduled* blocks pick specific days of the week plus a "from / until"
-    time window (e.g. weekdays, 9:00–17:00). The group only blocks its sites
-    during that window and automatically opens back up outside it — no need
-    to remember to turn it off. Windows that cross midnight (e.g. 22:00 →
-    06:00) work too. You can still turn a scheduled group off entirely
-    ("Disable") if you don't want it to block at all, even during its
-    window, and "Edit hours" lets you change the days/times later (typing
-    challenge required if edit lock is on, since it can be used to loosen
-    an existing block).
-- **Edit lock**: the toggle at the top of the dashboard. When it's **on**,
-  these actions require typing out a randomly-picked paragraph first (no
-  copy, no paste — you have to actually type it):
-  - Disabling an active block
-  - Deleting a group
-  - Removing a single site from a group
+  - *Permanent* containment stays active until you disarm it.
+  - *Scheduled* containment picks specific days of the week plus a "gates close /
+    gates reopen" window (e.g. weekdays, 9:00–17:00). The group only blocks its
+    sites during that window and automatically opens back up outside it. Windows
+    that cross midnight (e.g. 22:00 → 06:00) work too.
+  - A scheduled group can still be disarmed entirely if you do not want it to
+    block during its window. Editing the hours is lock-gated because changing a
+    schedule can weaken an existing block.
+- **Edit lock**: when it is **on**, anything that opens an escape route requires
+  typing a randomly picked propaganda paragraph by hand first. No copy, no
+  paste. The protected actions are:
+  - Disarming an active block
+  - Deleting a containment zone
+  - Releasing a single site from a zone
+  - Changing schedule hours
   - Turning edit lock back **off**
 
-  Adding new sites or groups is always free — the friction only applies to
-  actions that would let a distraction back in.
-- **Blocked page**: visiting a blocked site redirects to a local page showing
-  which group blocked it and, for scheduled blocks, its window. There's
-  no quick-unblock button there on purpose — go to the dashboard for that.
+  Adding new sites or zones is always free. Tiny mammal bureaucracy only appears
+  when the requested action can make distractions easier to reach.
+- **Blocked page**: visiting a blocked site redirects to a local containment page
+  that shows which zone caught the domain and, for scheduled blocks, the active
+  window. It also serves a random short piece of tiny-mammal propaganda. There is
+  intentionally no quick-unblock button there; appeals go through the dashboard.
+- **Popup**: shows how many zones and domains are currently active, whether edit
+  lock is sealed, and a shortcut to containment HQ.
+
+## Voice / tiny mammal doctrine
+
+The UI deliberately speaks like an overfunded containment agency responsible for
+one distractible tiny mammal. The recurring vocabulary is consistent across the
+extension:
+
+- sites are **forbidden tunnels**
+- groups are **containment zones**
+- blocking is **containment**
+- disabling a block is **disarming** it
+- scheduled start/end times are when the **gates close/reopen**
+- the dashboard is **containment HQ**
+- locked changes are **appeals / paperwork**
+- productive work remains, regrettably, **the mines** 👹⛏️
+
+No personal names or user-specific references are baked into the copy. The joke
+works for any tiny mammal reckless enough to install it.
 
 ## Layout
 
@@ -55,7 +80,7 @@ src/
     storage.js         the only place chrome.storage keys are named
     domains.js         hostname parsing and matching
     schedule.js        block-by-hours logic, day list, time formatting
-    challenge.js       the paragraphs and the fuzzy match
+    challenge.js       unlock paragraphs, blocked slogans and fuzzy matching
     dev-mode.js        reads the env.js flag
   styles/
     fonts.css          @font-face for the bundled fonts
@@ -66,8 +91,8 @@ src/
 ```
 
 Pages are ES modules (`<script type="module">`), and so is the service worker,
-so every dependency is an explicit `import` rather than an implicit
-script-tag ordering. Each page picks its palette with `class="theme-light"` or
+so every dependency is an explicit `import` rather than an implicit script-tag
+ordering. Each page picks its palette with `class="theme-light"` or
 `class="theme-dark"` on `<html>`; nothing outside `styles/` defines a color
 variable.
 
@@ -81,11 +106,11 @@ files that Google's `css2` endpoint points at and regenerate
 
 ## Dev mode
 
-While working on the extension, typing a whole paragraph every time you touch a
-locked action gets old. Dev mode adds a keyboard escape hatch: the challenge
-modal still appears exactly as usual, but **Ctrl+Shift+Enter** runs the pending
-action without typing anything. Blocking itself is untouched — sites still get
-blocked normally.
+While working on the extension, typing an entire propaganda paragraph every time
+you touch a locked action gets old. Dev mode gives the developer tiny mammal a
+forbidden administrative override: the challenge modal still appears exactly as
+usual, but **Ctrl+Shift+Enter** runs the pending action without typing anything.
+Blocking itself is untouched; sites still get contained normally.
 
 It is a single hand-edited flag in `env.js` at the repo root (it stays at the
 root, outside `src/`, and is loaded as a plain script rather than a module so
@@ -97,19 +122,20 @@ globalThis.LOCKIN_ENV = {
 };
 ```
 
-Write `true` or `false`, save, and refresh the dashboard (F5) — no rebuild
-step and no extension reload. The file is git-ignored, so the flag never ships
-and never shows up in a diff; on a fresh clone just create it with the snippet
+Write `true` or `false`, save, and refresh the dashboard (F5) — no rebuild step
+and no extension reload. The file is git-ignored, so the flag never ships and
+never shows up in a diff; on a fresh clone just create it with the snippet
 above. If `env.js` is missing entirely, dev mode is simply off.
 
-While it is on, a banner shows in the dashboard and the popup, and the modal
-itself spells out the shortcut, so it is never a silent state.
+While it is on, a banner shows in the dashboard and popup, and the modal itself
+spells out the shortcut, so the elevated mammal privileges are never silent.
 
 ## Notes
 
-- All data stays local in `chrome.storage.local` — nothing leaves your
-  machine.
+- All data stays local in `chrome.storage.local` — nothing leaves your machine.
 - The extension requests access to all sites because it needs to be able to
-  redirect *any* domain you choose to block; it doesn't read page content.
+  redirect *any* domain you choose to block; it does not read page content.
+- The propaganda is presentation only. Blocking, schedules, storage and domain
+  matching remain ordinary deterministic extension logic.
 - To change the icon, swap the PNGs in `icons/` — the three sizes the manifest
   references are `icon16.png`, `icon48.png` and `icon128.png`.

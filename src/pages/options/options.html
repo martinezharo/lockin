@@ -2,7 +2,7 @@
 <html lang="en" class="theme-light">
 <head>
   <meta charset="utf-8" />
-  <title>Lock In — Dashboard</title>
+  <title>Lock In — Tiny Mammal Containment</title>
   <link rel="stylesheet" href="../../styles/fonts.css" />
   <link rel="stylesheet" href="../../styles/tokens.css" />
   <link rel="stylesheet" href="../../styles/base.css" />
@@ -10,9 +10,9 @@
 </head>
 <body>
   <div id="devBanner" class="dev-banner" hidden>
-    ⚡ <strong>Dev mode is on</strong> — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>
-    to skip any typing challenge. Set <code>DEV_MODE: false</code> in <code>env.js</code>
-    and refresh to lock back in.
+    ⚡ <strong>Dev mode is on</strong> — tiny mammal has forbidden admin powers.
+    Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> to bypass any typing challenge.
+    Set <code>DEV_MODE: false</code> in <code>env.js</code> and refresh to restore containment.
   </div>
 
   <header class="topbar">
@@ -20,7 +20,7 @@
       <img src="../../../icons/icon48.png" alt="" width="26" height="26" />
       <div>
         <div class="brand-title">Lock In</div>
-        <div class="brand-sub">site blocker &amp; focus vault</div>
+        <div class="brand-sub">tiny mammal containment system</div>
       </div>
     </div>
 
@@ -34,28 +34,28 @@
   </header>
 
   <p class="lock-explainer">
-    When edit lock is <strong>on</strong>, disabling a block, deleting a group, removing a site,
-    or turning the lock back off all require typing out a short paragraph first — no copy, no
-    paste. Adding new sites or groups is always free.
+    Turn on <strong>Edit lock</strong> and future tiny mammal must type a propaganda paragraph
+    before weakening containment. Adding new sites and groups stays free; opening escape routes
+    requires paperwork. 👹📑
   </p>
 
   <main class="container">
     <section class="panel new-group-panel">
-      <h2>Create a group</h2>
+      <h2>Build a containment zone</h2>
       <form id="newGroupForm">
         <label class="field">
-          <span class="field-label">Group name</span>
-          <input type="text" id="groupName" placeholder="e.g. Social media" required />
+          <span class="field-label">Zone name</span>
+          <input type="text" id="groupName" placeholder="e.g. Scroll pit" required />
         </label>
 
         <label class="field">
-          <span class="field-label">Sites (one per line, or comma separated)</span>
+          <span class="field-label">Forbidden tunnels (one per line, or comma separated)</span>
           <textarea id="groupDomains" rows="3" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
         </label>
 
         <div class="field-row">
           <div class="field">
-            <span class="field-label">Block type</span>
+            <span class="field-label">Containment type</span>
             <div class="mode-toggle">
               <label>
                 <input type="radio" name="mode" value="permanent" checked />
@@ -70,28 +70,29 @@
         </div>
 
         <div class="field schedule-field" id="scheduleField" hidden>
-          <span class="field-label">Which days</span>
+          <span class="field-label">Containment days</span>
           <!-- Day pills and the from/until pair are rendered from the same
                template the inline "edit hours" editor uses. -->
           <div id="scheduleControls"></div>
           <p class="schedule-hint">
-            Blocked only during this window, on the days you pick. Times crossing midnight
-            (e.g. 22:00 &rarr; 06:00) work too.
+            The gates stay shut only during this window. Overnight containment
+            (e.g. 22:00 &rarr; 06:00) works too.
           </p>
         </div>
 
-        <button type="submit" class="primary">Create group &amp; block now</button>
+        <button type="submit" class="primary">Lock it down 👹</button>
       </form>
     </section>
 
     <section class="groups-section">
       <div class="groups-header">
-        <h2>Your groups</h2>
+        <h2>Containment zones</h2>
         <span id="groupCountLabel" class="muted"></span>
       </div>
       <div id="groupsList" class="groups-grid"></div>
       <p id="emptyState" class="empty-state" hidden>
-        No groups yet. Create one above to start blocking sites.
+        Nothing is contained yet. Tiny mammal currently has unrestricted internet access.
+        This seems dangerous. 👁️👄👁️
       </p>
     </section>
   </main>
@@ -100,30 +101,30 @@
   <div id="challengeModal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <span id="modalEmoji" class="modal-emoji">🔒</span>
-        <h3>prove you mean it bestie</h3>
+        <span id="modalEmoji" class="modal-emoji">👹</span>
+        <h3>prove you mean it, tiny mammal</h3>
       </div>
       <p class="modal-instructions">
-        type the paragraph below <strong>exactly</strong> to continue. no copy, no paste —
-        gotta actually type it 👀
+        Type the propaganda below <strong>by hand</strong> to continue. No copy, no paste.
+        If you really want to weaken containment, earn the paperwork. 👀
       </p>
       <div id="challengeText" class="challenge-text" tabindex="-1"></div>
       <textarea
         id="challengeInput"
         class="challenge-input"
         rows="4"
-        placeholder="start typing here..."
+        placeholder="begin your appeal..."
         autocomplete="off"
         autocorrect="off"
         spellcheck="false"
       ></textarea>
       <div id="challengeError" class="challenge-error"></div>
       <p id="challengeDevHint" class="challenge-dev-hint" hidden>
-        ⚡ dev mode: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> to skip
+        ⚡ dev mammal override: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>
       </p>
       <div class="modal-actions">
-        <button id="challengeCancel" class="ghost" type="button">Cancel</button>
-        <button id="challengeSubmit" class="primary" type="button">Unlock this action</button>
+        <button id="challengeCancel" class="ghost" type="button">Return to the mines</button>
+        <button id="challengeSubmit" class="primary" type="button">Approve terrible decision</button>
       </div>
     </div>
   </div>

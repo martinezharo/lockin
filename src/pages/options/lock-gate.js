@@ -1,13 +1,21 @@
 // Lock In — the friction in front of anything that would let a distraction
 // back in. When edit lock is off these actions run straight away; when it is
 // on, the caller's action is held until a randomly-picked paragraph has been
-// typed out by hand.
+// typed out by hand. Tiny mammal bureaucracy, but useful.
 
 import { Storage } from '../../shared/storage.js';
 import { pickChallengeParagraph, isChallengeMatch } from '../../shared/challenge.js';
 import { isDevMode } from '../../shared/dev-mode.js';
 
-const MODAL_EMOJIS = ['🔒', '💅', '✨', '🧠', '🔥', '🌟', '🚀', '💖', '🕹️', '📚'];
+const MODAL_EMOJIS = ['👹', '🐭', '🔒', '⛏️', '🧠', '🚧', '📑', '🐾', '🛑', '👁️'];
+const REJECTION_MESSAGES = [
+  'appeal rejected 👹 the propaganda does not match. tiny mammal must type it again.',
+  'containment remains active 🔒 there are suspicious differences in the paperwork.',
+  'nice try, tiny mammal 🐭 the Department of Focus requests the paragraph as shown.',
+  'bureaucratic catastrophe 📑 the text does not match closely enough. try again.',
+  'the gatekeeper goblin squints at the form 👹 incorrect. please resubmit your appeal.',
+  'forbidden tunnel access denied 🚧 tiny mammal has made too many creative edits.'
+];
 
 const modal = document.getElementById('challengeModal');
 const modalEmoji = document.getElementById('modalEmoji');
@@ -43,7 +51,7 @@ function runPending() {
 }
 
 function reject() {
-  errorEl.textContent = 'not quite bestie, type it exactly as shown 🥲 try again';
+  errorEl.textContent = REJECTION_MESSAGES[Math.floor(Math.random() * REJECTION_MESSAGES.length)];
   modal.classList.add('shake');
   setTimeout(() => modal.classList.remove('shake'), 400);
 }

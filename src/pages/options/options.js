@@ -76,7 +76,7 @@ function addDomain(id, rawDomain) {
 async function refreshLockSwitch() {
   const lockMode = await Storage.getLockMode();
   lockSwitch.setAttribute('aria-pressed', String(lockMode));
-  lockSwitchState.textContent = lockMode ? 'on' : 'off';
+  lockSwitchState.textContent = lockMode ? 'sealed' : 'open';
   lockSwitchIcon.textContent = lockMode ? '🔒' : '🔓';
 }
 
@@ -130,7 +130,7 @@ async function render() {
   groups.sort((a, b) => b.createdAt - a.createdAt);
 
   groupCountLabelEl.textContent = groups.length
-    ? `${groups.filter((g) => isGroupActive(g, now)).length} of ${groups.length} active`
+    ? `${groups.filter((g) => isGroupActive(g, now)).length} of ${groups.length} zones active`
     : '';
 
   emptyStateEl.hidden = groups.length > 0;
@@ -213,7 +213,7 @@ setInterval(() => {
   const cards = document.querySelectorAll('.group-card');
   if (cards.length) {
     const active = document.querySelectorAll('.group-card.active').length;
-    groupCountLabelEl.textContent = `${active} of ${cards.length} active`;
+    groupCountLabelEl.textContent = `${active} of ${cards.length} zones active`;
   }
 }, 1000);
 

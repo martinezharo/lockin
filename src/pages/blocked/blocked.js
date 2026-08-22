@@ -1,14 +1,14 @@
 import { Storage } from '../../shared/storage.js';
 import { domainMatches } from '../../shared/domains.js';
 import { isGroupActive, formatSchedule } from '../../shared/schedule.js';
-import { pickChallengeParagraph } from '../../shared/challenge.js';
+import { pickBlockedMessage } from '../../shared/challenge.js';
 
 async function init() {
   const params = new URLSearchParams(location.search);
   const domain = params.get('domain') || '';
 
-  document.getElementById('domainName').textContent = domain || 'this site';
-  document.getElementById('flavorText').textContent = pickChallengeParagraph();
+  document.getElementById('domainName').textContent = domain || 'this forbidden tunnel';
+  document.getElementById('flavorText').textContent = pickBlockedMessage();
 
   const groups = await Storage.getGroups();
   const now = Date.now();
@@ -18,7 +18,7 @@ async function init() {
 
   const statusEl = document.getElementById('statusLine');
   if (matches.length === 0) {
-    statusEl.textContent = 'is locked.';
+    statusEl.textContent = 'is inside the tiny mammal containment perimeter.';
     return;
   }
 
@@ -26,8 +26,8 @@ async function init() {
   const scheduled = matches.find((g) => g.mode === 'schedule');
 
   statusEl.textContent = scheduled
-    ? `is locked by "${names}" · ${formatSchedule(scheduled.schedule)}`
-    : `is locked by "${names}" · permanent`;
+    ? `contained by “${names}” · ${formatSchedule(scheduled.schedule)}`
+    : `contained by “${names}” · no release timer`;
 }
 
 document.getElementById('backBtn').addEventListener('click', () => {

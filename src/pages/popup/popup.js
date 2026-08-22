@@ -12,7 +12,9 @@ async function init() {
   document.getElementById('statDomains').textContent = domainCount;
 
   const lockRow = document.getElementById('lockRow');
-  lockRow.textContent = lockMode ? '🔒 Edit lock is on' : '🔓 Edit lock is off';
+  lockRow.textContent = lockMode
+    ? '🔒 tiny mammal containment locked'
+    : '🔓 tiny mammal has administrative privileges';
   lockRow.classList.toggle('on', lockMode);
 
   document.getElementById('devBanner').hidden = !isDevMode();

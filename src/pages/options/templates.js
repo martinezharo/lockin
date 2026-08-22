@@ -32,11 +32,11 @@ export function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 
     <div class="day-toggle">${pills}</div>
     <div class="field-row schedule-time-row">
       <label class="field">
-        <span class="field-label">From</span>
+        <span class="field-label">Gates close</span>
         <input type="time" data-sched-start value="${minutesToTimeValue(start)}" />
       </label>
       <label class="field">
-        <span class="field-label">Until</span>
+        <span class="field-label">Gates reopen</span>
         <input type="time" data-sched-end value="${minutesToTimeValue(end)}" />
       </label>
     </div>
@@ -51,7 +51,7 @@ export function readSchedule(root) {
   const days = Array.from(root.querySelectorAll('[data-sched-day]:checked')).map((cb) => Number(cb.value));
 
   if (days.length === 0) {
-    errorEl.textContent = 'Pick at least one day for the schedule.';
+    errorEl.textContent = 'Pick at least one containment day, tiny mammal. 🐭';
     errorEl.hidden = false;
     return null;
   }
@@ -71,9 +71,13 @@ export function readSchedule(root) {
 export function lcdText(group, now = Date.now()) {
   const active = isGroupActive(group, now);
   if (group.mode !== 'schedule') {
-    return active ? '● permanent · blocking' : '○ not blocking';
+    return active ? '● containment active · permanent' : '○ tiny mammal roaming free';
   }
-  const state = !group.enabled ? '○ armed off' : active ? '● blocking now' : '○ waiting';
+  const state = !group.enabled
+    ? '○ containment disarmed'
+    : active
+      ? '● tiny mammal contained'
+      : '○ gates waiting';
   return `${state} · ${formatSchedule(group.schedule)}`;
 }
 
@@ -97,14 +101,14 @@ function actionsHtml(g, active) {
   // Scheduled groups keep their arm/disarm toggle regardless of whether the
   // window happens to be open right now; permanent ones follow their state.
   const armed = g.mode === 'schedule' ? g.enabled : active;
-  const toggle = armed ? btn('ghost', 'disable', 'Disable') : btn('primary', 'enable', 'Enable');
-  const editHours = g.mode === 'schedule' ? btn('ghost', 'edit-schedule', 'Edit hours') : '';
+  const toggle = armed ? btn('ghost', 'disable', 'Disarm') : btn('primary', 'enable', 'Arm containment');
+  const editHours = g.mode === 'schedule' ? btn('ghost', 'edit-schedule', 'Edit gate hours') : '';
 
-  return `${toggle}${editHours}${btn('btn-danger', 'delete', 'Delete')}`;
+  return `${toggle}${editHours}${btn('btn-danger', 'delete', 'Delete zone')}`;
 }
 
 function chipsHtml(g) {
-  if (g.domains.length === 0) return '<span class="muted">no sites</span>';
+  if (g.domains.length === 0) return '<span class="muted">no forbidden tunnels</span>';
   return g.domains
     .map((d) => {
       const safe = escapeHtml(d);
@@ -112,7 +116,7 @@ function chipsHtml(g) {
       <span class="chip">
         ${safe}
         <button type="button" data-action="remove-domain" data-group="${g.id}" data-domain="${safe}"
-          title="Remove site" aria-label="Remove ${safe}">&times;</button>
+          title="Release site" aria-label="Release ${safe} from containment">&times;</button>
       </span>`;
     })
     .join('');
@@ -123,7 +127,7 @@ function scheduleEditorHtml(g) {
     <div class="schedule-editor" data-schedule-editor="${g.id}">
       ${scheduleControlsHtml(g.schedule || {})}
       <div class="schedule-actions">
-        <button type="button" class="primary" data-action="save-schedule" data-group="${g.id}">Save</button>
+        <button type="button" class="primary" data-action="save-schedule" data-group="${g.id}">Save gate hours</button>
         <button type="button" class="ghost" data-action="cancel-edit-schedule" data-group="${g.id}">Cancel</button>
       </div>
     </div>
@@ -138,14 +142,14 @@ export function groupCardHtml(g, now, editingScheduleIds) {
     <div class="group-card ${active ? 'active' : ''}" data-group-card="${g.id}">
       <div class="group-card-head">
         <span class="group-name">${escapeHtml(g.name)}</span>
-        <span class="group-count">${g.domains.length} site${g.domains.length === 1 ? '' : 's'}</span>
+        <span class="group-count">${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}</span>
       </div>
       ${lcdHtml(g, now)}
       ${editor}
       <div class="domain-chips">${chipsHtml(g)}</div>
       <div class="add-domain-row">
-        <input type="text" placeholder="add a site..." data-add-domain-input="${g.id}" />
-        <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add</button>
+        <input type="text" placeholder="add a forbidden tunnel..." data-add-domain-input="${g.id}" />
+        <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add to zone</button>
       </div>
       <div class="group-actions">${actionsHtml(g, active)}</div>
     </div>
