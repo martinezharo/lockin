@@ -53,12 +53,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
 initTracker(rebuildRules);
 
 // Reading a group already migrates it in memory (see storage.js); this writes
-// that shape back once, so the retired `mode`/`expiresAt` fields stop being
-// carried around by groups created before rules became independent.
+// that shape back once so the retired `mode` field stops being carried around.
+// A legacy temporary group's `expiresAt` is deliberately preserved.
 async function migrateGroups() {
   const { groups: stored = [] } = await chrome.storage.local.get('groups');
   const groups = await Storage.getGroups();
-  if (stored.some((g) => 'mode' in g || 'expiresAt' in g)) await Storage.saveGroups(groups);
+  if (stored.some((g) => 'mode' in g)) await Storage.saveGroups(groups);
 }
 
 async function rebuildRules() {

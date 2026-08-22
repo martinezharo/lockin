@@ -6,6 +6,8 @@ import {
   DAYS,
   isGroupActive,
   isInWindow,
+  isTemporaryActive,
+  hasTemporaryExpiry,
   hasRules,
   formatSchedule,
   formatRules,
@@ -176,15 +178,19 @@ export function lcdText(g, now = Date.now(), usage = null, session = null) {
   if (!hasRules(g)) return '● containment active · permanent';
 
   const parts = [];
+  const temporary = isTemporaryActive(g, now);
   const shut = isInWindow(g, now);
-  const spent = !shut && isGroupActive(g, now, usage, session);
+  const spent = !temporary && !shut && Boolean(g.limit) && isGroupActive(g, now, usage, session);
 
-  if (shut) parts.push('● tiny mammal contained');
+  if (temporary) parts.push('● temporary containment');
+  else if (shut) parts.push('● tiny mammal contained');
   else if (spent) parts.push('● allowance spent · resets at midnight');
   // "Waiting" is about a schedule that will shut on its own; a zone held open
   // only by its allowance has no gate hour to wait for.
   else parts.push(g.schedule ? '○ gates waiting' : '○ gates open');
 
+  if (temporary) parts.push(`${formatDuration(g.expiresAt - now)} left`);
+  else if (hasTemporaryExpiry(g) && !g.schedule && !g.limit) parts.push('timer expired');
   if (g.schedule) parts.push(formatSchedule(g.schedule));
   // While the allowance is what's doing the blocking the state line already
   // says so; a "0m left" next to it would just be the same news twice.
