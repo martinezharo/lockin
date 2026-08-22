@@ -34,9 +34,8 @@ minutes.
     shuts until midnight — the open tab included, not just the next visit.
   - **Neither rule is the strict case, not the loose one**: a zone with no
     schedule and no allowance is contained around the clock. That is what used to
-    be called *permanent* containment. Groups created by older versions are
-    migrated automatically; legacy temporary blocks keep their original expiry
-    instead of becoming permanent.
+    be called *permanent* containment, and groups created by older versions are
+    migrated to it automatically.
   - Any zone can also be disarmed entirely. Editing rules is lock-gated because
     later gate hours, a bigger allowance, or a rule switched off can all weaken
     an existing block.

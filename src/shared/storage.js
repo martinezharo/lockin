@@ -4,15 +4,15 @@
 
 import { pruneUsage } from './usage.js';
 
-/* Groups used to carry a `mode` of 'permanent' | 'schedule' | 'temporary'.
-   They now carry optional rules instead and no mode. `expiresAt` remains as a
-   compatibility rule so an old temporary block still opens at its original
-   deadline; dropping it would leave the group with no rules, which means
-   permanent containment. The service worker writes the normalized shape back
-   once on install so the old `mode` field does not linger forever. */
+/* Groups used to carry a `mode` of 'permanent' | 'schedule' (and, further
+   back, 'temporary'). They now carry two optional rules instead, and no mode:
+   no schedule and no limit *is* the permanent case. Every read normalizes, so
+   a stored group written by an older version is understood the same way it
+   always was; the service worker writes the normalized shape back once on
+   install so the old field does not linger forever. */
 export function normalizeGroup(g) {
   const legacy = 'mode' in g;
-  const { mode, ...rest } = g;
+  const { mode, expiresAt, ...rest } = g;
   return {
     ...rest,
     schedule: (legacy ? mode === 'schedule' && g.schedule : g.schedule) || null,

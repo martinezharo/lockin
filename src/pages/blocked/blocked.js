@@ -1,7 +1,7 @@
 import { Storage } from '../../shared/storage.js';
 import { domainMatches } from '../../shared/domains.js';
-import { isGroupActive, isInWindow, isTemporaryActive, formatSchedule } from '../../shared/schedule.js';
-import { isAllowanceSpent, formatDuration } from '../../shared/usage.js';
+import { isGroupActive, isInWindow, formatSchedule } from '../../shared/schedule.js';
+import { isAllowanceSpent } from '../../shared/usage.js';
 import { pickBlockedMessage } from '../../shared/challenge.js';
 
 async function init() {
@@ -30,15 +30,12 @@ async function init() {
   const names = matches.map((g) => g.name).join(', ');
 
   // Whichever rule actually shut the gates is the one worth naming: a schedule
-  // says when they reopen, a temporary block shows its remaining time, and a
-  // spent allowance says come back tomorrow.
-  const temporary = matches.find((g) => isTemporaryActive(g, now));
+  // says when they reopen, a spent allowance says come back tomorrow.
   const scheduled = matches.find((g) => isInWindow(g, now));
   const spent = matches.find((g) => isAllowanceSpent(g, usage, session, now));
 
   let reason = 'no release timer';
-  if (temporary) reason = `temporary block · ${formatDuration(temporary.expiresAt - now)} left`;
-  else if (scheduled) reason = formatSchedule(scheduled.schedule);
+  if (scheduled) reason = formatSchedule(scheduled.schedule);
   else if (spent) reason = 'daily allowance spent · resets at midnight';
 
   statusEl.textContent = `contained by “${names}” · ${reason}`;

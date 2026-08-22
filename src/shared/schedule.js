@@ -1,13 +1,10 @@
 // Lock In — containment rules and whether a group is blocking right now.
 //
-// A group carries independent, optional rules:
+// A group carries two independent, optional rules:
 //
 //   schedule  { days: [1,2,3,4,5], start: 540, end: 1020 }  -- when it is shut
 //   limit     { minutes: 30 }                               -- how long it may
 //                                                              be used while open
-//   expiresAt  1720000000000                                -- compatibility
-//                                                              for old temporary
-//                                                              blocks
 //
 // `days` uses JS getDay() numbering (0 = Sunday .. 6 = Saturday).
 // `start`/`end` are minutes since local midnight. `start > end` means the
@@ -55,16 +52,8 @@ export function isInWindow(g, now = Date.now()) {
   return Boolean(g.schedule) && isWithinSchedule(g.schedule, new Date(now));
 }
 
-export function hasTemporaryExpiry(g) {
-  return Number.isFinite(g.expiresAt);
-}
-
-export function isTemporaryActive(g, now = Date.now()) {
-  return hasTemporaryExpiry(g) && g.expiresAt > now;
-}
-
 export function hasRules(g) {
-  return Boolean(g.schedule || g.limit || hasTemporaryExpiry(g));
+  return Boolean(g.schedule || g.limit);
 }
 
 // `usage` and `session` are only consulted for groups that carry a limit, so
@@ -72,7 +61,6 @@ export function hasRules(g) {
 export function isGroupActive(g, now = Date.now(), usage = null, session = null) {
   if (!g.enabled) return false;
   if (!hasRules(g)) return true;
-  if (isTemporaryActive(g, now)) return true;
   if (isInWindow(g, now)) return true;
   return isAllowanceSpent(g, usage, session, now);
 }
@@ -125,7 +113,6 @@ export function formatSchedule(schedule) {
 // The whole rule set in one line: "weekdays · 9:00 AM–5:00 PM · 30m/day".
 export function formatRules(g) {
   const parts = [];
-  if (hasTemporaryExpiry(g)) parts.push('temporary timer');
   if (g.schedule) parts.push(formatSchedule(g.schedule));
   if (g.limit) parts.push(formatAllowance(g.limit));
   return parts.join(' · ');
