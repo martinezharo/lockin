@@ -3,9 +3,14 @@ import { isGroupActive } from '../../shared/schedule.js';
 import { isDevMode } from '../../shared/dev-mode.js';
 
 async function init() {
-  const [groups, lockMode] = await Promise.all([Storage.getGroups(), Storage.getLockMode()]);
+  const [groups, lockMode, usage, session] = await Promise.all([
+    Storage.getGroups(),
+    Storage.getLockMode(),
+    Storage.getUsage(),
+    Storage.getUsageSession()
+  ]);
   const now = Date.now();
-  const active = groups.filter((g) => isGroupActive(g, now));
+  const active = groups.filter((g) => isGroupActive(g, now, usage, session));
   const domainCount = new Set(active.flatMap((g) => g.domains)).size;
 
   document.getElementById('statGroups').textContent = active.length;

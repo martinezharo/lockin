@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Lock In — Site Blocker",
-  "version": "1.1.0",
-  "description": "Tiny mammal containment for distracting sites: groups, schedules, and a typing challenge before you can weaken your own rules.",
-  "permissions": ["storage", "declarativeNetRequest", "alarms"],
+  "version": "1.2.0",
+  "description": "Tiny mammal containment for distracting sites: groups, schedules, daily allowances, and a typing challenge to weaken them.",
+  "permissions": ["storage", "declarativeNetRequest", "alarms", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",

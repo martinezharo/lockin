@@ -1,9 +1,9 @@
 # Lock In — Site Blocker 👹
 
 A Chrome extension (Manifest V3) for **tiny mammal containment**: block distracting
-sites permanently or on a schedule, organize them into groups, and lock the
-settings behind a typing challenge so impulsive future-you cannot casually
-negotiate the distractions back in.
+sites permanently, on a schedule, or after a daily allowance runs out, organize
+them into groups, and lock the settings behind a typing challenge so impulsive
+future-you cannot casually negotiate the distractions back in.
 
 The serious bit underneath the propaganda is simple: make the useful decision
 once, then add enough friction that you do not have to remake it every seven
@@ -22,29 +22,39 @@ minutes.
 
 - **Containment zones (groups)**: bundle related sites (e.g. "Scroll pit" →
   x.com, instagram.com, reddit.com) and arm/disarm them as a unit.
-- **Permanent vs. scheduled**:
-  - *Permanent* containment stays active until you disarm it.
-  - *Scheduled* containment picks specific days of the week plus a "gates close /
-    gates reopen" window (e.g. weekdays, 9:00–17:00). The group only blocks its
+- **Containment rules**: each zone carries two rules, both optional and
+  independent of each other:
+  - *Scheduled hours* picks specific days of the week plus a "gates close /
+    gates reopen" window (e.g. weekdays, 9:00–17:00). The zone only blocks its
     sites during that window and automatically opens back up outside it. Windows
     that cross midnight (e.g. 22:00 → 06:00) work too.
-  - A scheduled group can still be disarmed entirely if you do not want it to
-    block during its window. Editing the hours is lock-gated because changing a
-    schedule can weaken an existing block.
+  - *Daily allowance* caps how long the sites may be used while the gates are
+    open (e.g. 30 minutes). Time is counted only while one of the zone's sites is
+    the active tab of the focused window; when the allowance runs out the zone
+    shuts until midnight — the open tab included, not just the next visit.
+  - **Neither rule is the strict case, not the loose one**: a zone with no
+    schedule and no allowance is contained around the clock. That is what used to
+    be called *permanent* containment, and groups created by older versions are
+    migrated to it automatically.
+  - Any zone can also be disarmed entirely. Editing rules is lock-gated because
+    later gate hours, a bigger allowance, or a rule switched off can all weaken
+    an existing block.
+  - Each card shows what its rules are doing right now: a status line, and for
+    zones with an allowance a meter counting down the time left today.
 - **Edit lock**: when it is **on**, anything that opens an escape route requires
   typing a randomly picked propaganda paragraph by hand first. No copy, no
   paste. The protected actions are:
   - Disarming an active block
   - Deleting a containment zone
   - Releasing a single site from a zone
-  - Changing schedule hours
+  - Changing a zone's rules — gate hours or daily allowance
   - Turning edit lock back **off**
 
   Adding new sites or zones is always free. Tiny mammal bureaucracy only appears
   when the requested action can make distractions easier to reach.
 - **Blocked page**: visiting a blocked site redirects to a local containment page
-  that shows which zone caught the domain and, for scheduled blocks, the active
-  window. It also serves a random short piece of tiny-mammal propaganda. There is
+  that shows which zone caught the domain and why: the active window for a
+  scheduled block, or a spent allowance waiting on midnight. It also serves a random short piece of tiny-mammal propaganda. There is
   intentionally no quick-unblock button there; appeals go through the dashboard.
 - **Popup**: shows how many zones and domains are currently active, whether edit
   lock is sealed, and a shortcut to containment HQ.
@@ -60,6 +70,7 @@ extension:
 - blocking is **containment**
 - disabling a block is **disarming** it
 - scheduled start/end times are when the **gates close/reopen**
+- a daily usage cap is an **allowance**, and running out of it is **spending** it
 - the dashboard is **containment HQ**
 - locked changes are **appeals / paperwork**
 - productive work remains, regrettably, **the mines** 👹⛏️
@@ -77,10 +88,12 @@ icons/                 extension + page icons
 fonts/                 self-hosted webfonts
 src/
   background.js        service worker: owns the declarativeNetRequest rules
+  tracker.js           service worker: times allowances against the active tab
   shared/              used by more than one page
     storage.js         the only place chrome.storage keys are named
     domains.js         hostname parsing and matching
-    schedule.js        block-by-hours logic, day list, time formatting
+    schedule.js        containment rules, day list, time formatting
+    usage.js           daily allowance bookkeeping and duration formatting
     challenge.js       unlock paragraphs, blocked slogans and fuzzy matching
     dev-mode.js        reads the env.js flag
   styles/
@@ -140,7 +153,9 @@ spells out the shortcut, so the elevated mammal privileges are never silent.
 
 - All data stays local in `chrome.storage.local` — nothing leaves your machine.
 - The extension requests access to all sites because it needs to be able to
-  redirect *any* domain you choose to block; it does not read page content.
+  redirect *any* domain you choose to block; it does not read page content. The
+  `tabs` permission is what lets daily allowances see which site is in the
+  active tab — the hostname is all that is used, and it never leaves the device.
 - The propaganda is presentation only. Blocking, schedules, storage and domain
   matching remain ordinary deterministic extension logic.
 - To change the icon, swap the PNGs in `icons/` — the three sizes the manifest

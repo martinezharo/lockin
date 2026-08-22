@@ -139,6 +139,7 @@ html, body {
 
 input[type="text"],
 input[type="time"],
+input[type="number"],
 textarea,
 select {
   font-family: var(--font-mono);
@@ -158,28 +159,116 @@ select:focus {
   outline-offset: 1px;
 }
 
-.mode-toggle {
+/* ---------- Rule controls (shared by the form and the inline editor) ----------
+   One block per rule, switched on and off by a toggle rather than a checkbox:
+   the switch reads as "this rule is active", not as "open this drawer". The
+   controls stay in place when the rule is off, dimmed and natively disabled,
+   so the layout never jumps and an unused rule is still readable. */
+
+.rules-controls {
   display: flex;
-  gap: 14px;
-  font-size: 13px;
-  padding-top: 4px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.mode-toggle label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-/* ---------- Schedule controls (shared by the form and the inline editor) ---------- */
-
-.schedule-field {
+.rule-block {
   background: var(--panel-sunken);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 14px 16px 6px;
-  margin-bottom: 14px;
+  padding: 11px 14px;
+}
+
+.rule-block.on { border-color: var(--brass); }
+
+.rule-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rule-switch {
+  appearance: none;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rule-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.rule-switch:checked {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.rule-switch:checked::after {
+  background: var(--brass-bright);
+  transform: translateX(14px);
+}
+
+.rule-switch:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+/* fieldset reset: this is a grouping element, not a bordered box. */
+.rule-body {
+  min-inline-size: 0;
+  margin: 0;
+  border: 0;
+  padding: 12px 0 0;
+}
+
+/* An off rule stays legible but visibly inactive; :disabled blocks the input. */
+.rule-body:disabled {
+  opacity: 0.45;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 12px;
+}
+
+.preset {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.preset.checked {
+  border-color: var(--brass);
+  background: var(--brass-wash);
+}
+
+.limit-field {
+  max-width: 150px;
+  margin-bottom: 8px;
 }
 
 .day-toggle {
@@ -208,44 +297,54 @@ select:focus {
 
 .schedule-time-row { gap: 14px; }
 
-.schedule-hint {
+.rule-hint {
   color: var(--muted);
   font-size: 12px;
-  margin: 0 0 10px;
+  margin: 2px 0 4px;
 }
 
 /* Replaces the alert() this used to fire — same validation, in the form. */
-.sched-error {
+.rule-error {
   color: var(--rust);
   font-size: 12.5px;
   font-weight: 600;
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
-.schedule-editor {
-  background: var(--panel-sunken);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px 4px;
+/* Switching every rule off is a valid choice — and the strictest one — so this
+   says what happens rather than refusing to save. */
+.no-rules-hint {
+  color: var(--rust);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 2px 0 0;
+}
+
+.rules-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 8px 0 12px;
 }
 
-.schedule-editor .day-toggle label {
+.rules-editor .rule-block { padding: 9px 11px; }
+
+.rules-editor .day-toggle label {
   padding: 4px 7px;
   font-size: 12px;
 }
 
-.schedule-editor .schedule-time-row { gap: 10px; }
+.rules-editor .schedule-time-row { gap: 10px; }
 
-.schedule-editor .field-label { font-size: 10.5px; }
+.rules-editor .field-label { font-size: 10.5px; }
 
-.schedule-actions {
+.rule-actions {
   display: flex;
   gap: 8px;
-  margin: 8px 0 10px;
+  margin: 10px 0 4px;
 }
 
-.schedule-actions button {
+.rule-actions button {
   font-size: 12px;
   padding: 7px 11px;
 }
@@ -321,6 +420,40 @@ select:focus {
 }
 
 .lcd.on { color: var(--lcd-text); }
+
+/* ---------- Allowance meter ----------
+   Only drawn for zones that carry a daily allowance, right under the status
+   line, because it is the one number on the card that moves by itself. */
+
+.meter { margin: -4px 0 12px; }
+
+.meter-track {
+  height: 6px;
+  background: var(--panel-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--brass);
+  transition: width 0.6s linear;
+}
+
+.meter-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.meter.spent .meter-fill { background: var(--rust); }
+
+.meter.spent .meter-label { color: var(--rust); }
 
 .domain-chips {
   display: flex;

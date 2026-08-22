@@ -1,9 +1,20 @@
-// Lock In — schedules (block-by-hours) and whether a group is blocking now.
+// Lock In — containment rules and whether a group is blocking right now.
 //
-// A schedule looks like: { days: [1,2,3,4,5], start: 540, end: 1020 }
+// A group carries two independent, optional rules:
+//
+//   schedule  { days: [1,2,3,4,5], start: 540, end: 1020 }  -- when it is shut
+//   limit     { minutes: 30 }                               -- how long it may
+//                                                              be used while open
+//
 // `days` uses JS getDay() numbering (0 = Sunday .. 6 = Saturday).
 // `start`/`end` are minutes since local midnight. `start > end` means the
 // window crosses midnight (e.g. 22:00 -> 06:00), anchored to the start day.
+//
+// Neither rule set is the strictest state, not the loosest: a group with no
+// rules at all is contained around the clock. That is the old "permanent"
+// mode, expressed as the absence of anything rather than as a mode of its own.
+
+import { isAllowanceSpent, formatAllowance } from './usage.js';
 
 // The one list of weekdays, in the Monday-first order the UI shows them.
 // Everything that renders day pills or formats a schedule reads it from here.
@@ -37,10 +48,21 @@ export function isWithinSchedule(schedule, now = new Date()) {
   return (days.includes(day) && minutes >= start) || (days.includes(prevDay) && minutes < end);
 }
 
-export function isGroupActive(g, now = Date.now()) {
+export function isInWindow(g, now = Date.now()) {
+  return Boolean(g.schedule) && isWithinSchedule(g.schedule, new Date(now));
+}
+
+export function hasRules(g) {
+  return Boolean(g.schedule || g.limit);
+}
+
+// `usage` and `session` are only consulted for groups that carry a limit, so
+// callers with no interest in allowances can keep leaving them out.
+export function isGroupActive(g, now = Date.now(), usage = null, session = null) {
   if (!g.enabled) return false;
-  if (g.mode === 'schedule') return isWithinSchedule(g.schedule, new Date(now));
-  return true;
+  if (!hasRules(g)) return true;
+  if (isInWindow(g, now)) return true;
+  return isAllowanceSpent(g, usage, session, now);
 }
 
 /* ---------- Minutes <-> text ----------
@@ -86,4 +108,12 @@ export function formatSchedule(schedule) {
       ? 'all day'
       : `${formatMinutes(schedule.start)}–${formatMinutes(schedule.end)}`;
   return `${formatScheduleDays(schedule.days)} · ${range}`;
+}
+
+// The whole rule set in one line: "weekdays · 9:00 AM–5:00 PM · 30m/day".
+export function formatRules(g) {
+  const parts = [];
+  if (g.schedule) parts.push(formatSchedule(g.schedule));
+  if (g.limit) parts.push(formatAllowance(g.limit));
+  return parts.join(' · ');
 }

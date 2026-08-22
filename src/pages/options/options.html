@@ -53,31 +53,13 @@
           <textarea id="groupDomains" rows="3" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
         </label>
 
-        <div class="field-row">
-          <div class="field">
-            <span class="field-label">Containment type</span>
-            <div class="mode-toggle">
-              <label>
-                <input type="radio" name="mode" value="permanent" checked />
-                Permanent
-              </label>
-              <label>
-                <input type="radio" name="mode" value="schedule" />
-                Scheduled
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="field schedule-field" id="scheduleField" hidden>
-          <span class="field-label">Containment days</span>
-          <!-- Day pills and the from/until pair are rendered from the same
-               template the inline "edit hours" editor uses. -->
-          <div id="scheduleControls"></div>
-          <p class="schedule-hint">
-            The gates stay shut only during this window. Overnight containment
-            (e.g. 22:00 &rarr; 06:00) works too.
-          </p>
+        <div class="field">
+          <span class="field-label">Containment rules</span>
+          <!-- Scheduled hours and daily allowance are independent, and both
+               optional: a zone with neither is contained around the clock.
+               Rendered from the same template the inline "edit rules" editor
+               on each card uses. -->
+          <div id="rulesControls" class="rules-controls"></div>
         </div>
 
         <button type="submit" class="primary">Lock it down 👹</button>

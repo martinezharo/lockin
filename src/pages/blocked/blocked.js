@@ -1,6 +1,7 @@
 import { Storage } from '../../shared/storage.js';
 import { domainMatches } from '../../shared/domains.js';
-import { isGroupActive, formatSchedule } from '../../shared/schedule.js';
+import { isGroupActive, isInWindow, formatSchedule } from '../../shared/schedule.js';
+import { isAllowanceSpent } from '../../shared/usage.js';
 import { pickBlockedMessage } from '../../shared/challenge.js';
 
 async function init() {
@@ -10,10 +11,14 @@ async function init() {
   document.getElementById('domainName').textContent = domain || 'this forbidden tunnel';
   document.getElementById('flavorText').textContent = pickBlockedMessage();
 
-  const groups = await Storage.getGroups();
+  const [groups, usage, session] = await Promise.all([
+    Storage.getGroups(),
+    Storage.getUsage(),
+    Storage.getUsageSession()
+  ]);
   const now = Date.now();
   const matches = groups.filter(
-    (g) => isGroupActive(g, now) && g.domains.some((d) => domainMatches(domain, d))
+    (g) => isGroupActive(g, now, usage, session) && g.domains.some((d) => domainMatches(domain, d))
   );
 
   const statusEl = document.getElementById('statusLine');
@@ -23,11 +28,17 @@ async function init() {
   }
 
   const names = matches.map((g) => g.name).join(', ');
-  const scheduled = matches.find((g) => g.mode === 'schedule');
 
-  statusEl.textContent = scheduled
-    ? `contained by “${names}” · ${formatSchedule(scheduled.schedule)}`
-    : `contained by “${names}” · no release timer`;
+  // Whichever rule actually shut the gates is the one worth naming: a schedule
+  // says when they reopen, a spent allowance says come back tomorrow.
+  const scheduled = matches.find((g) => isInWindow(g, now));
+  const spent = matches.find((g) => isAllowanceSpent(g, usage, session, now));
+
+  let reason = 'no release timer';
+  if (scheduled) reason = formatSchedule(scheduled.schedule);
+  else if (spent) reason = 'daily allowance spent · resets at midnight';
+
+  statusEl.textContent = `contained by “${names}” · ${reason}`;
 }
 
 document.getElementById('backBtn').addEventListener('click', () => {

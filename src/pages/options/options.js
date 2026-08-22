@@ -6,7 +6,7 @@ import { uid, normalizeDomainInput, parseDomainList } from '../../shared/domains
 import { isGroupActive } from '../../shared/schedule.js';
 import { isDevMode } from '../../shared/dev-mode.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
-import { groupCardHtml, scheduleControlsHtml, readSchedule, lcdText } from './templates.js';
+import { groupCardHtml, rulesControlsHtml, readRules, lcdText, meterState } from './templates.js';
 
 const groupsListEl = document.getElementById('groupsList');
 const emptyStateEl = document.getElementById('emptyState');
@@ -17,10 +17,14 @@ const lockSwitchState = document.getElementById('lockSwitchState');
 const lockSwitchIcon = lockSwitch.querySelector('.lock-switch-icon');
 
 const newGroupForm = document.getElementById('newGroupForm');
-const scheduleField = document.getElementById('scheduleField');
-const scheduleControls = document.getElementById('scheduleControls');
+const rulesControls = document.getElementById('rulesControls');
 
-const editingScheduleIds = new Set();
+const editingIds = new Set();
+
+// The per-second tick needs the groups it is refreshing, and re-reading them
+// from storage every second to redraw a countdown would be silly. Usage is
+// read fresh each tick instead — that is the part that actually moves.
+let renderedGroups = [];
 
 /* ---------------- Storage writes ----------------
    Every group edit is the same four steps: load, change, save, re-render.
@@ -51,13 +55,15 @@ const disableGroup = (id) => withLockCheck(() => updateGroup(id, (g) => { g.enab
 const removeDomain = (id, domain) =>
   withLockCheck(() => updateGroup(id, (g) => { g.domains = g.domains.filter((d) => d !== domain); }));
 
-// Changing the hours can loosen an existing block, so it gets the same
-// typing-challenge friction as disabling one.
-const saveSchedule = (id, schedule) =>
+// Changing the rules can loosen an existing block — later gate hours, a bigger
+// allowance, a rule switched off entirely — so the whole save gets the same
+// typing-challenge friction as disabling a group.
+const saveRules = (id, rules) =>
   withLockCheck(() =>
     updateGroup(id, (g) => {
-      g.schedule = schedule;
-      editingScheduleIds.delete(id);
+      g.schedule = rules.schedule;
+      g.limit = rules.limit;
+      editingIds.delete(id);
     })
   );
 
@@ -86,55 +92,50 @@ document.getElementById('devBanner').hidden = !isDevMode();
 
 /* ---------------- New group form ---------------- */
 
-function resetScheduleControls() {
-  scheduleControls.innerHTML = scheduleControlsHtml();
+function resetRulesControls() {
+  rulesControls.innerHTML = rulesControlsHtml();
 }
-resetScheduleControls();
-
-document.querySelectorAll('input[name="mode"]').forEach((radio) => {
-  radio.addEventListener('change', () => {
-    scheduleField.hidden = document.querySelector('input[name="mode"]:checked').value !== 'schedule';
-  });
-});
+resetRulesControls();
 
 newGroupForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('groupName').value.trim();
   const domains = parseDomainList(document.getElementById('groupDomains').value);
-  const mode = document.querySelector('input[name="mode"]:checked').value;
   if (!name || domains.length === 0) return;
 
-  let schedule = null;
-  if (mode === 'schedule') {
-    schedule = readSchedule(scheduleControls);
-    if (!schedule) return;
-  }
+  const rules = readRules(rulesControls);
+  if (!rules) return;
 
   await updateGroups((groups) => {
-    groups.push({ id: uid(), name, domains, enabled: true, mode, schedule, createdAt: Date.now() });
+    groups.push({ id: uid(), name, domains, enabled: true, ...rules, createdAt: Date.now() });
   });
 
-  // reset() clears the inputs but not the day pills' `.checked` styling, so the
-  // schedule controls are rebuilt from the template instead of untangled.
+  // reset() clears the inputs but not the checked styling on day pills, rule
+  // blocks and presets, so the controls are rebuilt from the template instead
+  // of untangled.
   newGroupForm.reset();
-  resetScheduleControls();
-  scheduleField.hidden = true;
+  resetRulesControls();
 });
 
 /* ---------------- Rendering ---------------- */
 
 async function render() {
-  const groups = await Storage.getGroups();
+  const [groups, usage, session] = await Promise.all([
+    Storage.getGroups(),
+    Storage.getUsage(),
+    Storage.getUsageSession()
+  ]);
   const now = Date.now();
 
   groups.sort((a, b) => b.createdAt - a.createdAt);
+  renderedGroups = groups;
 
   groupCountLabelEl.textContent = groups.length
-    ? `${groups.filter((g) => isGroupActive(g, now)).length} of ${groups.length} zones active`
+    ? `${groups.filter((g) => isGroupActive(g, now, usage, session)).length} of ${groups.length} zones active`
     : '';
 
   emptyStateEl.hidden = groups.length > 0;
-  groupsListEl.innerHTML = groups.map((g) => groupCardHtml(g, now, editingScheduleIds)).join('');
+  groupsListEl.innerHTML = groups.map((g) => groupCardHtml(g, now, editingIds, usage, session)).join('');
 
   refreshLockSwitch();
 }
@@ -151,17 +152,17 @@ const CARD_ACTIONS = {
     addDomain(id, input.value);
     input.value = '';
   },
-  'edit-schedule': (id) => {
-    editingScheduleIds.add(id);
+  'edit-rules': (id) => {
+    editingIds.add(id);
     render();
   },
-  'cancel-edit-schedule': (id) => {
-    editingScheduleIds.delete(id);
+  'cancel-edit-rules': (id) => {
+    editingIds.delete(id);
     render();
   },
-  'save-schedule': (id, btn) => {
-    const schedule = readSchedule(btn.closest('.schedule-editor'));
-    if (schedule) saveSchedule(id, schedule);
+  'save-rules': (id, btn) => {
+    const rules = readRules(btn.closest('.rules-editor'));
+    if (rules) saveRules(id, rules);
   }
 };
 
@@ -179,42 +180,86 @@ groupsListEl.addEventListener('keydown', (e) => {
   e.target.value = '';
 });
 
-// One delegated listener keeps the `.checked` class in sync for every day pill
-// on the page — the static create form and the inline editors alike — so the
-// styling doesn't have to depend on :has() support.
+/* ---------------- Rule controls ----------------
+   The create form and every inline editor render the same markup, so all of
+   this is delegated from the document once instead of being re-wired each
+   time a card opens its editor. */
+
+function markPresets(root) {
+  const minutes = Number(root.querySelector('[data-limit-minutes]').value);
+  root.querySelectorAll('[data-limit-preset]').forEach((btn) => {
+    btn.classList.toggle('checked', Number(btn.dataset.limitPreset) === minutes);
+  });
+}
+
+// "No rules set" is only true for the controls it sits in, so the hint is
+// resolved against its own container rather than the page.
+function refreshNoRulesHint(root) {
+  const hint = root.querySelector('[data-no-rules-hint]');
+  if (!hint) return;
+  hint.hidden = Array.from(root.querySelectorAll('[data-rule-toggle]')).some((cb) => cb.checked);
+}
+
 document.addEventListener('change', (e) => {
   if (e.target.matches('[data-sched-day]')) {
     e.target.closest('label').classList.toggle('checked', e.target.checked);
+    return;
+  }
+
+  if (e.target.matches('[data-rule-toggle]')) {
+    const block = e.target.closest('[data-rule-block]');
+    block.classList.toggle('on', e.target.checked);
+    block.querySelector('[data-rule-body]').disabled = !e.target.checked;
+    refreshNoRulesHint(block.parentElement);
   }
 });
 
+document.addEventListener('input', (e) => {
+  if (e.target.matches('[data-limit-minutes]')) markPresets(e.target.closest('[data-rule-body]'));
+});
+
+document.addEventListener('click', (e) => {
+  const preset = e.target.closest('[data-limit-preset]');
+  if (!preset) return;
+  const body = preset.closest('[data-rule-body]');
+  body.querySelector('[data-limit-minutes]').value = preset.dataset.limitPreset;
+  markPresets(body);
+});
+
 /* ---------------- Live tick ----------------
-   Schedule windows open and close on the clock, with no storage change to
-   react to, so scheduled cards refresh themselves once a second. */
+   Schedule windows open and close on the clock and allowances run down while
+   the tiny mammal browses, neither of which is a storage change this page can
+   react to. Cards refresh themselves once a second instead — text and widths
+   only, never a re-render, so open editors and half-typed domains survive. */
 
-setInterval(() => {
+setInterval(async () => {
+  if (renderedGroups.length === 0) return;
+
+  const [usage, session] = await Promise.all([Storage.getUsage(), Storage.getUsageSession()]);
   const now = Date.now();
+  let activeCount = 0;
 
-  document.querySelectorAll('.lcd[data-sched-lcd]').forEach((el) => {
-    const days = (el.dataset.days || '').split(',').filter(Boolean).map(Number);
-    const group = {
-      enabled: el.dataset.enabled === 'true',
-      mode: 'schedule',
-      schedule: { days, start: Number(el.dataset.start), end: Number(el.dataset.end) }
-    };
-    const active = isGroupActive(group, now);
+  for (const g of renderedGroups) {
+    const card = groupsListEl.querySelector(`[data-group-card="${g.id}"]`);
+    if (!card) continue;
 
-    el.textContent = lcdText(group, now);
-    el.classList.toggle('on', active);
-    const card = el.closest('.group-card');
-    if (card) card.classList.toggle('active', active);
-  });
+    const active = isGroupActive(g, now, usage, session);
+    if (active) activeCount += 1;
+    card.classList.toggle('active', active);
 
-  const cards = document.querySelectorAll('.group-card');
-  if (cards.length) {
-    const active = document.querySelectorAll('.group-card.active').length;
-    groupCountLabelEl.textContent = `${active} of ${cards.length} zones active`;
+    const lcd = card.querySelector('[data-lcd]');
+    lcd.textContent = lcdText(g, now, usage, session);
+    lcd.classList.toggle('on', active);
+
+    const meter = card.querySelector('[data-meter]');
+    if (!meter) continue;
+    const { percent, label, spent } = meterState(g, now, usage, session);
+    meter.classList.toggle('spent', spent);
+    meter.querySelector('.meter-fill').style.width = `${percent.toFixed(1)}%`;
+    meter.querySelector('.meter-label').textContent = label;
   }
+
+  groupCountLabelEl.textContent = `${activeCount} of ${renderedGroups.length} zones active`;
 }, 1000);
 
 render();
