@@ -4,5 +4,5 @@
 // constant so a missing env.js simply means "off" instead of breaking the page.
 
 export function isDevMode() {
-  return Boolean(globalThis.LOCKIN_ENV && globalThis.LOCKIN_ENV.DEV_MODE === true);
+  return globalThis.LOCKIN_DEV === true;
 }

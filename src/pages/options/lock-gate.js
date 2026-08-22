@@ -77,7 +77,7 @@ modal.addEventListener('click', (e) => {
 });
 
 // Dev-mode escape hatch: the modal still shows up exactly as usual, but with
-// DEV_MODE on in env.js this shortcut runs the pending action without typing.
+// LOCKIN_DEV on in env.js this shortcut runs the pending action without typing.
 document.addEventListener('keydown', (e) => {
   if (!isDevMode()) return;
   if (modal.classList.contains('hidden')) return;

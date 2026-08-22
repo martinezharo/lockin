@@ -61,7 +61,7 @@ h1, h2, h3 {
 .btn-danger:hover { background: var(--rust-wash); }
 
 /* ---------- Dev mode banner ----------
-   Shown on the dashboard and in the popup whenever env.js turns DEV_MODE on,
+   Shown on the dashboard and in the popup whenever env.js turns LOCKIN_DEV on,
    so the skip-the-challenge shortcut is never a silent state. */
 
 .dev-banner {

@@ -71,6 +71,7 @@ works for any tiny mammal reckless enough to install it.
 
 ```
 manifest.json          entry points only; everything it names lives under src/
+env.example.js         template for the local dev flag (see below)
 env.js                 local dev flag, git-ignored and optional (see below)
 icons/                 extension + page icons
 fonts/                 self-hosted webfonts
@@ -114,18 +115,23 @@ Blocking itself is untouched; sites still get contained normally.
 
 It is a single hand-edited flag in `env.js` at the repo root (it stays at the
 root, outside `src/`, and is loaded as a plain script rather than a module so
-that a missing file is simply "dev mode off" instead of a broken page):
+that a missing file is simply "dev mode off" instead of a broken page). On a
+fresh clone, copy the template that ships with the repo:
+
+```bash
+cp env.example.js env.js
+```
+
+The whole file is one line:
 
 ```js
-globalThis.LOCKIN_ENV = {
-  DEV_MODE: true
-};
+globalThis.LOCKIN_DEV = true;
 ```
 
 Write `true` or `false`, save, and refresh the dashboard (F5) — no rebuild step
-and no extension reload. The file is git-ignored, so the flag never ships and
-never shows up in a diff; on a fresh clone just create it with the snippet
-above. If `env.js` is missing entirely, dev mode is simply off.
+and no extension reload. `env.js` is git-ignored, so the flag never ships and
+never shows up in a diff, while `env.example.js` stays committed at `false`. If
+`env.js` is missing entirely, dev mode is simply off.
 
 While it is on, a banner shows in the dashboard and popup, and the modal itself
 spells out the shortcut, so the elevated mammal privileges are never silent.
