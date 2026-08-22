@@ -23,9 +23,22 @@ const textEl = document.getElementById('challengeText');
 const inputEl = document.getElementById('challengeInput');
 const errorEl = document.getElementById('challengeError');
 const devHintEl = document.getElementById('challengeDevHint');
+const progressFill = document.getElementById('challengeProgressFill');
+const progressLabel = document.getElementById('challengeProgressLabel');
 
 let pendingAction = null;
 let currentTarget = '';
+
+// The friction is the point; not knowing how much friction is left never was.
+// Length against length is deliberately crude — it is a sense of distance, not
+// a score, and it must not hint at which characters are wrong.
+function refreshProgress() {
+  const percent = currentTarget
+    ? Math.min(100, Math.round((inputEl.value.length / currentTarget.length) * 100))
+    : 0;
+  progressFill.style.width = `${percent}%`;
+  progressLabel.textContent = `${percent}% typed`;
+}
 
 function open(action) {
   pendingAction = action;
@@ -33,6 +46,7 @@ function open(action) {
   textEl.textContent = currentTarget;
   inputEl.value = '';
   errorEl.textContent = '';
+  refreshProgress();
   modalEmoji.textContent = MODAL_EMOJIS[Math.floor(Math.random() * MODAL_EMOJIS.length)];
   devHintEl.hidden = !isDevMode();
   modal.classList.remove('hidden');
@@ -64,6 +78,8 @@ for (const event of ['copy', 'cut', 'contextmenu', 'selectstart']) {
 for (const event of ['paste', 'drop', 'contextmenu']) {
   inputEl.addEventListener(event, (e) => e.preventDefault());
 }
+
+inputEl.addEventListener('input', refreshProgress);
 
 document.getElementById('challengeSubmit').addEventListener('click', () => {
   if (isChallengeMatch(inputEl.value, currentTarget)) runPending();

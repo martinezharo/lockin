@@ -1,61 +1,123 @@
-/* Lock In — popup. Dark theme; colors come from tokens.css. */
+/* Lock In — popup. Ink ground, stamped paper details; colors from tokens.css. */
 
-body { width: 260px; }
+body { width: 268px; }
 
-.wrap { padding: 18px; }
+.wrap { padding: 16px; }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.02em;
-  margin-bottom: 16px;
+  margin-bottom: 13px;
 }
 
-.stats {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
+.brand-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.02em;
 }
 
-.stat {
-  flex: 1;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 8px;
-  text-align: center;
+.brand-lock { margin-left: auto; font-size: 14px; line-height: 1; }
+
+/* ---------- The next gate ---------- */
+
+.next-panel {
+  background: var(--c-paper-bright);
+  border: var(--stroke-w) solid var(--c-ink);
+  border-radius: var(--radius-md);
+  box-shadow: 3px 3px 0 var(--c-amber);
+  padding: 11px 13px;
+  margin-bottom: 13px;
 }
 
-.stat .num {
-  display: block;
+.next-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--c-ink);
+}
+
+.next-label {
   font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--brass);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-mute);
+  margin-top: 5px;
 }
 
-.stat .label {
-  display: block;
+/* ---------- One line per zone ---------- */
+
+.zone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 13px;
+}
+
+.zone-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+}
+
+.zone-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: var(--stroke-w-thin) solid var(--c-paper);
+  background: var(--c-violet-pale);
+}
+
+.zone-row.state-shut .zone-dot { background: var(--c-amber); }
+.zone-row.state-spent .zone-dot { background: var(--c-rose); }
+.zone-row.state-off .zone-dot { background: transparent; border-color: var(--c-mute-soft); }
+
+.zone-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zone-note {
+  flex: none;
+  font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--muted);
-  margin-top: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+
+.zone-row.state-spent .zone-note { color: var(--rust); }
+.zone-row.state-off .zone-name,
+.zone-row.state-off .zone-note { color: var(--muted-soft); }
+
+.empty {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  margin: 0 0 13px;
 }
 
 .lock-row {
-  font-size: 12.5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 14px;
+  margin-bottom: 13px;
   text-align: center;
 }
 
-.lock-row.on { color: var(--brass); }
+.lock-row.on { color: var(--c-amber); }
 
-/* Denser than the shared default — the popup is only 260px wide. */
+/* Denser than the shared default — the popup is only 268px wide. */
 .primary {
   width: 100%;
   padding: 10px 12px;
@@ -63,9 +125,9 @@ body { width: 260px; }
 }
 
 .dev-banner {
-  margin-bottom: 14px;
+  margin-bottom: 13px;
   padding: 7px 9px;
-  border: 1px solid var(--brass);
-  border-radius: 8px;
+  border: var(--stroke-w-thin) solid var(--c-amber);
+  border-radius: var(--radius-sm);
   font-size: 11.5px;
 }

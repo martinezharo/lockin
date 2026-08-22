@@ -37,8 +37,9 @@ minutes.
   - Any zone can also be disarmed entirely. Editing rules is lock-gated because
     later gate hours, a bigger allowance, or a rule switched off can all weaken
     an existing block.
-  - Each card shows what its rules are doing right now: a status line, and for
-    zones with an allowance a meter counting down the time left today.
+  - Each zone is a row that says what its rules are doing right now, and opens
+    to the full width of the page for its tunnels and its rules. Exactly one is
+    open at a time.
 - **Edit lock**: when it is **on**, anything that opens an escape route requires
   typing a randomly picked propaganda paragraph by hand first. No copy, no
   paste. The protected actions are:
@@ -50,12 +51,28 @@ minutes.
 
   Adding new sites or zones is always free. Tiny mammal bureaucracy only appears
   when the requested action can make distractions easier to reach.
+- **Containment HQ (the dashboard)**: reads top to bottom as one answer. A
+  status panel says what is true right now and counts down to the next gate; a
+  24-hour strip draws today's shut hours per zone with a marker on the current
+  minute; then the zones themselves. Creating a zone is the last row of that
+  list, folded away — it is the rarest thing anyone does here and used to own
+  the top of the page.
 - **Blocked page**: visiting a blocked site redirects to a local containment page
   that shows which zone caught the domain and why: the active window for a
-  scheduled block, or a spent allowance waiting on midnight. It also serves a random short piece of tiny-mammal propaganda. There is
-  intentionally no quick-unblock button there; appeals go through the dashboard.
-- **Popup**: shows how many zones and domains are currently active, whether edit
-  lock is sealed, and a shortcut to containment HQ.
+  scheduled block, or a spent allowance waiting on midnight. It says when you
+  get the site back — a live countdown plus the same day strip — serves a random
+  short piece of tiny-mammal propaganda, and keeps the day's score (see below).
+  There is intentionally no quick-unblock button there; appeals go through the
+  dashboard.
+- **Blocked tally**: the blocked page counts how many times it has been reached
+  today and says so with escalating concern, from "first one today 🐭" up to
+  "villain era unlocked 👹". It is the one thing recorded that blocking does not
+  need: presentation only, one storage key, reset by noticing the date changed.
+  Counting happens on that page because `declarativeNetRequest` redirects
+  without waking the service worker — so a reload of the blocked page counts
+  again, which is the honest reading.
+- **Popup**: the minutes until the next gate, then one line per zone with its
+  live state, whether edit lock is sealed, and a shortcut to containment HQ.
 
 ## Voice / tiny mammal doctrine
 
@@ -72,6 +89,11 @@ extension:
 - the dashboard is **containment HQ**
 - locked changes are **appeals / paperwork**
 - productive work remains, regrettably, **the mines** 👹⛏️
+
+The blocked-page tally is the one place the voice drops the agency register and
+speaks like a friend who has been counting: "bestie. the feed is not going to
+change 💀". It escalates with the number, so the joke lands hardest exactly when
+the day has gone worst.
 
 No personal names or user-specific references are baked into the copy. The joke
 works for any tiny mammal reckless enough to install it.
@@ -92,6 +114,8 @@ src/
     domains.js         hostname parsing and matching
     schedule.js        containment rules, day list, time formatting
     usage.js           daily allowance bookkeeping and duration formatting
+    timeline.js        today's shut hours as bands, and the next gate
+    tally.js           the blocked-page counter and how it talks
     challenge.js       unlock paragraphs, blocked slogans and fuzzy matching
     dev-mode.js        reads the env.js flag
   styles/
@@ -108,13 +132,31 @@ ordering. Each page picks its palette with `class="theme-light"` or
 `class="theme-dark"` on `<html>`; nothing outside `styles/` defines a color
 variable.
 
-Fonts are bundled rather than linked from `fonts.googleapis.com`, so the pages
-render offline, no third-party request fires every time a blocked page loads,
-and nothing leaks about when the extension is used. Only the `latin` and
-`latin-ext` subsets are shipped, and `unicode-range` means the browser loads
+The look is stamped paper: hard ink outlines, offset shadows with no blur, and
+stickers. Two tokens carry it and no page invents its own — `--stroke-w` for the
+outline and the `--shadow-*` colors for the offset. The palette is lifted off
+`icons/icon128.png`: the goblin has been violet, rose and amber since day one
+while the UI was quietly brass and sand.
+
+Three fonts, three jobs: **Bricolage Grotesque** shouts (headings, counters,
+stamps), **Space Grotesk** talks, **JetBrains Mono** reports (times, domains,
+status lines). They are bundled rather than linked from `fonts.googleapis.com`,
+so the pages render offline, no third-party request fires every time a blocked
+page loads, and nothing leaks about when the extension is used. Only the `latin`
+and `latin-ext` subsets are shipped, and `unicode-range` means the browser loads
 only the faces a page actually needs. To refresh them, download the `woff2`
 files that Google's `css2` endpoint points at and regenerate
-`src/styles/fonts.css` to match.
+`src/styles/fonts.css` to match. Bricolage is a variable font: one file per
+subset covers 700–800, so each face is declared once with a weight range.
+
+## Tests
+
+Pure logic — schedules, allowances, the day strip, the tally — is covered by
+`node:test`, with no browser and no `chrome` stub required:
+
+```bash
+node --test "tests/*.test.mjs"
+```
 
 ## Dev mode
 

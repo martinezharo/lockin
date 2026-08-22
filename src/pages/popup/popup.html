@@ -12,24 +12,25 @@
   <div class="wrap">
     <div class="brand">
       <img src="../../../icons/icon48.png" alt="" width="22" height="22" />
-      <span>Lock In</span>
+      <span class="brand-title">Lock In</span>
+      <span class="brand-lock" id="brandLock" aria-hidden="true">🔓</span>
     </div>
 
-    <div id="stats" class="stats">
-      <div class="stat">
-        <span class="num" id="statGroups">–</span>
-        <span class="label">zones active</span>
-      </div>
-      <div class="stat">
-        <span class="num" id="statDomains">–</span>
-        <span class="label">tunnels sealed</span>
-      </div>
+    <!-- The next gate, not a count of things. A number of "zones active" is
+         trivia; the minutes until something opens is the reason anyone clicks
+         the toolbar icon. -->
+    <div id="nextPanel" class="next-panel" hidden>
+      <div class="next-value" id="nextValue"></div>
+      <div class="next-label" id="nextLabel"></div>
     </div>
+
+    <div id="zoneList" class="zone-list"></div>
+    <p id="emptyState" class="empty" hidden>no zones yet 🐭</p>
 
     <div id="lockRow" class="lock-row">checking containment…</div>
     <div id="devBanner" class="dev-banner" hidden>⚡ dev mammal has admin powers</div>
 
-    <button id="openDash" class="primary">Open containment HQ</button>
+    <button id="openDash" class="primary">Open containment HQ 👹</button>
   </div>
 
   <!-- Plain script on purpose: env.js is git-ignored and optional, and a

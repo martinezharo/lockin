@@ -1,15 +1,21 @@
-/* Lock In — dashboard. Light theme; the reset, palette and button system come
-   from styles/tokens.css and styles/base.css. */
+/* Lock In — containment HQ. Stamped paper; the palette, stroke and offset
+   shadows come from styles/tokens.css and the buttons from styles/base.css.
+
+   The page is one answer read top to bottom: what is true right now, then the
+   day drawn as a strip, then the zones as rows. */
 
 html, body {
   font-size: 14.5px;
   line-height: 1.5;
+  /* faint dot grid: paper with a print screen on it */
+  background-image: radial-gradient(rgba(36, 16, 47, 0.08) 1px, transparent 1px);
+  background-size: 14px 14px;
 }
 
 .container {
   max-width: 920px;
   margin: 0 auto;
-  padding: 8px 28px 60px;
+  padding: 0 28px 60px;
 }
 
 /* ---------- Top bar ---------- */
@@ -17,10 +23,11 @@ html, body {
 .topbar {
   max-width: 920px;
   margin: 0 auto;
-  padding: 26px 28px 6px;
+  padding: 22px 28px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .brand {
@@ -29,92 +36,631 @@ html, body {
   gap: 10px;
 }
 
-.brand-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 0.01em;
+.brand-mark {
+  display: block;
+  background: var(--flag);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 11px;
+  padding: 3px;
+  line-height: 0;
 }
 
-.brand-sub {
-  font-size: 11.5px;
+.brand-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.lock-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .lock-switch {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: var(--stroke-w) solid var(--stroke);
   border-radius: var(--radius-pill);
-  padding: 8px 16px 8px 12px;
+  padding: 6px 15px 6px 11px;
   cursor: pointer;
   font-family: var(--font-body);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  color: var(--ink);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
 }
 
-.lock-switch-icon { font-size: 17px; }
+.lock-switch-icon { font-size: 15px; line-height: 1; }
 
 .lock-switch-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  line-height: 1.15;
+  line-height: 1.1;
 }
 
 .lock-switch-label {
-  font-size: 11px;
-  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .lock-switch-state {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  text-transform: uppercase;
 }
 
 .lock-switch[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--accent);
+  box-shadow: 3px 3px 0 var(--stroke);
 }
 
-.lock-switch[aria-pressed="true"] .lock-switch-label {
-  color: var(--c-grey-cool);
+.lock-switch[aria-pressed="true"] .lock-switch-label { color: var(--c-violet-pale); }
+.lock-switch[aria-pressed="true"] .lock-switch-state { color: var(--accent-on); }
+
+.lock-switch:hover { background: var(--hover-wash); }
+
+/* Sealed it carries a shadow, so it peels like a button instead of tinting. */
+.lock-switch[aria-pressed="true"]:hover {
+  background: var(--c-violet-deep);
+  box-shadow: 5px 5px 0 var(--stroke);
+  transform: translate(-2px, -2px);
 }
 
-.lock-switch[aria-pressed="true"] .lock-switch-state {
-  color: var(--brass-bright);
+.lock-switch:active { transform: translate(1px, 1px); }
+
+.lock-switch[aria-pressed="true"]:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--stroke);
 }
 
-.lock-explainer {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 4px 28px 18px;
+.lock-switch:focus-visible {
+  outline: var(--stroke-w) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 1. The now panel ---------- */
+
+.now-panel {
+  background: var(--c-ink);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 var(--shadow-rose);
+  padding: 22px 24px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.now-clock {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--c-violet-pale);
+  margin-bottom: 6px;
+}
+
+.now-headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 40px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--flag);
+  text-wrap: balance;
+}
+
+.now-detail {
+  font-size: 14px;
+  color: #e6d8f0;
+  margin: 8px 0 0;
+  max-width: 56ch;
+}
+
+.now-detail strong { color: #ffffff; }
+
+.now-stamp {
+  flex: none;
+  text-align: center;
+  transform: rotate(4deg);
+  background: var(--flag);
+  border: 3px solid var(--c-paper);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+}
+
+.now-stamp-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--c-ink);
+}
+
+.now-stamp-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-ink);
+  margin-top: 4px;
+}
+
+/* ---------- Shared panel furniture ---------- */
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-head h2 { font-size: 18px; }
+
+.panel-note {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 13px;
 }
 
-.lock-explainer strong { color: var(--ink); }
+/* ---------- 2. The day strip ----------
+   Every band on the page — the strip rows and the window preview in the rules
+   editor — is the same object over the same 24 hours, so it is styled once. */
 
-/* ---------- Panels and fields ---------- */
-
-.panel {
+.day-panel {
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 22px 24px 24px;
-  margin-bottom: 34px;
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 18px;
+  box-shadow: 5px 5px 0 var(--shadow);
+  padding: 16px 18px 14px;
+  margin-bottom: 30px;
 }
 
-.panel h2 {
-  font-size: 16px;
-  margin-bottom: 16px;
+.band {
+  position: relative;
+  display: block;
+  height: 26px;
+  background: var(--track);
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 7px;
+  overflow: hidden;
 }
+
+.band-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  background: repeating-linear-gradient(115deg, var(--flag) 0 9px, var(--flag-deep) 9px 18px);
+}
+
+.band-fill.spent {
+  background: repeating-linear-gradient(115deg, var(--c-rose) 0 9px, var(--c-rose-deep) 9px 18px);
+}
+
+.band-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--c-rose);
+  display: block;
+}
+
+.strip-scale,
+.band-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.strip-scale {
+  padding-left: 144px;
+  padding-right: 108px;
+  margin-bottom: 7px;
+}
+
+.strip-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.strip-name {
+  width: 132px;
+  flex: none;
+  font-weight: 600;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strip-band { flex: 1; }
+
+.strip-note {
+  width: 96px;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.strip-row.state-off .strip-name,
+.strip-row.state-off .strip-note { color: var(--muted-soft); }
+
+.strip-row.state-off .band {
+  background: var(--panel-sunken);
+  border-style: dashed;
+  border-color: var(--line);
+}
+
+.strip-row.state-off .band-now { background: var(--line); }
+
+.strip-row.state-spent .strip-note { color: var(--rust); }
+
+.strip-legend {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 2px 0 0;
+  padding-left: 144px;
+}
+
+/* ---------- 3. Zone rows ---------- */
+
+.zone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zone {
+  background: var(--panel);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-lg);
+  box-shadow: 4px 4px 0 var(--shadow);
+  transition: background 0.12s ease;
+}
+
+.zone.state-shut { box-shadow: 4px 4px 0 var(--shadow-flag); }
+.zone.state-spent { box-shadow: 4px 4px 0 var(--shadow-rose); }
+
+.zone.state-off {
+  background: var(--panel-sunken);
+  border-style: dashed;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.zone-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 0;
+}
+
+/* The toggle is the row: everything except the arm shortcut lives inside it,
+   so the whole line is one hit target instead of a strip of small ones. */
+.zone-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  padding: 14px 2px 14px 16px;
+  font-family: var(--font-body);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zone-toggle:focus-visible {
+  outline: var(--stroke-w) solid var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--radius-md);
+}
+
+/* The whole row is the hit target, so the whole card answers — tinting the
+   card rather than the button keeps the paint inside the rounded corners.
+   Rows tint instead of lifting: a list of things all peeling at once would be
+   a lot of weather for a page you read. */
+.zone:has(.zone-toggle:hover) { background: var(--hover-wash); }
+.zone.state-off:has(.zone-toggle:hover) { background: var(--hover-wash-deep); }
+.zone:has(.zone-toggle:hover) .zone-chevron { background: var(--flag); }
+.zone.state-off:has(.zone-toggle:hover) .zone-chevron { border-color: var(--stroke); color: var(--ink); }
+
+.zone-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: var(--stroke-w) solid var(--stroke);
+  background: var(--accent);
+}
+
+.state-shut .zone-dot { background: var(--flag); }
+.state-spent .zone-dot { background: var(--c-rose); }
+.state-off .zone-dot { background: var(--panel-sunken); border-color: var(--line); }
+
+.zone-name {
+  flex: none;
+  width: 150px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state-off .zone-name { color: var(--ink-soft); }
+
+.zone-status {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state-spent .zone-status { color: var(--rust); }
+.state-off .zone-status { color: var(--muted-soft); }
+
+.zone-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.zone-chevron {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 9px;
+  background: var(--bg);
+  transition: transform 0.15s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.state-off .zone-chevron { border-color: var(--line); color: var(--muted-soft); }
+.zone.is-open .zone-chevron { transform: rotate(180deg); background: var(--flag); }
+
+.arm-shortcut {
+  flex: none;
+  background: var(--accent);
+  color: var(--accent-on);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  box-shadow: 2px 2px 0 var(--stroke);
+  padding: 6px 14px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.arm-shortcut:hover {
+  background: var(--c-violet-deep);
+  box-shadow: 4px 4px 0 var(--stroke);
+  transform: translate(-2px, -2px);
+}
+
+.arm-shortcut:active { transform: translate(2px, 2px); box-shadow: none; }
+
+.arm-shortcut:focus-visible {
+  outline: var(--stroke-w) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- The open zone ---------- */
+
+.zone-body {
+  border-top: var(--stroke-w) dashed var(--line-soft);
+  padding: 16px 16px 15px;
+}
+
+/* Two columns, divided by a line rather than by a box. The card is already a
+   box; putting a second one inside it for the rules, and a third around each
+   rule, was three frames around one thought. */
+.zone-columns {
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.zone-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.zone-col.rules-col {
+  width: 396px;
+  flex: none;
+  border-left: var(--stroke-w-thin) dashed var(--line-soft);
+  padding-left: 24px;
+}
+
+.col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.col-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+
+.col-head .col-label { margin-bottom: 0; }
+
+.paperwork-flag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: var(--accent-on);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+}
+
+.zone-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: var(--stroke-w) dashed var(--line-soft);
+}
+
+.zone-actions .spacer { flex: 1; }
+
+.zone-actions button { font-size: 12.5px; padding: 8px 15px; }
+
+/* ---------- Chips, meter, add row ---------- */
+
+.domain-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg);
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  padding: 5px 8px 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+/* Only the × removes the tunnel, so only the × goes red — but the chip warms
+   up first, so it is obvious which one you are about to release. */
+.chip:has(button:hover) {
+  background: var(--rust-wash);
+  border-color: var(--rust);
+}
+
+.chip button {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 0;
+  padding: 2px;
+  border-radius: 50%;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.chip button:hover {
+  color: var(--accent-on);
+  background: var(--rust);
+}
+
+.chip button:focus-visible {
+  outline: var(--stroke-w-thin) solid var(--accent);
+  outline-offset: 1px;
+}
+
+.meter { margin: 0 0 12px; }
+
+.meter-track {
+  height: 12px;
+  background: var(--track);
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(115deg, var(--c-rose) 0 8px, var(--c-rose-deep) 8px 16px);
+  transition: width 0.6s linear;
+}
+
+.meter-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+.meter.spent .meter-label { color: var(--rust); }
+
+.add-domain-row {
+  display: flex;
+  gap: 7px;
+}
+
+.add-domain-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  border-color: var(--line);
+}
+
+.add-domain-row button { font-size: 12px; padding: 7px 15px; }
+
+/* ---------- Fields ---------- */
 
 .field {
   display: flex;
@@ -125,15 +671,17 @@ html, body {
 }
 
 .field-label {
-  font-size: 11.5px;
-  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .field-row {
   display: flex;
-  gap: 20px;
+  gap: 14px;
   align-items: flex-start;
 }
 
@@ -144,59 +692,68 @@ textarea,
 select {
   font-family: var(--font-mono);
   font-size: 13.5px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 9px 11px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 10px;
+  padding: 9px 12px;
   background: var(--field-bg);
   color: var(--ink);
   resize: vertical;
 }
 
+input:hover:not(:disabled),
+textarea:hover:not(:disabled),
+select:hover:not(:disabled) { background: var(--hover-wash); }
+
 input:focus,
 textarea:focus,
 select:focus {
-  outline: 2px solid var(--brass);
+  outline: var(--stroke-w-thin) solid var(--accent);
   outline-offset: 1px;
 }
 
-/* ---------- Rule controls (shared by the form and the inline editor) ----------
+/* ---------- Rule controls ----------
    One block per rule, switched on and off by a toggle rather than a checkbox:
    the switch reads as "this rule is active", not as "open this drawer". The
    controls stay in place when the rule is off, dimmed and natively disabled,
    so the layout never jumps and an unused rule is still readable. */
 
-.rules-controls {
+/* A rule is a section, not a card: the switch already says whether it is on,
+   so an outline that says it again is one frame too many. Sibling rules are
+   parted by a hairline. */
+.rules-editor {
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.rule-block {
-  background: var(--panel-sunken);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 11px 14px;
+.rule-block + .rule-block {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: var(--stroke-w-thin) dashed var(--line-soft);
 }
-
-.rule-block.on { border-color: var(--brass); }
 
 .rule-head {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  transition: color 0.12s ease;
 }
+
+.rule-block.on .rule-head { color: var(--ink); }
+
+.rule-head:hover { color: var(--ink); }
 
 .rule-switch {
   appearance: none;
   flex: none;
-  width: 34px;
-  height: 20px;
+  width: 38px;
+  height: 22px;
   margin: 0;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--bg);
+  border: var(--stroke-w) solid var(--line);
   border-radius: var(--radius-pill);
   position: relative;
   cursor: pointer;
@@ -205,28 +762,39 @@ select:focus {
 
 .rule-switch::after {
   content: '';
+  /* The track is 38x22 with a 2.5px stroke, so its padding box is 33x17: a
+     13px knob inset 2px sits dead centre and travels to a matching 2px gap
+     on the far side. */
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--muted-soft);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .rule-switch:checked {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--accent);
+  border-color: var(--stroke);
 }
 
 .rule-switch:checked::after {
-  background: var(--brass-bright);
-  transform: translateX(14px);
+  background: var(--flag);
+  transform: translateX(16px);
 }
 
+.rule-head:hover .rule-switch { border-color: var(--stroke); }
+
+.rule-head:hover .rule-switch::after { background: var(--ink); }
+
+.rule-head:hover .rule-switch:checked { background: var(--c-violet-deep); }
+
+.rule-head:hover .rule-switch:checked::after { background: var(--flag); }
+
 .rule-switch:focus-visible {
-  outline: 2px solid var(--brass);
+  outline: var(--stroke-w-thin) solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -239,298 +807,168 @@ select:focus {
 }
 
 /* An off rule stays legible but visibly inactive; :disabled blocks the input. */
-.rule-body:disabled {
-  opacity: 0.45;
+.rule-body:disabled { opacity: 0.45; }
+
+.day-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 0 10px;
 }
+
+.day-pill {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  background: var(--bg);
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.day-pill input { position: absolute; opacity: 0; pointer-events: none; }
+
+.day-pill.checked {
+  background: var(--flag);
+  border-color: var(--stroke);
+  color: var(--ink);
+}
+
+/* An unticked day previews the amber it is about to become; a ticked one
+   darkens, because it is about to lose it. */
+.rule-body:not(:disabled) .day-pill:hover {
+  border-color: var(--stroke);
+  background: var(--c-amber-bright);
+  color: var(--ink);
+}
+
+.rule-body:not(:disabled) .day-pill.checked:hover { background: var(--flag-deep); }
+
+.day-pill:focus-within {
+  outline: var(--stroke-w-thin) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.band-scale { margin: 5px 0 12px; }
 
 .preset-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   padding-bottom: 12px;
 }
 
 .preset {
   font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 7px;
   cursor: pointer;
   color: var(--ink);
+  transition: background 0.12s ease;
 }
 
-.preset.checked {
-  border-color: var(--brass);
-  background: var(--brass-wash);
+.preset.checked { background: var(--flag); }
+
+.preset:hover { background: var(--c-amber-bright); }
+
+.preset.checked:hover { background: var(--flag-deep); }
+
+.preset:focus-visible {
+  outline: var(--stroke-w-thin) solid var(--accent);
+  outline-offset: 2px;
 }
 
-.limit-field {
-  max-width: 150px;
-  margin-bottom: 8px;
-}
+.limit-field { max-width: 150px; margin-bottom: 4px; }
 
-.day-toggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  padding: 2px 0 10px;
-  font-size: 13px;
-}
-
-.day-toggle label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 5px 9px;
-}
-
-.day-toggle label.checked {
-  border-color: var(--brass);
-  background: var(--brass-wash);
-}
-
-.schedule-time-row { gap: 14px; }
+.schedule-time-row { gap: 12px; }
 
 .rule-hint {
-  color: var(--muted);
-  font-size: 12px;
-  margin: 2px 0 4px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  margin: 8px 0 0;
 }
 
 /* Replaces the alert() this used to fire — same validation, in the form. */
 .rule-error {
   color: var(--rust);
-  font-size: 12.5px;
-  font-weight: 600;
-  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 6px 0 0;
 }
 
-/* Empty rule sets are rejected on submit; this explains what is missing. */
+/* Switching every rule off is a valid choice — and the strictest one — so this
+   says what happens rather than refusing to save. */
 .no-rules-hint {
   color: var(--rust);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   margin: 2px 0 0;
 }
 
-.rules-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 12px;
-}
+/* ---------- The builder, folded away ---------- */
 
-.rules-editor .rule-block { padding: 9px 11px; }
-
-.rules-editor .day-toggle label {
-  padding: 4px 7px;
-  font-size: 12px;
-}
-
-.rules-editor .schedule-time-row { gap: 10px; }
-
-.rules-editor .field-label { font-size: 10.5px; }
-
-.rule-actions {
-  display: flex;
-  gap: 8px;
-  margin: 10px 0 4px;
-}
-
-.rule-actions button {
-  font-size: 12px;
-  padding: 7px 11px;
-}
-
-/* ---------- Groups ---------- */
-
-.groups-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.groups-header h2 { font-size: 16px; }
-
-.muted { color: var(--muted); font-size: 12.5px; }
-
-.groups-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-}
-
-.group-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
+.new-zone {
+  border: var(--stroke-w) dashed var(--stroke);
   border-radius: var(--radius-lg);
-  padding: 16px 16px 14px;
-  position: relative;
-  overflow: hidden;
+  margin-top: 10px;
 }
 
-.group-card::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 5px;
-  background: var(--line);
-}
-
-.group-card.active::before { background: var(--brass); }
-
-.group-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.group-name {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 15.5px;
-}
-
-.group-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.lcd {
-  font-family: var(--font-mono);
-  background: var(--lcd-bg);
-  color: var(--lcd-text-dim);
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  margin: 10px 0 12px;
-  text-transform: uppercase;
-}
-
-.lcd.on { color: var(--lcd-text); }
-
-/* ---------- Allowance meter ----------
-   Only drawn for zones that carry a daily allowance, right under the status
-   line, because it is the one number on the card that moves by itself. */
-
-.meter { margin: -4px 0 12px; }
-
-.meter-track {
-  height: 6px;
-  background: var(--panel-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-
-.meter-fill {
-  display: block;
-  height: 100%;
-  background: var(--brass);
-  transition: width 0.6s linear;
-}
-
-.meter-label {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 5px;
-}
-
-.meter.spent .meter-fill { background: var(--rust); }
-
-.meter.spent .meter-label { color: var(--rust); }
-
-.domain-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.chip {
+.new-zone-plus {
+  flex: none;
+  transition: transform 0.15s ease;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--c-bone);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  padding: 4px 6px 4px 10px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-}
-
-.chip button {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  padding: 2px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--flag);
+  border: var(--stroke-w) solid var(--stroke);
   border-radius: 50%;
+  color: var(--ink);
 }
 
-.chip button:hover {
-  color: var(--rust);
-  background: #eae8e0;
+.new-zone-toggle .zone-name {
+  width: auto;
+  flex: none;
+  font-size: 17px;
 }
 
-.add-domain-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
+.new-zone-toggle .zone-status { flex: 1; }
+
+.new-zone.is-open .new-zone-plus { transform: rotate(45deg); }
+
+.new-zone:has(.new-zone-toggle:hover) {
+  background: var(--hover-wash);
+  border-color: var(--accent);
 }
 
-.add-domain-row input {
-  flex: 1;
-  font-size: 12px;
-  padding: 6px 9px;
-}
+.new-zone:has(.new-zone-toggle:hover) .new-zone-plus { background: var(--c-amber-bright); }
 
-.add-domain-row button {
-  font-size: 11.5px;
-  padding: 6px 10px;
-}
-
-.group-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.group-actions button {
-  font-size: 12px;
-  padding: 8px 12px;
-}
+.new-zone .zone-body { border-top-style: dashed; }
 
 .empty-state {
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 13.5px;
-  padding: 18px 4px;
+  padding: 18px 4px 0;
 }
 
-/* ---------- Challenge modal (deliberately loud) ----------
-   The one place that ignores the palette on purpose: the pastel gradient is
-   meant to feel nothing like the rest of the dashboard. */
+/* ---------- Challenge modal ----------
+   The loudest surface in the product on purpose: a full-bleed amber sticker
+   over an ink wash. It should not feel like part of the calm board behind it. */
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 16, 10, 0.55);
+  background: rgba(36, 16, 47, 0.62);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -542,12 +980,13 @@ select:focus {
 
 .modal-card {
   width: 100%;
-  max-width: 520px;
-  background: linear-gradient(155deg, #ffe6f2 0%, #ffeecb 45%, #e3f6ff 100%);
+  max-width: 540px;
+  background: var(--flag);
+  border: 3px solid var(--stroke);
   border-radius: var(--radius-xl);
-  padding: 26px 26px 22px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-  border: 3px solid #ffffff;
+  box-shadow: 8px 8px 0 var(--stroke);
+  padding: 22px 22px 20px;
+  color: var(--c-ink);
 }
 
 .modal-overlay.shake .modal-card { animation: shake 0.4s ease; }
@@ -560,99 +999,172 @@ select:focus {
   80% { transform: translateX(4px); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay.shake .modal-card { animation: none; }
+  .meter-fill, .challenge-progress-fill { transition: none; }
+  .zone-chevron { transition: background 0.12s ease; }
+  .lock-switch:hover, .lock-switch:active,
+  .arm-shortcut:hover, .arm-shortcut:active { transform: none; }
+}
+
 .modal-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   margin-bottom: 6px;
 }
 
-.modal-emoji { font-size: 26px; }
+.modal-emoji { font-size: 28px; line-height: 1; }
 
-.modal-header h3 {
-  font-size: 19px;
-  font-weight: 700;
-  color: #4a2b52;
-}
+.modal-header h3 { font-size: 21px; }
 
 .modal-instructions {
-  font-size: 13px;
-  color: #5c4a55;
+  font-size: 12.5px;
+  color: var(--c-ink-soft);
   margin: 0 0 14px;
 }
 
 .challenge-text {
-  background: rgba(255, 255, 255, 0.75);
-  border: 2px dashed #d9a9c4;
-  border-radius: var(--radius-lg);
+  background: var(--c-paper-bright);
+  border: var(--stroke-w) dashed var(--stroke);
+  border-radius: 14px;
   padding: 14px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #3a2740;
-  line-height: 1.55;
-  margin-bottom: 12px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin-bottom: 11px;
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
 }
 
+/* How much of the paragraph is done. The friction is the point; not knowing
+   how much friction is left was never part of the point. */
+.challenge-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.challenge-progress-track {
+  flex: 1;
+  display: block;
+  height: 12px;
+  background: var(--c-paper-bright);
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.challenge-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--c-violet);
+  transition: width 0.2s ease;
+}
+
+.challenge-progress-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .challenge-input {
   width: 100%;
-  border: 2px solid #f0c6dc;
+  border: var(--stroke-w) solid var(--stroke);
   border-radius: 12px;
-  padding: 11px 13px;
+  padding: 12px 14px;
   font-family: var(--font-body);
   font-size: 13.5px;
-  background: #fffdfb;
-  color: #3a2740;
+  line-height: 1.6;
+  background: var(--c-paper-bright);
+  color: var(--c-ink);
 }
 
 .challenge-input:focus {
-  outline: none;
-  border-color: #d9739f;
+  outline: var(--stroke-w-thin) solid var(--c-violet);
+  outline-offset: 1px;
 }
 
 .challenge-error {
   min-height: 18px;
-  color: var(--c-rust);
+  color: var(--c-rose-deep);
   font-size: 12.5px;
-  font-weight: 600;
-  margin: 8px 0 4px;
+  font-weight: 700;
+  margin: 8px 0 0;
 }
 
 .challenge-dev-hint {
   margin: 6px 0 0;
-  color: #5c4a55;
+  color: var(--c-ink-soft);
   font-size: 12px;
 }
 
 .challenge-dev-hint kbd {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  background: rgba(23, 24, 28, 0.07);
-  border: 1px solid rgba(23, 24, 28, 0.12);
+  background: rgba(36, 16, 47, 0.1);
+  border: 1px solid rgba(36, 16, 47, 0.2);
   border-radius: 4px;
   padding: 1px 5px;
 }
 
 .modal-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 14px;
 }
 
-.modal-actions .primary { background: #4a2b52; }
+.modal-nudge {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--c-ink-soft);
+}
 
-.modal-actions .primary:hover { background: #3a2140; }
+.modal-actions .ghost { background: var(--c-paper-bright); }
 
 /* ---------- Dev mode banner ---------- */
 
 .dev-banner {
-  border-bottom: 1px solid var(--brass);
+  border-bottom: var(--stroke-w) solid var(--stroke);
   padding: 10px 28px;
 }
 
-@media (max-width: 640px) {
+/* ---------- Narrow windows ----------
+   The dashboard is an options page, so it is often opened in a half-width
+   window. The two-column zone body and the strip's fixed name column are the
+   two things that give up first. */
+
+@media (max-width: 900px) {
+  .zone-columns { flex-direction: column; gap: 18px; }
+
+  /* Stacked, the divider between the columns has to turn with them. */
+  .zone-col.rules-col {
+    width: auto;
+    align-self: stretch;
+    border-left: 0;
+    border-top: var(--stroke-w-thin) dashed var(--line-soft);
+    padding-left: 0;
+    padding-top: 18px;
+  }
+}
+
+@media (max-width: 760px) {
+  .now-panel { flex-direction: column; align-items: flex-start; }
+  .now-headline { font-size: 32px; }
+  .zone-toggle { flex-wrap: wrap; gap: 8px 12px; }
+  .zone-name { width: auto; }
+  .zone-status { flex-basis: 100%; }
+  .strip-name { width: 92px; }
+  .strip-note { display: none; }
+  .strip-scale { padding-right: 0; padding-left: 104px; }
+  .strip-legend { padding-left: 104px; }
   .field-row { flex-direction: column; gap: 0; }
 }

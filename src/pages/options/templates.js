@@ -7,12 +7,18 @@ import {
   isGroupActive,
   isInWindow,
   hasRules,
-  formatSchedule,
-  formatRules,
   minutesToTimeValue,
   timeValueToMinutes
 } from '../../shared/schedule.js';
-import { limitMs, remainingMs, formatDuration } from '../../shared/usage.js';
+import { limitMs, remainingMs, formatDuration, isAllowanceSpent } from '../../shared/usage.js';
+import {
+  MINUTES_PER_DAY,
+  minutesIntoDay,
+  formatClock,
+  todayShutSegments,
+  nextEventFor,
+  nextEvent
+} from '../../shared/timeline.js';
 
 export function escapeHtml(str) {
   return String(str)
@@ -23,20 +29,41 @@ export function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+const pct = (minutes) => `${((minutes / MINUTES_PER_DAY) * 100).toFixed(3)}%`;
+
 /* ---------- Rule controls ----------
-   The "create a group" form and the inline "edit rules" editor ask for exactly
-   the same thing, so they render from these templates and are read back by
+   The "new permit" form and the editor inside an open zone ask for exactly the
+   same thing, so they render from these templates and are read back by
    readRules(). The `data-rule-*` and `data-sched-*` hooks tie the two
-   together. Both rules are optional and independent, but every zone needs at
-   least one of them before it can be created or saved. */
+   together. Both rules are optional and independent: a zone can be shut on a
+   schedule, capped by a daily allowance, both, or neither — and neither is the
+   strict case, since a zone with no rules is contained around the clock. */
 
 const LIMIT_PRESETS = [15, 30, 60, 120];
+
+// The window drawn as a band over the same 24 hours the day strip uses, so
+// "09:00 to 17:00" is the same shape in the editor as it is on the board.
+// Read-only on purpose: the time inputs stay the thing you edit, because a
+// hand-rolled drag control would lose keyboard entry, screen readers and the
+// browser's own clock picker for the sake of looking clever.
+function windowBandHtml(start, end) {
+  const overnight = start > end;
+  const fills = overnight
+    ? `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(MINUTES_PER_DAY - start)}"></span>
+       <span class="band-fill" style="left: 0; width: ${pct(end)}"></span>`
+    : `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(Math.max(0, end - start))}"></span>`;
+
+  return `
+    <div class="band" data-window-band aria-hidden="true">${fills}</div>
+    <div class="band-scale" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+  `;
+}
 
 function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 } = {}) {
   const selected = new Set(days);
   const pills = DAYS.map(
     ({ value, label }) => `
-      <label class="${selected.has(value) ? 'checked' : ''}">
+      <label class="day-pill ${selected.has(value) ? 'checked' : ''}">
         <input type="checkbox" data-sched-day value="${value}" ${selected.has(value) ? 'checked' : ''} />
         ${label}
       </label>`
@@ -44,6 +71,7 @@ function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 } = {})
 
   return `
     <div class="day-toggle">${pills}</div>
+    ${windowBandHtml(start, end)}
     <div class="field-row schedule-time-row">
       <label class="field">
         <span class="field-label">Gates close</span>
@@ -74,7 +102,11 @@ function limitControlsHtml({ minutes = 30 } = {}) {
   `;
 }
 
-export function rulesControlsHtml({ schedule = null, limit = null } = {}) {
+// `limitExtra` is where the allowance meter goes when there is one to draw.
+// It belongs to the allowance rule and nowhere else: a bar reading "22m of 30m
+// left today" under a heading about domains was answering a question nobody
+// had asked there.
+export function rulesControlsHtml({ schedule = null, limit = null, showNoRulesHint = false, limitExtra = '' } = {}) {
   const section = (key, label, hint, checked, body) => `
     <div class="rule-block ${checked ? 'on' : ''}" data-rule-block="${key}">
       <label class="rule-head">
@@ -98,20 +130,20 @@ export function rulesControlsHtml({ schedule = null, limit = null } = {}) {
   return `
     ${section(
       'schedule',
-      'Scheduled hours',
+      'Scheduled hours ⏰',
       'The gates stay shut only during this window. Overnight containment (e.g. 22:00 &rarr; 06:00) works too.',
       Boolean(schedule),
       scheduleControlsHtml(schedule || {})
     )}
     ${section(
       'limit',
-      'Daily allowance',
+      'Daily allowance ⏳',
       'Time spent on these sites while the gates are open. When it runs out they shut until midnight.',
       Boolean(limit),
-      limitControlsHtml(limit || {})
+      limitControlsHtml(limit || {}) + limitExtra
     )}
-    <p class="no-rules-hint" data-no-rules-hint hidden role="alert">
-      ⚠ No rules set — add at least one rule before creating this zone.
+    <p class="no-rules-hint" data-no-rules-hint ${showNoRulesHint && !schedule && !limit ? '' : 'hidden'}>
+      ⚠ No rules set — this zone stays contained 24/7.
     </p>
   `;
 }
@@ -151,18 +183,9 @@ function readLimit(root) {
   return { minutes };
 }
 
-// Returns { schedule, limit } — either of which may be null — or null if the
-// selected rules do not validate or no rule is enabled. Empty rule sets are
-// rejected here so every caller gets the same save guard.
+// Returns { schedule, limit } — either of which may be null — or null if
+// something the user asked for does not validate.
 export function readRules(root) {
-  const toggles = Array.from(root.querySelectorAll('[data-rule-toggle]'));
-  if (!toggles.some((cb) => cb.checked)) {
-    root.dataset.noRulesAttempted = 'true';
-    const hint = root.querySelector('[data-no-rules-hint]');
-    if (hint) hint.hidden = false;
-    return null;
-  }
-
   const wants = (key) => root.querySelector(`[data-rule-toggle="${key}"]`).checked;
 
   const schedule = wants('schedule') ? readSchedule(root) : null;
@@ -174,31 +197,39 @@ export function readRules(root) {
   return { schedule, limit };
 }
 
-/* ---------- Live group state ----------
+/* ---------- Live zone state ----------
    Written once and used twice: on render, and again every second by the tick
    in options.js, which refreshes the text in place instead of rebuilding the
-   card (rebuilding would throw away whatever is half-typed inside it). */
+   row (rebuilding would throw away whatever is half-typed inside it). */
 
-export function lcdText(g, now = Date.now(), usage = null, session = null) {
-  if (!g.enabled) return hasRules(g) ? `○ containment disarmed · ${formatRules(g)}` : '○ tiny mammal roaming free';
-  if (!hasRules(g)) return '○ no rules set · zone inactive';
+export function zoneStatusText(g, now = Date.now(), usage = null, session = null) {
+  if (!g.enabled) return 'disarmed · tiny mammal roaming free 🐭';
+  if (!hasRules(g)) return 'contained around the clock · no way out 👹';
 
   const parts = [];
-  const shut = isInWindow(g, now);
-  const spent = !shut && isGroupActive(g, now, usage, session);
+  const event = nextEventFor(g, now, usage, session);
+  const left = g.limit ? formatDuration(remainingMs(g, usage, session, now)) : '';
 
-  if (shut) parts.push('● tiny mammal contained');
-  else if (spent) parts.push('● allowance spent · resets at midnight');
-  // "Waiting" is about a schedule that will shut on its own; a zone held open
-  // only by its allowance has no gate hour to wait for.
-  else parts.push(g.schedule ? '○ gates waiting' : '○ gates open');
-
-  if (g.schedule) parts.push(formatSchedule(g.schedule));
-  // While the allowance is what's doing the blocking the state line already
-  // says so; a "0m left" next to it would just be the same news twice.
-  if (g.limit && !spent) parts.push(`${formatDuration(remainingMs(g, usage, session, now))} left`);
+  if (isAllowanceSpent(g, usage, session, now)) {
+    parts.push('allowance spent');
+    parts.push('back at midnight 🌙');
+  } else if (isInWindow(g, now)) {
+    parts.push('shut');
+    if (event) parts.push(`reopens ${formatClock(event.at)}`);
+    if (left) parts.push(`${left} allowance waiting`);
+  } else {
+    parts.push('open');
+    if (event && event.kind === 'shuts') parts.push(`gates close ${formatClock(event.at)}`);
+    if (left) parts.push(`${left} left today`);
+  }
 
   return parts.join(' · ');
+}
+
+export function zoneStateClass(g, now = Date.now(), usage = null, session = null) {
+  if (!g.enabled) return 'off';
+  if (isAllowanceSpent(g, usage, session, now)) return 'spent';
+  return isGroupActive(g, now, usage, session) ? 'shut' : 'open';
 }
 
 export function meterState(g, now = Date.now(), usage = null, session = null) {
@@ -214,15 +245,105 @@ export function meterState(g, now = Date.now(), usage = null, session = null) {
   };
 }
 
-/* ---------- Group cards ---------- */
+/* ---------- The now panel ----------
+   The one question the dashboard exists to answer, worked out from the same
+   rules everything else reads. */
 
-function lcdHtml(g, now, usage, session) {
-  const active = isGroupActive(g, now, usage, session);
-  return `<div class="lcd ${active ? 'on' : ''}" data-lcd="${g.id}">${escapeHtml(lcdText(g, now, usage, session))}</div>`;
+export function nowPanelState(groups, now = Date.now(), usage = null, session = null) {
+  const shut = groups.filter((g) => isGroupActive(g, now, usage, session)).length;
+  const event = nextEvent(groups, now, usage, session);
+
+  const headline = groups.length === 0
+    ? 'nothing is contained'
+    : `${shut} of ${groups.length} zone${groups.length === 1 ? '' : 's'} sealed`;
+
+  if (!event) {
+    return {
+      headline,
+      detail: groups.length === 0
+        ? 'Tiny mammal has unrestricted internet access. This seems dangerous. 👁️👄👁️'
+        : 'Nothing is on the clock — these zones open and shut with your browsing, not the hour. 🐭',
+      countdown: '',
+      countdownLabel: ''
+    };
+  }
+
+  const shuts = event.kind === 'shuts';
+  return {
+    headline,
+    detail: `Next thing that happens: <strong>${escapeHtml(event.group.name)} ${shuts ? 'shuts' : 'reopens'} at ${formatClock(event.at)}</strong> — in ${formatDuration(event.at - now)}. 👹`,
+    countdown: formatDuration(event.at - now),
+    // The zone is the subject in the sentence above and the gates are the
+    // subject here, so the verb has to agree with the gates, not with it.
+    countdownLabel: `until the gates ${shuts ? 'shut' : 'reopen'}`
+  };
 }
 
-// Only groups that actually carry an allowance get a meter: an empty bar sat
-// at 100% on every other card would be noise pretending to be information.
+/* ---------- The day strip ----------
+   Schedules stop being a sentence and become a shape: shut hours in colour,
+   free hours in paper, with a line where "now" is. */
+
+function stripRowHtml(g, now, usage, session) {
+  const segments = todayShutSegments(g, now, usage, session);
+  const state = zoneStateClass(g, now, usage, session);
+  const bands = segments
+    .map(
+      (s) =>
+        `<span class="band-fill ${s.kind}" style="left: ${pct(s.start)}; width: ${pct(s.end - s.start)}"></span>`
+    )
+    .join('');
+
+  // The note explains the track, so an empty track on a scheduled zone has to
+  // say "not today" rather than quote hours that are not on this day's strip.
+  let note = 'allowance only';
+  if (!g.enabled) note = 'disarmed';
+  else if (segments.some((s) => s.kind === 'spent')) note = 'spent';
+  else if (!hasRules(g)) note = 'all day';
+  else if (g.schedule) {
+    if (segments.length === 0) note = 'not today';
+    else if (g.schedule.start === g.schedule.end) note = 'all day';
+    else note = `${minutesToTimeValue(g.schedule.start)}–${minutesToTimeValue(g.schedule.end)}`;
+  }
+
+  return `
+    <div class="strip-row state-${state}">
+      <span class="strip-name">${escapeHtml(g.name)}</span>
+      <span class="band strip-band">
+        ${bands}
+        <span class="band-now" style="left: ${pct(minutesIntoDay(now))}"></span>
+      </span>
+      <span class="strip-note">${escapeHtml(note)}</span>
+    </div>`;
+}
+
+export function dayStripHtml(groups, now = Date.now(), usage = null, session = null) {
+  if (groups.length === 0) return '';
+  return groups.map((g) => stripRowHtml(g, now, usage, session)).join('');
+}
+
+/* ---------- Zone rows ----------
+   A zone is a row, not a card. Collapsed it answers "what is this doing"; open
+   it gets the full width for its tunnels and its rules, which is space a
+   280px card never had. Only one is open at a time. */
+
+function chipsHtml(g) {
+  if (g.domains.length === 0) return '<span class="muted">no forbidden tunnels yet</span>';
+  return g.domains
+    .map((d) => {
+      const safe = escapeHtml(d);
+      return `
+      <span class="chip">
+        ${safe}
+        <button type="button" data-action="remove-domain" data-group="${g.id}" data-domain="${safe}"
+          title="Release ${safe}" aria-label="Release ${safe} from containment">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </span>`;
+    })
+    .join('');
+}
+
 function meterHtml(g, now, usage, session) {
   if (!g.limit) return '';
   const { percent, label, spent } = meterState(g, now, usage, session);
@@ -233,63 +354,74 @@ function meterHtml(g, now, usage, session) {
     </div>`;
 }
 
-function actionsHtml(g) {
-  const btn = (cls, action, label) =>
-    `<button type="button" class="${cls}" data-action="${action}" data-group="${g.id}">${label}</button>`;
-
-  // The arm/disarm toggle follows the group's own switch, not whether its
-  // rules happen to be blocking this second.
-  const toggle = g.enabled ? btn('ghost', 'disable', 'Disarm') : btn('primary', 'enable', 'Arm containment');
-
-  return `${toggle}${btn('ghost', 'edit-rules', 'Edit rules')}${btn('btn-danger', 'delete', 'Delete zone')}`;
-}
-
-function chipsHtml(g) {
-  if (g.domains.length === 0) return '<span class="muted">no forbidden tunnels</span>';
-  return g.domains
-    .map((d) => {
-      const safe = escapeHtml(d);
-      return `
-      <span class="chip">
-        ${safe}
-        <button type="button" data-action="remove-domain" data-group="${g.id}" data-domain="${safe}"
-          title="Release site" aria-label="Release ${safe} from containment">&times;</button>
-      </span>`;
-    })
-    .join('');
-}
-
-function rulesEditorHtml(g) {
+function zoneBodyHtml(g, now, usage, session) {
   return `
-    <div class="rules-editor" data-rules-editor="${g.id}">
-      ${rulesControlsHtml(g)}
-      <div class="rule-actions">
-        <button type="button" class="primary" data-action="save-rules" data-group="${g.id}">Save rules</button>
-        <button type="button" class="ghost" data-action="cancel-edit-rules" data-group="${g.id}">Cancel</button>
+    <div class="zone-body">
+      <div class="zone-columns">
+        <div class="zone-col">
+          <div class="col-label">Forbidden tunnels</div>
+          <div class="domain-chips">${chipsHtml(g)}</div>
+          <div class="add-domain-row">
+            <input type="text" placeholder="add a forbidden tunnel..." data-add-domain-input="${g.id}"
+              aria-label="Add a forbidden tunnel to ${escapeHtml(g.name)}" />
+            <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add</button>
+          </div>
+        </div>
+
+        <div class="zone-col rules-col">
+          <div class="col-head">
+            <span class="col-label">Containment rules</span>
+            <span class="paperwork-flag">🔒 needs paperwork</span>
+          </div>
+          <div class="rules-editor" data-rules-editor="${g.id}">
+            ${rulesControlsHtml({ ...g, limitExtra: meterHtml(g, now, usage, session) })}
+          </div>
+        </div>
       </div>
-    </div>
-  `;
+
+      <div class="zone-actions">
+        <button type="button" class="primary" data-action="save-rules" data-group="${g.id}">Save rules 🔒</button>
+        <button type="button" class="ghost" data-action="toggle" data-group="${g.id}">Cancel</button>
+        <span class="spacer"></span>
+        ${
+          g.enabled
+            ? `<button type="button" class="ghost" data-action="disable" data-group="${g.id}">Disarm 🔓</button>`
+            : `<button type="button" class="ghost" data-action="enable" data-group="${g.id}">Arm containment 🔒</button>`
+        }
+        <button type="button" class="btn-danger" data-action="delete" data-group="${g.id}">Delete zone</button>
+      </div>
+    </div>`;
 }
 
-export function groupCardHtml(g, now, editingIds, usage = null, session = null) {
-  const active = isGroupActive(g, now, usage, session);
-  const editor = editingIds.has(g.id) ? rulesEditorHtml(g) : '';
+export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
+  const open = openIds.has(g.id);
+  const state = zoneStateClass(g, now, usage, session);
+  const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}`;
+
+  // Arming is free and strengthens containment, so a disarmed row gets the
+  // shortcut right there. It sits outside the toggle: a button inside a button
+  // is not markup, it is a dare.
+  const armShortcut =
+    !g.enabled && !open
+      ? `<button type="button" class="arm-shortcut" data-action="enable" data-group="${g.id}">Arm 🔒</button>`
+      : '';
 
   return `
-    <div class="group-card ${active ? 'active' : ''}" data-group-card="${g.id}">
-      <div class="group-card-head">
-        <span class="group-name">${escapeHtml(g.name)}</span>
-        <span class="group-count">${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}</span>
+    <div class="zone state-${state} ${open ? 'is-open' : ''}" data-zone="${g.id}">
+      <div class="zone-head">
+        <button type="button" class="zone-toggle" data-action="toggle" data-group="${g.id}"
+          aria-expanded="${open}" aria-controls="zone-body-${g.id}">
+          <span class="zone-dot" aria-hidden="true"></span>
+          <span class="zone-name">${escapeHtml(g.name)}</span>
+          <span class="zone-status" data-status="${g.id}">${escapeHtml(zoneStatusText(g, now, usage, session))}</span>
+          <span class="zone-count">${count}</span>
+          <span class="zone-chevron" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </span>
+        </button>
+        ${armShortcut}
       </div>
-      ${lcdHtml(g, now, usage, session)}
-      ${meterHtml(g, now, usage, session)}
-      ${editor}
-      <div class="domain-chips">${chipsHtml(g)}</div>
-      <div class="add-domain-row">
-        <input type="text" placeholder="add a forbidden tunnel..." data-add-domain-input="${g.id}" />
-        <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add to zone</button>
-      </div>
-      <div class="group-actions">${actionsHtml(g)}</div>
-    </div>
-  `;
+      <div id="zone-body-${g.id}" ${open ? '' : 'hidden'}>${open ? zoneBodyHtml(g, now, usage, session) : ''}</div>
+    </div>`;
 }

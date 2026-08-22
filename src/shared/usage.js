@@ -88,7 +88,3 @@ export function formatDuration(ms) {
   const m = totalMinutes % 60;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
-
-export function formatAllowance(limit) {
-  return limit ? `${formatDuration(limitMs(limit))}/day` : '';
-}

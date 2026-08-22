@@ -7,112 +7,162 @@
       button colors...). Pages pick a theme with a class on <html> and then
       only ever reference the semantic names.
 
-   The dashboard is light, the popup and the blocked page are dark. Before this
-   split each of the three redefined the same variable names with different
-   values — --brass alone meant two different colors — which is why the pages
-   had quietly drifted apart. */
+   The palette is lifted straight off icons/icon128.png — the little goblin has
+   been violet, rose and amber since day one while the UI was quietly brass and
+   sand. Ink is the aubergine its outline is drawn in.
+
+   The look is stamped paper: hard ink strokes, offset shadows with no blur,
+   and stickers. That means two things every page relies on and neither can
+   invent for itself — --stroke-w for the outline, --shadow-* for the offset —
+   so they live here next to the colors. */
 
 :root {
   /* ---------- Palette ---------- */
-  --c-ink: #17181c;
-  --c-ink-soft: #2a2b31;
+  --c-ink: #24102f;
+  --c-ink-soft: #5c3f6b;
 
-  --c-charcoal: #14150f;
-  --c-charcoal-panel: #1c1d16;
-  --c-charcoal-line: #33342a;
+  --c-violet: #6b12b8;
+  --c-violet-deep: #4e038a;
+  --c-violet-pale: #d9b8f5;
 
-  --c-paper: #ffffff;
-  --c-paper-warm: #fbfaf7;
-  --c-bone: #f2f1ec;
-  --c-bone-bright: #f4f3ee;
-  --c-sand: #eeede8;
-  --c-sand-sunken: #f7f6f1;
-  --c-sand-line: #dedcd2;
+  --c-rose: #e23a63;
+  --c-rose-deep: #c11e46;
+  --c-rose-pale: #ff8fae;
+  --c-rose-line: #e2c3cb;
 
-  --c-brass: #d9b25c;      /* reads on dark surfaces */
-  --c-brass-deep: #9c7a2e; /* reads on light surfaces */
-  --c-brass-mid: #c79a3e;
-  --c-brass-pale: #e6c47a;
-  --c-brass-dim: #7a6a3e;
+  --c-amber: #f9b32d;
+  --c-amber-deep: #e8a01c;
+  --c-amber-bright: #ffed6c;
 
-  --c-rust: #a8382c;
-  --c-rust-pale: #e08579;
-  --c-rust-line: #e3cdc8;
-  --c-rust-wash: #fbf0ee;
+  --c-paper: #fdf2e0;
+  --c-paper-bright: #fffaf0;
+  --c-paper-sunken: #f7ebd9;
+  --c-paper-deep: #efe3d0;
+  --c-paper-track: #f4ece0;
 
-  --c-grey: #6b6d66;
-  --c-grey-warm: #9a9a8e;
-  --c-grey-cool: #9a9a94;
+  --c-line: #c9b6a3;
+  --c-line-soft: #e6d5c0;
+  --c-mute: #8a6a99;
+  --c-mute-soft: #a08fae;
 
   /* ---------- Type ---------- */
-  --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
-  /* ---------- Shape ---------- */
-  --radius-sm: 7px;
-  --radius-md: 9px;
-  --radius-lg: 14px;
-  --radius-xl: 22px;
+  /* ---------- Shape ----------
+     One stroke width everywhere: a 2px outline next to a 2.5px one reads as a
+     mistake rather than a hierarchy, so the thin variant is only ever used
+     inside something already outlined. */
+  --stroke-w: 2.5px;
+  --stroke-w-thin: 2px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-pill: 999px;
 }
 
 /* ---------- Light theme (dashboard) ---------- */
 
 .theme-light {
-  --bg: var(--c-sand);
-  --panel: var(--c-paper);
-  --panel-sunken: var(--c-sand-sunken);
-  --field-bg: var(--c-paper-warm);
+  --bg: var(--c-paper);
+  --panel: var(--c-paper-bright);
+  --panel-sunken: var(--c-paper-sunken);
+  --track: var(--c-paper-track);
+  --field-bg: var(--c-paper-bright);
 
   --ink: var(--c-ink);
-  --muted: var(--c-grey);
-  --line: var(--c-sand-line);
+  --ink-soft: var(--c-ink-soft);
+  --muted: var(--c-mute);
+  --muted-soft: var(--c-mute-soft);
 
-  --brass: var(--c-brass-deep);
-  --brass-bright: var(--c-brass-mid);
-  --brass-wash: #fbf3e2;
+  /* The outline is ink; --line is for things that are switched off. */
+  --stroke: var(--c-ink);
+  --line: var(--c-line);
+  --line-soft: var(--c-line-soft);
 
-  --rust: var(--c-rust);
-  --rust-line: var(--c-rust-line);
-  --rust-wash: var(--c-rust-wash);
+  --accent: var(--c-violet);
+  --accent-on: #ffffff;
+  --flag: var(--c-amber);
+  --flag-deep: var(--c-amber-deep);
+
+  --rust: var(--c-rose-deep);
+  --rust-line: var(--c-rose-line);
+  --rust-wash: #fdeff2;
+
+  --shadow: var(--stroke);
+  --shadow-flag: var(--c-amber);
+  --shadow-rose: var(--c-rose);
 
   --btn-primary-bg: var(--c-ink);
-  --btn-primary-fg: var(--c-bone-bright);
+  --btn-primary-fg: var(--c-paper);
   --btn-primary-bg-hover: var(--c-ink-soft);
-  --btn-ghost-hover-bg: var(--c-bone);
+  --btn-primary-shadow: var(--c-amber);
+  --btn-ghost-bg: var(--c-paper-bright);
+  --btn-ghost-border: var(--c-ink);
+  --btn-ghost-hover-bg: var(--c-paper-sunken);
+
+  /* Rows and pills tint rather than lift, so a list of them stays calm. */
+  --hover-wash: var(--c-paper-sunken);
+  --hover-wash-deep: var(--c-paper-deep);
 }
 
-/* ---------- Dark theme (popup, blocked page) ---------- */
+/* ---------- Dark theme (popup, blocked page) ----------
+   Same stamped paper, ink ground: cards stay pale and outlined, the page
+   behind them goes aubergine. */
 
 .theme-dark {
-  --bg: var(--c-charcoal);
-  --panel: var(--c-charcoal-panel);
-  --panel-sunken: var(--c-charcoal-panel);
-  --field-bg: var(--c-charcoal-panel);
+  --bg: var(--c-ink);
+  --panel: var(--c-paper-bright);
+  --panel-sunken: var(--c-paper-sunken);
+  --track: var(--c-paper-track);
+  --field-bg: var(--c-paper-bright);
 
-  --ink: var(--c-bone);
-  --muted: var(--c-grey-warm);
-  --line: var(--c-charcoal-line);
+  --ink: var(--c-paper);
+  --ink-soft: var(--c-violet-pale);
+  --muted: var(--c-violet-pale);
+  --muted-soft: var(--c-mute-soft);
 
-  --brass: var(--c-brass);
-  --brass-bright: var(--c-brass-pale);
-  --brass-wash: rgba(217, 178, 92, 0.14);
+  --stroke: var(--c-ink);
+  --line: var(--c-line);
+  --line-soft: var(--c-line-soft);
 
-  --rust: var(--c-rust-pale);
-  --rust-line: var(--c-charcoal-line);
-  --rust-wash: var(--c-charcoal-panel);
+  --accent: var(--c-amber);
+  --accent-on: var(--c-ink);
+  --flag: var(--c-amber);
+  --flag-deep: var(--c-amber-deep);
 
-  --btn-primary-bg: var(--c-bone);
+  --rust: var(--c-rose-pale);
+  --rust-line: var(--c-rose);
+  --rust-wash: rgba(226, 58, 99, 0.16);
+
+  --shadow: var(--c-rose);
+  --shadow-flag: var(--c-amber);
+  --shadow-rose: var(--c-rose);
+
+  --btn-primary-bg: var(--c-paper);
   --btn-primary-fg: var(--c-ink);
-  --btn-primary-bg-hover: var(--c-paper);
-  --btn-ghost-hover-bg: var(--c-charcoal-panel);
+  /* Paper stays paper on hover: the dark theme's primary button is a pale
+     sticker on an ink ground, so darkening it would strand its ink text. */
+  --btn-primary-bg-hover: var(--c-paper-bright);
+  --btn-primary-shadow: var(--c-amber);
+  --btn-ghost-bg: transparent;
+  /* An ink outline is invisible on an ink ground, so the ghost outlines
+     itself in paper here — the same reason its label is already paper. */
+  --btn-ghost-border: var(--c-paper);
+  --btn-ghost-hover-bg: rgba(253, 242, 224, 0.16);
+
+  --hover-wash: var(--c-paper-sunken);
+  --hover-wash-deep: var(--c-paper-deep);
 }
 
-/* The little LCD strip on group cards is always a dark readout, whatever the
-   surrounding theme is, so its colors sit outside the theme mapping. */
+/* The status readout on a zone row is always a dark stamped strip, whatever
+   the surrounding theme is, so its colors sit outside the theme mapping. */
 :root {
-  --lcd-bg: var(--c-charcoal);
-  --lcd-text: var(--c-brass);
-  --lcd-text-dim: var(--c-brass-dim);
+  --lcd-bg: var(--c-ink);
+  --lcd-text: var(--c-amber);
+  --lcd-text-dim: var(--c-mute-soft);
+  --lcd-text-alarm: var(--c-rose-pale);
 }

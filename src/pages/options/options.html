@@ -15,67 +15,117 @@
     Set <code>LOCKIN_DEV = false</code> in <code>env.js</code> and refresh to restore containment.
   </div>
 
+  <!-- The top bar carries the seal and nothing else. What edit lock does is
+       explained by the seal's own subtitle rather than by a paragraph that
+       spends the width of the page on every single visit. -->
   <header class="topbar">
     <div class="brand">
-      <img src="../../../icons/icon48.png" alt="" width="26" height="26" />
-      <div>
-        <div class="brand-title">Lock In</div>
-        <div class="brand-sub">tiny mammal containment system</div>
-      </div>
+      <span class="brand-mark"><img src="../../../icons/icon48.png" alt="" width="26" height="26" /></span>
+      <span class="brand-title">Lock In</span>
     </div>
 
-    <button id="lockSwitch" class="lock-switch" type="button" aria-pressed="false">
-      <span class="lock-switch-icon">🔓</span>
-      <span class="lock-switch-text">
-        <span class="lock-switch-label">Edit lock</span>
-        <span class="lock-switch-state" id="lockSwitchState">off</span>
-      </span>
-    </button>
+    <div class="lock-area">
+      <span class="lock-note" id="lockNote">weakening containment needs paperwork</span>
+      <button id="lockSwitch" class="lock-switch" type="button" aria-pressed="false">
+        <span class="lock-switch-icon" aria-hidden="true">🔓</span>
+        <span class="lock-switch-text">
+          <span class="lock-switch-label">Edit lock</span>
+          <span class="lock-switch-state" id="lockSwitchState">open</span>
+        </span>
+      </button>
+    </div>
   </header>
 
-  <p class="lock-explainer">
-    Turn on <strong>Edit lock</strong> and future tiny mammal must type a propaganda paragraph
-    before weakening containment. Adding new sites and groups stays free; opening escape routes
-    requires paperwork. 👹📑
-  </p>
-
   <main class="container">
-    <section class="panel new-group-panel">
-      <h2>Build a containment zone</h2>
-      <form id="newGroupForm">
-        <label class="field">
-          <span class="field-label">Zone name</span>
-          <input type="text" id="groupName" placeholder="e.g. Scroll pit" required />
-        </label>
-
-        <label class="field">
-          <span class="field-label">Forbidden tunnels (one per line, or comma separated)</span>
-          <textarea id="groupDomains" rows="3" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
-        </label>
-
-        <div class="field">
-          <span class="field-label">Containment rules</span>
-          <!-- Scheduled hours and daily allowance are independent and each is
-               optional, but at least one must be selected before the zone can
-               be created. Rendered from the same template as the inline
-               "edit rules" editor on each card. -->
-          <div id="rulesControls" class="rules-controls"></div>
-        </div>
-
-        <button type="submit" class="primary">Lock it down 👹</button>
-      </form>
+    <!-- 1. What is true right now -->
+    <section class="now-panel" aria-labelledby="nowHeadline">
+      <div class="now-text">
+        <div class="now-clock" id="nowClock"></div>
+        <h1 class="now-headline" id="nowHeadline">…</h1>
+        <p class="now-detail" id="nowDetail"></p>
+      </div>
+      <div class="now-stamp" id="nowStamp" hidden>
+        <div class="now-stamp-value" id="nowCountdown"></div>
+        <div class="now-stamp-label" id="nowCountdownLabel"></div>
+      </div>
     </section>
 
-    <section class="groups-section">
-      <div class="groups-header">
-        <h2>Containment zones</h2>
-        <span id="groupCountLabel" class="muted"></span>
+    <!-- 2. The same rules, drawn -->
+    <section class="day-panel" id="dayPanel" aria-labelledby="dayPanelTitle">
+      <div class="panel-head">
+        <h2 id="dayPanelTitle">Your <span id="dayName">day</span>, contained</h2>
+        <span class="panel-note">shut hours in colour · free hours in paper</span>
       </div>
-      <div id="groupsList" class="groups-grid"></div>
+      <div class="strip-scale" aria-hidden="true">
+        <span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span>
+      </div>
+      <div id="dayStrip" class="strip"></div>
+      <p class="strip-legend">▲ the rose line is now — everything right of it is still negotiable</p>
+    </section>
+
+    <!-- 3. The zones themselves -->
+    <section class="zones-section" aria-labelledby="zonesTitle">
+      <div class="panel-head">
+        <h2 id="zonesTitle">Containment zones</h2>
+        <span id="groupCountLabel" class="panel-note"></span>
+      </div>
+
+      <div id="groupsList" class="zone-list"></div>
+
       <p id="emptyState" class="empty-state" hidden>
         Nothing is contained yet. Tiny mammal currently has unrestricted internet access.
         This seems dangerous. 👁️👄👁️
       </p>
+
+      <!-- The builder is the last row of the list, folded away. Creating a zone
+           is the rarest thing anyone does here; it should not own the top of
+           the page. -->
+      <div class="new-zone" id="newZone">
+        <div class="zone-head">
+          <button type="button" class="zone-toggle new-zone-toggle" id="newZoneToggle" aria-expanded="false" aria-controls="newZoneBody">
+            <span class="new-zone-plus" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="3.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </span>
+            <span class="zone-name">Open a new containment permit</span>
+            <span class="zone-status">always free · no paperwork 🐭</span>
+          </button>
+        </div>
+
+        <div id="newZoneBody" hidden>
+          <form id="newGroupForm" class="zone-body">
+            <div class="zone-columns">
+              <div class="zone-col">
+                <label class="field">
+                  <span class="field-label">Zone name</span>
+                  <input type="text" id="groupName" placeholder="e.g. Scroll pit" required />
+                </label>
+
+                <label class="field">
+                  <span class="field-label">Forbidden tunnels (one per line, or comma separated)</span>
+                  <textarea id="groupDomains" rows="4" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
+                </label>
+              </div>
+
+              <div class="zone-col rules-col">
+                <div class="col-head">
+                  <span class="col-label">Containment rules</span>
+                </div>
+                <!-- Scheduled hours and daily allowance are independent, and both
+                     optional: a zone with neither is contained around the clock.
+                     Rendered from the same template the editor inside an open
+                     zone uses. -->
+                <div id="rulesControls" class="rules-editor"></div>
+              </div>
+            </div>
+
+            <div class="zone-actions">
+              <button type="submit" class="primary">Lock it down 👹</button>
+              <button type="button" class="ghost" id="newZoneCancel">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -87,10 +137,14 @@
         <h3>prove you mean it, tiny mammal</h3>
       </div>
       <p class="modal-instructions">
-        Type the propaganda below <strong>by hand</strong> to continue. No copy, no paste.
+        Typing this by hand is the whole point. No copy, no paste.
         If you really want to weaken containment, earn the paperwork. 👀
       </p>
       <div id="challengeText" class="challenge-text" tabindex="-1"></div>
+      <div class="challenge-progress">
+        <span class="challenge-progress-track"><span id="challengeProgressFill" class="challenge-progress-fill"></span></span>
+        <span id="challengeProgressLabel" class="challenge-progress-label">0% typed</span>
+      </div>
       <textarea
         id="challengeInput"
         class="challenge-input"
@@ -105,6 +159,7 @@
         ⚡ dev mammal override: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>
       </p>
       <div class="modal-actions">
+        <span class="modal-nudge">still time to change your mind 🐭</span>
         <button id="challengeCancel" class="ghost" type="button">Return to the mines</button>
         <button id="challengeSubmit" class="primary" type="button">Approve terrible decision</button>
       </div>

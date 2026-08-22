@@ -14,7 +14,7 @@
 // not be active. The dashboard rejects empty rule sets before saving them;
 // this guard also keeps malformed or legacy data from blocking sites.
 
-import { isAllowanceSpent, formatAllowance } from './usage.js';
+import { isAllowanceSpent } from './usage.js';
 
 // The one list of weekdays, in the Monday-first order the UI shows them.
 // Everything that renders day pills or formats a schedule reads it from here.
@@ -108,12 +108,4 @@ export function formatSchedule(schedule) {
       ? 'all day'
       : `${formatMinutes(schedule.start)}–${formatMinutes(schedule.end)}`;
   return `${formatScheduleDays(schedule.days)} · ${range}`;
-}
-
-// The whole rule set in one line: "weekdays · 9:00 AM–5:00 PM · 30m/day".
-export function formatRules(g) {
-  const parts = [];
-  if (g.schedule) parts.push(formatSchedule(g.schedule));
-  if (g.limit) parts.push(formatAllowance(g.limit));
-  return parts.join(' · ');
 }
