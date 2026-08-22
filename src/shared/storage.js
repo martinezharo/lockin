@@ -3,6 +3,7 @@
 // their defaults are defined exactly once.
 
 import { pruneUsage } from './usage.js';
+import { addBlock } from './tally.js';
 
 /* Groups used to carry a `mode` of 'permanent' | 'schedule' (and, further
    back, 'temporary'). The current code reads independent `schedule` and
@@ -64,5 +65,21 @@ export const Storage = {
   },
   async setUsageSession(session) {
     await chrome.storage.local.set({ usageSession: session });
+  },
+
+  /* ---------- Blocked-page tally ----------
+     Counted by the blocked page as it loads, which is the only place that
+     knows a redirect just happened — declarativeNetRequest does the
+     redirecting without waking the service worker. Presentation only:
+     nothing reads this back to decide whether to block. */
+
+  async getBlockTally() {
+    const { blockTally = null } = await chrome.storage.local.get('blockTally');
+    return blockTally;
+  },
+  async recordBlock(domain, now = Date.now()) {
+    const next = addBlock(await this.getBlockTally(), domain, now);
+    await chrome.storage.local.set({ blockTally: next });
+    return next;
   }
 };
