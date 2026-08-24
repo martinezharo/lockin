@@ -6,6 +6,8 @@ const errors = [];
 
 if (manifest.manifest_version !== 3) errors.push('manifest_version must be 3');
 if (manifest.permissions?.includes('tabs')) errors.push('the redundant tabs permission must not ship');
+if (manifest.permissions?.includes('nativeMessaging')) errors.push('nativeMessaging must not ship with the PowerShell watchdog build');
+if (manifest.permissions?.includes('declarativeNetRequest')) errors.push('the sensor-only extension must not enforce DNR rules');
 if (manifest.host_permissions?.includes('<all_urls>')) errors.push('<all_urls> must not ship');
 if (manifest.description.length > 132) errors.push('manifest description exceeds 132 characters');
 
@@ -40,8 +42,13 @@ async function filesUnder(directory) {
 for (const file of (await filesUnder('src')).filter((path) => path.endsWith('.js'))) {
   const source = await readFile(file, 'utf8');
   if (/\b(?:eval|Function)\s*\(/.test(source)) errors.push(`remote-code-sensitive construct found in ${file}`);
-  if (/\bfetch\s*\(/.test(source)) errors.push(`network request found in ${file}; review and declare it: fetch()`);
+  if (/\bfetch\s*\(/.test(source) && file !== join('src', 'watchdog-client.js')) {
+    errors.push(`network request found in ${file}; review and declare it: fetch()`);
+  }
 }
+
+const watchdogClient = await readFile(join('src', 'watchdog-client.js'), 'utf8');
+if (!watchdogClient.includes('http://127.0.0.1:8765/api/request')) errors.push('watchdog client must be pinned to loopback');
 
 if (errors.length) {
   console.error(errors.map((error) => `- ${error}`).join('\n'));

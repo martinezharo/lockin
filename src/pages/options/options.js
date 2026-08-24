@@ -44,6 +44,10 @@ const newZoneBody = document.getElementById('newZoneBody');
 const newGroupForm = document.getElementById('newGroupForm');
 const rulesControls = document.getElementById('rulesControls');
 const privacyConsentModal = document.getElementById('privacyConsentModal');
+const servicePanel = document.getElementById('servicePanel');
+const serviceHeadline = document.getElementById('serviceHeadline');
+const serviceDetail = document.getElementById('serviceDetail');
+const serviceReason = document.getElementById('serviceReason');
 
 // Exactly one zone is expanded at a time. A page with three open editors was
 // the old dashboard's worst habit; this is a Set of one so the rule is
@@ -149,15 +153,52 @@ document.getElementById('privacyConsentAccept').addEventListener('click', async 
 
 document.getElementById('deleteLocalData').addEventListener('click', () => {
   const confirmed = window.confirm(
-    'Delete every Lock In zone, schedule, usage total, tally, and consent choice stored on this device?'
+    'Delete every Lock In zone, schedule, usage total, watchdog state, and consent choice stored on this device?'
   );
   if (!confirmed) return;
 
   withLockCheck(async () => {
-    await Storage.clearAll();
-    location.reload();
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'lockin-native-clear' });
+      if (!result?.ok) throw new Error(result?.error || 'The watchdog rejected the delete request.');
+      await Storage.clearAll();
+      location.reload();
+    } catch (error) {
+      window.alert(`Lock In could not delete its protected watchdog data: ${error.message}`);
+    }
   });
 });
+
+async function refreshServiceStatus() {
+  const { nativeStatus = null } = await chrome.storage.local.get('nativeStatus');
+  servicePanel.className = 'service-panel';
+
+  if (!nativeStatus?.connected) {
+    servicePanel.classList.add('state-disconnected');
+    serviceHeadline.textContent = 'Local enforcement watchdog disconnected';
+    serviceDetail.textContent = nativeStatus?.error || 'Install or start the Lock In Watchdog task to restore protected enforcement.';
+    serviceReason.textContent = 'sensor offline';
+    return;
+  }
+
+  if (!nativeStatus.enforcementArmed) {
+    servicePanel.classList.add('state-warning');
+    serviceHeadline.textContent = 'Watchdog connected · safe rollout not armed yet';
+    serviceDetail.textContent = 'Three valid sensor heartbeats are required before Windows policies can activate.';
+    serviceReason.textContent = nativeStatus.enforcementReason || 'not armed';
+    return;
+  }
+
+  const blocking = (nativeStatus.blockedDomains || []).length > 0;
+  servicePanel.classList.add(blocking ? 'state-blocking' : 'state-ready');
+  serviceHeadline.textContent = blocking
+    ? `Windows is containing ${nativeStatus.blockedDomains.length} domain${nativeStatus.blockedDomains.length === 1 ? '' : 's'}`
+    : 'Windows enforcement armed · tunnels currently open';
+  serviceDetail.textContent = nativeStatus.failClosedActive
+    ? 'Lock In sensor disappeared, so the watchdog blocked browser networking.'
+    : 'Usage and schedules are owned by the protected local watchdog.';
+  serviceReason.textContent = nativeStatus.enforcementReason || 'open';
+}
 
 /* ---------------- The new-permit row ----------------
    Folded away by default: creating a zone is the rarest thing anyone does
@@ -403,6 +444,9 @@ setInterval(async () => {
   }
 }, 1000);
 
+setInterval(refreshServiceStatus, 2000);
+
 refreshPrivacyConsent().then((accepted) => {
   if (accepted) render();
 });
+refreshServiceStatus();

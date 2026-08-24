@@ -1,4 +1,4 @@
-# Unlisted submission checklist
+# Unlisted update checklist — version 1.4.0
 
 ## Developer account
 
@@ -10,8 +10,11 @@
 
 ## Package
 
-- [ ] Upload `dist/lock-in-1.3.0-chrome-web-store.zip`.
-- [ ] Confirm the dashboard detects Manifest V3 and version 1.3.0.
+- [ ] Install and test `dist/lock-in-1.4.0-windows-watchdog.zip` first.
+- [ ] Publish a reviewer-accessible HTTPS download for that exact watchdog archive and record its SHA-256.
+- [ ] Replace the submission-blocker paragraph in `store/reviewer-notes.md` with that URL and checksum.
+- [ ] Upload `dist/lock-in-1.4.0-chrome-web-store.zip`.
+- [ ] Confirm the dashboard detects Manifest V3 and version 1.4.0.
 - [ ] Do not upload the repository or a manually created ZIP.
 
 ## Store listing
@@ -25,10 +28,12 @@
 
 - [ ] Paste the single-purpose statement from `store/listing.md`.
 - [ ] Paste each permission justification from `store/privacy-practices.md`.
+- [ ] Remove the obsolete `declarativeNetRequest` justification.
+- [ ] Declare and justify the fixed loopback host permission.
 - [ ] Declare no remote code.
 - [ ] Declare browsing activity, user activity, and user-provided configuration accurately.
 - [ ] Certify Limited Use compliance.
-- [ ] Add `https://gist.github.com/martinezharo/ab4b917dfc95ad2a24800632a09390d2` as the public privacy-policy URL.
+- [ ] Update the public privacy-policy URL to the version 1.4.0 text before uploading the package.
 
 ## Distribution and review
 
@@ -36,12 +41,15 @@
 - [ ] Select all regions unless there is a specific reason not to.
 - [ ] Confirm there are no in-app purchases.
 - [ ] Paste `store/reviewer-notes.md` into the test-instructions field.
+- [ ] Confirm the reviewer can download and install the Windows watchdog without repository access.
 - [ ] Submit for review only after every warning in the dashboard is resolved.
 
-## After approval
+## After approval of 1.4.0
 
-- [ ] Copy the extension ID from the approved Web Store item.
-- [ ] Follow `store/force-install-after-approval.md` from an administrator
-  account to force-install Lock In on this computer.
+- [ ] Confirm the existing extension ID remains `ceggfchogfcdgnobpekajiojobghcggi`.
+- [ ] Install the Windows watchdog before Chrome updates the extension.
+- [ ] Follow `store/force-install-after-approval.md` from an administrator account.
+- [ ] Confirm the Lock In dashboard reaches **Windows enforcement armed**.
+- [ ] Confirm schedule, allowance, restart and sensor-missing behavior on the real browser.
 - [ ] Confirm `ExtensionInstallForcelist` appears in `chrome://policy` and the
   normal Extensions page does not offer a disable/remove control.

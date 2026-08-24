@@ -1,40 +1,38 @@
-# Chrome Web Store privacy practices
+# Chrome Web Store privacy practices — version 1.4.0
 
-Use these answers in the Privacy practices tab. Keep them consistent with `docs/index.html` and the in-product privacy policy.
+Use these answers for the `1.4.0` update. Keep them consistent with `docs/index.html` and the in-product privacy page.
 
 ## Permission justifications
 
 ### storage
 
-Stores the user's privacy-consent choice, user-created zones and domains, schedules, daily allowance totals, edit-lock preference, and daily blocked-visit tally in `chrome.storage.local`. This data never leaves the device.
-
-### declarativeNetRequest
-
-Creates local dynamic redirect rules that send navigation to user-selected blocked domains to Lock In's packaged blocked page. Rules are derived only from the user's configured zones, schedules, and allowances.
+Stores the privacy-consent choice, a local display mirror of user-created zones, schedules and authoritative watchdog usage totals, the edit-lock preference, and local watchdog health. The authoritative records remain in protected Windows storage and nothing leaves the device.
 
 ### alarms
 
-Refreshes schedule boundaries approximately once per minute and schedules the exact local deadline at which an active daily allowance expires.
+Retries the local watchdog connection if the Manifest V3 service worker is restarted. Enforcement and elapsed-time calculations do not depend on the alarm.
 
 ### Host permissions: http://*/* and https://*/*
 
-Lock In lets the user block any HTTP or HTTPS domain, so it needs host access for user-selected destinations. It also reads only the hostname of the active tab to determine whether a configured daily allowance should run. It does not inject scripts, read page content, inspect forms, or transmit browsing data.
+Reads only the hostname of the active tab in the focused browser window so the local watchdog can determine whether a configured daily allowance should run. Lock In does not inject scripts, read page content, inspect forms, or contact internet servers.
+
+### Host permission: http://127.0.0.1:8765/*
+
+Sends heartbeats, configuration and state requests to the protected Lock In watchdog on the same computer. This loopback traffic never leaves the device.
 
 ## Remote code
 
 Select: `No, I am not using remote code.`
 
-All JavaScript, CSS, fonts, icons, and text are contained in the submitted package. The extension does not fetch or execute remote resources.
+All extension JavaScript, CSS, fonts, icons, and text are contained in the submitted package. The only `fetch` target is the fixed loopback watchdog address; the extension performs no remote-code execution or internet request.
 
 ## Data disclosure
 
-Do not select "This item does not collect or use user data."
+Do not select “This item does not collect or use user data.” Declare the dashboard categories corresponding to:
 
-Declare the dashboard categories corresponding to:
-
-- Web history or browsing activity: active-tab hostname and blocked-domain tally.
-- User activity: time spent on configured domains for optional daily allowances.
-- User-provided content, if the dashboard includes this category: zone names and domain lists entered by the user.
+- Web history or browsing activity: the active-tab hostname.
+- User activity: locally calculated time spent on configured domains.
+- User-provided content: zone names, domain lists, schedules and limits.
 
 For every declared category:
 
@@ -47,6 +45,4 @@ For every declared category:
 
 ## Limited Use certification
 
-Certify compliance. The public policy contains the required statement:
-
-> Lock In's use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements.
+Certify compliance. The public policy contains the required Limited Use statement.

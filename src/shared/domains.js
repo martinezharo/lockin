@@ -22,8 +22,7 @@ export function parseDomainList(raw) {
   return Array.from(new Set(String(raw || '').split(/[\n,]/).map(normalizeDomainInput).filter(Boolean)));
 }
 
-// A rule for "example.com" also covers its subdomains, so the blocked page
-// has to match the same way when it works out which group caught you.
+// A rule for "example.com" also covers its subdomains.
 export function domainMatches(domain, listed) {
   return domain === listed || domain.endsWith('.' + listed);
 }

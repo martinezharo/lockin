@@ -34,6 +34,8 @@
   --c-amber-deep: #e8a01c;
   --c-amber-bright: #ffed6c;
 
+  --c-mint: #45b97c;
+
   --c-paper: #fdf2e0;
   --c-paper-bright: #fffaf0;
   --c-paper-sunken: #f7ebd9;
@@ -109,7 +111,7 @@
   --hover-wash-deep: var(--c-paper-deep);
 }
 
-/* ---------- Dark theme (popup, blocked page) ----------
+/* ---------- Dark theme (popup) ----------
    Same stamped paper, ink ground: cards stay pale and outlined, the page
    behind them goes aubergine. */
 

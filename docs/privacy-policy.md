@@ -1,31 +1,35 @@
 # Lock In — Privacy Policy
 
-Effective August 23, 2026 · Version 1.3.0
+Effective August 24, 2026 · Version 1.4.0
 
-Lock In is a local-first site blocker. It uses the minimum browsing activity needed to block user-selected domains and measure optional daily allowances. It does not operate a server and does not transmit data off the device.
+Lock In is a local-first site-blocking system composed of a Chrome extension and a protected Windows PowerShell watchdog. It uses the minimum browsing activity required to measure user-configured daily allowances. It has no internet server and does not transmit data off the device.
 
 ## Data handled
 
 - Zone names, user-selected domains, schedules, daily limits, and edit-lock preference.
-- The hostname of the active tab, used in memory to determine whether a configured allowance should run.
-- Local time totals per zone and a daily tally of visits redirected to the blocked page.
-- The user's privacy-consent choice.
+- The hostname of the active tab and whether its browser window is focused.
+- Local time totals per zone and the current enforcement state.
+- The user's privacy-consent choice and the health of the local watchdog connection.
+
+Lock In does not read page content, form values, messages, passwords, full browsing history, or unrelated tabs.
 
 ## How the data is used
 
-Data is used only to provide Lock In's disclosed purpose: blocking selected websites according to the user's schedules and daily allowances, showing current status, and adding deliberate friction before rules are weakened.
+The active hostname is compared only with domains configured by the user. The watchdog calculates elapsed time, evaluates schedules and allowances, and applies local managed-browser URL policies. If the extension sensor disappears after enforcement has been armed, the watchdog applies configured-domain policies and an emergency outbound firewall block to the supported browser executable.
 
-## Storage, sharing, and retention
+## Local storage and loopback communication
 
-All data is stored in `chrome.storage.local` on the user's device. Lock In does not transmit, sell, share, rent, or use this data for advertising, profiling, credit decisions, or any unrelated purpose. Daily usage and blocked-visit tallies are rotated by date. Configuration remains until the user deletes it or clears the extension's local data.
+Authoritative configuration and daily usage totals are stored under `C:\ProgramData\LockIn`, protected for Windows SYSTEM and administrators. The extension keeps a local display mirror in `chrome.storage.local`. It sends JSON requests only to the watchdog on `http://127.0.0.1:8765`; loopback traffic never leaves the computer.
+
+No component sends these records over the internet. Lock In does not sell, share, rent, use, or transfer data for advertising, profiling, credit decisions, or any unrelated purpose. Daily usage is rotated by local date. Configuration remains until the user deletes it from the dashboard or uninstalls the watchdog with its data-purge option.
 
 ## User control
 
-Browsing activity is not handled until the user accepts the in-product disclosure. Users can edit their zones and rules at any time and can delete all locally stored Lock In data from the dashboard's privacy footer.
+Browsing activity is not handled until the user accepts the in-product disclosure. Users can view remaining time and enforcement state, edit their zones and rules, and request deletion of all protected local Lock In data from the dashboard. The dashboard reports an error rather than falsely claiming deletion if the local watchdog cannot complete that request.
 
 ## Limited Use compliance
 
-Lock In's use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. No human can access the user's extension data because it never leaves the user's device.
+Lock In's use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. No human can access the user's extension data because it never leaves the device.
 
 ## Changes and contact
 

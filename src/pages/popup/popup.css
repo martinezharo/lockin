@@ -117,6 +117,21 @@ body { width: 268px; }
 
 .lock-row.on { color: var(--c-amber); }
 
+.service-row {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  border: var(--stroke-w-thin) solid var(--c-mute-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  margin: -5px 0 13px;
+  text-align: center;
+}
+
+.service-row.ready { color: var(--c-mint); border-color: var(--c-mint); }
+.service-row.blocking { color: var(--c-amber); border-color: var(--c-amber); }
+.service-row.offline { color: var(--c-rose); border-color: var(--c-rose); }
+
 /* Denser than the shared default — the popup is only 268px wide. */
 .primary {
   width: 100%;

@@ -1,119 +1,64 @@
-// Lock In — background service worker.
-// Owns declarativeNetRequest rule state, schedule (block-by-hours)
-// transitions, and the alarms that drive daily allowances.
+// Lock In service worker.
+//
+// Version 1.4+ is a sensor and management UI. The protected Windows watchdog
+// owns allowance accounting and URLBlocklist enforcement, so disabling this
+// extension makes the service fail closed instead of removing the block.
 
 import { Storage } from './shared/storage.js';
-import { normalizeDomainInput } from './shared/domains.js';
-import { isGroupActive } from './shared/schedule.js';
-import { initTracker, syncTracker, DEADLINE_ALARM } from './tracker.js';
+import { watchdogClient } from './watchdog-client.js';
 
-const ALARM_NAME = 'lockin-schedule-tick';
-const BLOCKED_PAGE = '/src/pages/blocked/blocked.html';
+const RECONNECT_ALARM = 'lockin-watchdog-reconnect';
 
-// Schedule windows open and close on their own without any storage change, so
-// a periodic tick is the only thing that catches those transitions (~1 min
-// latency). It doubles as the safety net for allowances: the deadline alarm
-// aims at the exact second one runs out, and this catches whatever it misses.
-// Re-created on startup too, in case the alarm was ever lost.
-async function ensureAlarm() {
-  // Drop alarms from older versions (this one used to be 'lockin-expiry-check')
-  // so a renamed tick can't leave a stale one firing forever.
-  await chrome.alarms.clearAll();
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
-}
-
-// The tracker settles what has been used, the rule build acts on it. Both run
-// on every wake-up: alarms, startup, and any change to the groups.
-async function refresh() {
-  await syncTracker();
-  await rebuildRules();
+async function ensureReconnectAlarm() {
+  chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 });
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await ensureAlarm();
-  await migrateGroups();
+  await ensureReconnectAlarm();
   if (!(await Storage.getPrivacyConsent())) await chrome.runtime.openOptionsPage();
-  await refresh();
+  await watchdogClient.start();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await ensureAlarm();
-  refresh();
+  await ensureReconnectAlarm();
+  await watchdogClient.start();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME || alarm.name === DEADLINE_ALARM) refresh();
+  if (alarm.name === RECONNECT_ALARM) watchdogClient.connect();
 });
 
-// Any change to groups (from popup/options) triggers a fresh rule build — and
-// a re-sync, since adding or lifting an allowance changes what is being timed.
+let configSyncTimer = null;
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.groups || changes.privacyConsent)) refresh();
+  if (area !== 'local' || watchdogClient.applyingSnapshot) return;
+  if (!changes.groups && !changes.lockMode && !changes.privacyConsent) return;
+  clearTimeout(configSyncTimer);
+  configSyncTimer = setTimeout(() => watchdogClient.syncConfig(), 100);
 });
 
-initTracker(rebuildRules);
+chrome.tabs.onActivated.addListener(() => watchdogClient.heartbeat());
+chrome.tabs.onRemoved.addListener(() => watchdogClient.heartbeat());
+chrome.windows.onFocusChanged.addListener(() => watchdogClient.heartbeat());
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  if (changeInfo.url) watchdogClient.heartbeat();
+});
 
-// Normalize old group shapes once on install. Storage.saveGroups deliberately
-// restores a compatibility `mode` for previous service workers; see storage.js.
-async function migrateGroups() {
-  const groups = await Storage.getGroups();
-  await Storage.saveGroups(groups);
-}
-
-async function rebuildRules() {
-  const consent = await Storage.getPrivacyConsent();
-  const existing = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = existing.map((r) => r.id);
-
-  if (!consent) {
-    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules: [] });
-    return;
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'lockin-native-clear') {
+    watchdogClient.clearData().then(
+      (data) => sendResponse({ ok: true, data }),
+      (error) => sendResponse({ ok: false, error: error.message })
+    );
+    return true;
   }
-
-  const [groups, usage, session] = await Promise.all([
-    Storage.getGroups(),
-    Storage.getUsage(),
-    Storage.getUsageSession()
-  ]);
-  const now = Date.now();
-  const activeDomains = new Set();
-
-  for (const g of groups) {
-    if (!isGroupActive(g, now, usage, session)) continue;
-    for (const raw of g.domains || []) {
-      const d = normalizeDomainInput(raw);
-      if (d) activeDomains.add(d);
-    }
+  if (message?.type === 'lockin-native-state') {
+    watchdogClient.request('getState').then(
+      (data) => sendResponse({ ok: true, data }),
+      (error) => sendResponse({ ok: false, error: error.message })
+    );
+    return true;
   }
+  return false;
+});
 
-  // Every build replaces the whole set, so the ids currently installed are
-  // exactly what needs clearing first.
-  const addRules = Array.from(activeDomains).map((domain, i) => ({
-    id: i + 1,
-    priority: 1,
-    action: {
-      type: 'redirect',
-      redirect: { extensionPath: `${BLOCKED_PAGE}?domain=${encodeURIComponent(domain)}` }
-    },
-    condition: {
-      urlFilter: `||${domain}^`,
-      resourceTypes: ['main_frame']
-    }
-  }));
-
-  try {
-    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
-  } catch (err) {
-    // If a malformed domain slips through, drop rules one at a time to isolate it
-    // rather than leaving the whole rule set unapplied.
-    console.error('Lock In: rule update failed, retrying individually', err);
-    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules: [] });
-    for (const rule of addRules) {
-      try {
-        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [rule] });
-      } catch (innerErr) {
-        console.error('Lock In: skipping bad domain rule', rule, innerErr);
-      }
-    }
-  }
-}
+watchdogClient.start();

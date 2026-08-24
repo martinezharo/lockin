@@ -37,6 +37,15 @@
   </header>
 
   <main class="container">
+    <section id="servicePanel" class="service-panel state-checking" aria-live="polite">
+      <span class="service-dot" aria-hidden="true"></span>
+      <div class="service-copy">
+        <strong id="serviceHeadline">Checking the Lock In watchdog…</strong>
+        <span id="serviceDetail">The dashboard is waiting for the local enforcement engine.</span>
+      </div>
+      <span id="serviceReason" class="service-reason"></span>
+    </section>
+
     <!-- 1. What is true right now -->
     <section class="now-panel" aria-labelledby="nowHeadline">
       <div class="now-text">
@@ -130,7 +139,7 @@
   </main>
 
   <footer class="privacy-footer">
-    <span>All settings and usage data stay on this device.</span>
+    <span>All settings and usage data stay in the protected local Lock In watchdog.</span>
     <a href="../privacy/privacy.html" target="_blank" rel="noopener">Privacy policy</a>
     <button id="deleteLocalData" class="btn-danger" type="button">Delete all local data</button>
   </footer>
@@ -148,7 +157,7 @@
       </p>
       <ul class="privacy-points">
         <li>It reads only the hostname of the active tab, never page content.</li>
-        <li>It stores your zones, schedules, local usage totals, and blocked-visit tally in Chrome local storage.</li>
+        <li>It stores your zones, schedules, and usage totals in the protected local Lock In watchdog.</li>
         <li>Nothing is transmitted, sold, shared, or used for advertising or profiling.</li>
       </ul>
       <p class="privacy-detail">

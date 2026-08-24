@@ -1,231 +1,103 @@
 # Lock In — Site Blocker 👹
 
-A Chrome extension (Manifest V3) for **tiny mammal containment**: block distracting
-sites on a schedule or after a daily allowance runs out, organize them into
-groups, and lock the settings behind a typing challenge so impulsive
-future-you cannot casually negotiate the distractions back in.
-
-The serious bit underneath the propaganda is simple: make the useful decision
-once, then add enough friction that you do not have to remake it every seven
-minutes.
-
-## Install (unpacked, developer mode)
-
-1. Unzip this folder somewhere permanent (don't delete it after installing —
-   Chrome loads the extension directly from these files).
-2. Open `chrome://extensions` in Chrome.
-3. Turn on **Developer mode** (top right).
-4. Click **Load unpacked** and select the `lockin-extension` folder.
-5. Pin the extension (puzzle-piece icon → pin) for quick access to containment HQ.
+Lock In is a Manifest V3 extension plus a protected PowerShell watchdog for Windows. The extension is the dashboard and active-tab sensor. The watchdog owns elapsed time, applies Chrome/Brave `URLBlocklist` policy, and closes the disable-extension escape hatch with Windows Firewall.
 
 ## How it works
 
-- **Containment zones (groups)**: bundle related sites (e.g. "Scroll pit" →
-  x.com, instagram.com, reddit.com) and arm/disarm them as a unit.
-- **Containment rules**: each zone carries two rules, both optional and
-  independent of each other:
-  - *Scheduled hours* picks specific days of the week plus a "gates close /
-    gates reopen" window (e.g. weekdays, 9:00–17:00). The zone only blocks its
-    sites during that window and automatically opens back up outside it. Windows
-    that cross midnight (e.g. 22:00 → 06:00) work too.
-  - *Daily allowance* caps how long the sites may be used while the gates are
-    open (e.g. 30 minutes). Time is counted only while one of the zone's sites is
-    the active tab of the focused window; when the allowance runs out the zone
-    shuts until midnight — the open tab included, not just the next visit. The
-    *Permanent* preset sets the allowance to zero minutes: the zone is spent
-    before the day begins and midnight hands nothing back, so its gates stay
-    shut until the rule itself is changed.
-  - At least one rule is required to create a zone. A zone can use either rule
-    on its own or both together; an empty rule set is rejected and never saved.
-  - Any zone can also be disarmed entirely. Editing rules is lock-gated because
-    later gate hours, a bigger allowance, or a rule switched off can all weaken
-    an existing block.
-  - Each zone is a row that says what its rules are doing right now, and opens
-    to the full width of the page for its tunnels and its rules. Exactly one is
-    open at a time.
-- **Edit lock**: when it is **on**, anything that opens an escape route requires
-  typing a randomly picked propaganda paragraph by hand first. No copy, no
-  paste. The protected actions are:
-  - Disarming an active block
-  - Deleting a containment zone
-  - Releasing a single site from a zone
-  - Changing a zone's rules — gate hours or daily allowance
-  - Turning edit lock back **off**
-
-  Adding new sites or zones is always free. Tiny mammal bureaucracy only appears
-  when the requested action can make distractions easier to reach.
-- **Containment HQ (the dashboard)**: reads top to bottom as one answer. A
-  status panel says what is true right now and counts down to the next gate; a
-  24-hour strip draws today's shut hours per zone with a marker on the current
-  minute; then the zones themselves. Creating a zone is the last row of that
-  list, folded away — it is the rarest thing anyone does here and used to own
-  the top of the page.
-- **Blocked page**: visiting a blocked site redirects to a local containment page
-  that shows which zone caught the domain and why: the active window for a
-  scheduled block, or a spent allowance waiting on midnight. It says when you
-  get the site back — a live countdown plus the same day strip — serves a random
-  short piece of tiny-mammal propaganda, and keeps the day's score (see below).
-  There is intentionally no quick-unblock button there; appeals go through the
-  dashboard.
-- **Blocked tally**: the blocked page counts how many times it has been reached
-  today and says so with escalating concern, from "first one today 🐭" up to
-  "villain era unlocked 👹". It is the one thing recorded that blocking does not
-  need: presentation only, one storage key, reset by noticing the date changed.
-  Counting happens on that page because `declarativeNetRequest` redirects
-  without waking the service worker — so a reload of the blocked page counts
-  again, which is the honest reading.
-- **Popup**: the minutes until the next gate, then one line per zone with its
-  live state, whether edit lock is sealed, and a shortcut to containment HQ.
-
-## Voice / tiny mammal doctrine
-
-The UI deliberately speaks like an overfunded containment agency responsible for
-one distractible tiny mammal. The recurring vocabulary is consistent across the
-extension:
-
-- sites are **forbidden tunnels**
-- groups are **containment zones**
-- blocking is **containment**
-- disabling a block is **disarming** it
-- scheduled start/end times are when the **gates close/reopen**
-- a daily usage cap is an **allowance**, and running out of it is **spending** it
-- the dashboard is **containment HQ**
-- locked changes are **appeals / paperwork**
-- productive work remains, regrettably, **the mines** 👹⛏️
-
-The blocked-page tally is the one place the voice drops the agency register and
-speaks like a friend who has been counting: "bestie. the feed is not going to
-change 💀". It escalates with the number, so the joke lands hardest exactly when
-the day has gone worst.
-
-No personal names or user-specific references are baked into the copy. The joke
-works for any tiny mammal reckless enough to install it.
-
-## Layout
-
-```
-manifest.json          entry points only; everything it names lives under src/
-env.example.js         template for the local dev flag (see below)
-env.js                 local dev flag, git-ignored and optional (see below)
-icons/                 extension + page icons
-fonts/                 self-hosted webfonts
-src/
-  background.js        service worker: owns the declarativeNetRequest rules
-  tracker.js           service worker: times allowances against the active tab
-  shared/              used by more than one page
-    storage.js         the only place chrome.storage keys are named
-    domains.js         hostname parsing and matching
-    schedule.js        containment rules, day list, time formatting
-    usage.js           daily allowance bookkeeping and duration formatting
-    timeline.js        today's shut hours as bands, and the next gate
-    tally.js           the blocked-page counter and how it talks
-    challenge.js       unlock paragraphs, blocked slogans and fuzzy matching
-    dev-mode.js        reads the env.js flag
-  styles/
-    fonts.css          @font-face for the bundled fonts
-    tokens.css         palette + the light/dark theme mappings
-    base.css           reset, page ground, button system
-  pages/
-    popup/ options/ blocked/     one folder per page: html + js + css
+```text
+Lock In extension
+  ├─ dashboard, popup and edit challenge
+  ├─ active hostname + focused-window sensor
+  └─ heartbeat to http://127.0.0.1:8765
+                         │
+                         ▼
+LockInWatchdog.ps1 (scheduled task running as SYSTEM)
+  ├─ authoritative groups and daily usage
+  ├─ schedules and allowance decisions
+  ├─ owned Chrome/Brave URLBlocklist entries
+  └─ emergency browser firewall rules when the sensor disappears
 ```
 
-Pages are ES modules (`<script type="module">`), and so is the service worker,
-so every dependency is an explicit `import` rather than an implicit script-tag
-ordering. Each page picks its palette with `class="theme-light"` or
-`class="theme-dark"` on `<html>`; nothing outside `styles/` defines a color
-variable.
+No custom executable, certificate, cloud account or external server is required.
 
-The look is stamped paper: hard ink outlines, offset shadows with no blur, and
-stickers. Two tokens carry it and no page invents its own — `--stroke-w` for the
-outline and the `--shadow-*` colors for the offset. The palette is lifted off
-`icons/icon128.png`: the goblin has been violet, rose and amber since day one
-while the UI was quietly brass and sand.
+## Safe rollout and fail-closed behavior
 
-Three fonts, three jobs: **Bricolage Grotesque** shouts (headings, counters,
-stamps), **Space Grotesk** talks, **JetBrains Mono** reports (times, domains,
-status lines). They are bundled rather than linked from `fonts.googleapis.com`,
-so the pages render offline, no third-party request fires every time a blocked
-page loads, and nothing leaks about when the extension is used. Only the `latin`
-and `latin-ext` subsets are shipped, and `unicode-range` means the browser loads
-only the faces a page actually needs. To refresh them, download the `woff2`
-files that Google's `css2` endpoint points at and regenerate
-`src/styles/fonts.css` to match. Bricolage is a variable font: one file per
-subset covers 700–800, so each face is declared once with a weight range.
+The watchdog starts disarmed and imports the extension's current groups. It arms only after three consecutive valid heartbeats. After it is armed:
 
-## Tests
+- scheduled zones are written to managed browser URL policy;
+- zones whose daily allowance is spent are written to the same policy; and
+- if Brave or Chrome is running and the sensor disappears for more than 30 seconds, all enabled zone domains are blocked and outbound network access for the browser executable is disabled.
 
-Pure logic — schedules, allowances, the day strip, the tally — is covered by
-`node:test`, with no browser and no `chrome` stub required:
+The firewall rule prevents disabling the extension from becoming an escape route while browser policy refreshes. Reconnecting the extension removes the emergency firewall block and returns to ordinary schedule/allowance evaluation.
 
-```bash
-node --test tests/*.test.mjs
+Lock In removes only registry values it recorded as its own. Its firewall rules have the group name `LockInWatchdog` and never modify unrelated rules.
+
+## Install
+
+Run once from an elevated PowerShell window:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\install-windows-watchdog.ps1
 ```
 
-`package.json` declares the extension source as ES modules, so the same suite
-also runs with `npm test` or `pnpm test` when either package manager is
-available. No dependencies need to be installed.
+The installer:
 
-## Chrome Web Store release
+- copies the watchdog to `C:\Program Files\Lock In`;
+- stores protected state under `C:\ProgramData\LockIn`;
+- creates disabled outbound firewall rules for installed Brave/Chrome executables;
+- registers `Lock In Watchdog` as an automatic `SYSTEM` scheduled task;
+- configures automatic restart; and
+- starts safely disarmed.
 
-Build the reviewed production package with:
+Reload extension version `1.4.0` after installation. The dashboard must progress from **connected · waiting to arm** to **Windows enforcement armed** after three heartbeats.
 
-```bash
-npm run release
+## Emergency recovery and uninstall
+
+From an elevated PowerShell window:
+
+```powershell
+.\scripts\disarm-windows-watchdog.ps1
 ```
 
-The script runs policy-oriented static checks and the test suite, then creates
-`dist/lock-in-<version>-chrome-web-store.zip` plus its SHA-256 checksum. It
-packages only runtime files and always writes the committed `LOCKIN_DEV = false`
-flag as `env.js`, so an ignored local development override cannot enter the
-store ZIP.
+Uninstall while preserving configuration:
 
-Chrome Web Store copy, privacy declarations, reviewer instructions and the
-unlisted-submission checklist live under `store/`. The public, static privacy
-page ready for hosting lives at `docs/index.html`; the packaged extension also
-contains the same policy at `src/pages/privacy/privacy.html`.
-
-## Dev mode
-
-While working on the extension, typing an entire propaganda paragraph every time
-you touch a locked action gets old. Dev mode gives the developer tiny mammal a
-forbidden administrative override: the challenge modal still appears exactly as
-usual, but **Ctrl+Shift+Enter** runs the pending action without typing anything.
-Blocking itself is untouched; sites still get contained normally.
-
-It is a single hand-edited flag in `env.js` at the repo root (it stays at the
-root, outside `src/`, and is loaded as a plain script rather than a module so
-that a missing file is simply "dev mode off" instead of a broken page). On a
-fresh clone, copy the template that ships with the repo:
-
-```bash
-cp env.example.js env.js
+```powershell
+.\scripts\uninstall-windows-watchdog.ps1
 ```
 
-The whole file is one line:
+Add `-PurgeData` only to permanently remove protected configuration and usage.
 
-```js
-globalThis.LOCKIN_DEV = true;
+## Build and test
+
+```powershell
+pnpm verify
+pnpm release
 ```
 
-Write `true` or `false`, save, and refresh the dashboard (F5) — no rebuild step
-and no extension reload. `env.js` is git-ignored, so the flag never ships and
-never shows up in a diff, while `env.example.js` stays committed at `false`. If
-`env.js` is missing entirely, dev mode is simply off.
+`pnpm verify` runs the extension suite plus an end-to-end loopback watchdog test. The test proves three-heartbeat arming and fail-closed firewall activation without touching the real registry or firewall.
 
-While it is on, a banner shows in the dashboard and popup, and the modal itself
-spells out the shortcut, so the elevated mammal privileges are never silent.
+The Chrome Web Store archive is written to `dist/lock-in-1.4.0-chrome-web-store.zip` with a SHA-256 file beside it.
 
-## Notes
+## Repository layout
 
-- All data stays local in `chrome.storage.local` — nothing leaves your machine.
-- On first run, Lock In shows a prominent disclosure and waits for explicit
-  consent before reading an active-tab hostname or installing blocking rules.
-- The extension requests access to all sites because it needs to be able to
-  redirect *any* HTTP or HTTPS domain you choose to block; it does not read page
-  content. Host access lets daily allowances see which configured hostname is
-  in the active tab — the hostname is all that is used, and it never leaves the
-  device.
-- The propaganda is presentation only. Blocking, schedules, storage and domain
-  matching remain ordinary deterministic extension logic.
-- To change the icon, swap the PNGs in `icons/` — the three sizes the manifest
-  references are `icon16.png`, `icon48.png` and `icon128.png`.
+```text
+manifest.json                              extension entry points and permissions
+src/background.js                         heartbeat and state-mirror orchestration
+src/watchdog-client.js                    loopback HTTP client
+watchdog/LockInWatchdog.ps1               protected enforcement engine
+scripts/install-windows-watchdog.ps1      elevated one-time installation
+scripts/disarm-windows-watchdog.ps1       emergency recovery
+scripts/uninstall-windows-watchdog.ps1    selective removal
+scripts/test-watchdog.mjs                 end-to-end safe-mode integration test
+tests/                                    deterministic extension tests
+store/                                    Chrome Web Store materials
+```
+
+## Privacy and security boundary
+
+Lock In has no account, analytics, advertising, remote code or internet server. The extension posts the active hostname and focus state only to loopback (`127.0.0.1`). Configuration and usage stay on the PC.
+
+This is a self-control tool, not protection against a determined administrator. A user who deliberately elevates with UAC can unregister the task or remove its firewall rules. Using a separate administrator account would strengthen that boundary, but is not required for the current setup.
+
+No build or installation script commits or pushes Git changes.

@@ -23,42 +23,44 @@
   <main>
     <p class="brand">Lock In — Site Blocker</p>
     <h1>Privacy Policy</h1>
-    <p class="effective">Effective August 23, 2026 · Version 1.3.0</p>
+    <p class="effective">Effective August 24, 2026 · Version 1.4.0</p>
 
     <p>
-      Lock In is a local-first site blocker. It uses the minimum browsing activity needed to block
-      user-selected domains and measure optional daily allowances. It does not operate a server and
-      does not transmit data off the device.
+      Lock In is a local-first site-blocking system composed of a Chrome extension and a Windows
+      protected Windows PowerShell watchdog. It uses the minimum browsing activity required to
+      measure user-configured daily allowances. It has no internet server and does not transmit data
+      off the device.
     </p>
 
     <h2>Data handled</h2>
     <ul>
       <li>Zone names, user-selected domains, schedules, daily limits, and edit-lock preference.</li>
-      <li>The hostname of the active tab, used in memory to determine whether a configured allowance should run.</li>
-      <li>Local time totals per zone and a daily tally of visits redirected to the blocked page.</li>
-      <li>The user's privacy-consent choice.</li>
+      <li>The hostname of the active tab and whether its browser window is focused.</li>
+      <li>Local time totals per zone and the current enforcement state.</li>
+      <li>The privacy-consent choice and local watchdog health.</li>
     </ul>
 
     <h2>How the data is used</h2>
     <p>
-      Data is used only to provide Lock In's disclosed purpose: blocking selected websites according
-      to the user's schedules and daily allowances, showing current status, and adding deliberate
-      friction before rules are weakened.
+      The active hostname is compared only with domains configured by the user. The Windows watchdog
+      calculates elapsed time, evaluates schedules and allowances, and applies local managed-browser
+      URL policies. If the sensor disappears after setup, configured zones can fail closed.
     </p>
 
-    <h2>Storage, sharing, and retention</h2>
+    <h2>Local storage and loopback communication</h2>
     <p>
-      All data is stored in <code>chrome.storage.local</code> on the user's device. Lock In does not
-      transmit, sell, share, rent, or use this data for advertising, profiling, credit decisions, or
-      any unrelated purpose. Daily usage and blocked-visit tallies are rotated by date. Configuration
-      remains until the user deletes it or clears the extension's local data.
+      Authoritative configuration and usage totals are stored under <code>C:\ProgramData\LockIn</code>,
+      protected for Windows SYSTEM and administrators. The extension keeps a display mirror in
+      <code>chrome.storage.local</code> and sends JSON requests only to <code>127.0.0.1:8765</code>.
+      Loopback traffic never leaves the computer. Nothing is transmitted, sold, shared, rented, or used for
+      advertising, profiling, credit decisions, or any unrelated purpose.
     </p>
 
     <h2>User control</h2>
     <p>
       Browsing activity is not handled until the user accepts the in-product disclosure. Users can
-      edit their zones and rules at any time and can delete all locally stored Lock In data from the
-      dashboard's privacy footer.
+      view remaining time and enforcement state, edit their zones and rules, and request deletion of
+      all protected local Lock In data from the dashboard.
     </p>
 
     <h2>Limited Use compliance</h2>

@@ -36,11 +36,12 @@ async function init() {
     return;
   }
 
-  const [groups, lockMode, usage, session] = await Promise.all([
+  const [groups, lockMode, usage, session, localState] = await Promise.all([
     Storage.getGroups(),
     Storage.getLockMode(),
     Storage.getUsage(),
-    Storage.getUsageSession()
+    Storage.getUsageSession(),
+    chrome.storage.local.get('nativeStatus')
   ]);
   const now = Date.now();
 
@@ -69,6 +70,22 @@ async function init() {
   lockRow.textContent = lockMode ? '🔒 edit lock sealed' : '🔓 tiny mammal has admin privileges';
   lockRow.classList.toggle('on', lockMode);
   document.getElementById('brandLock').textContent = lockMode ? '🔒' : '🔓';
+
+  const serviceRow = document.getElementById('serviceRow');
+  const nativeStatus = localState.nativeStatus;
+  if (!nativeStatus?.connected) {
+    serviceRow.textContent = '⚠ local enforcement watchdog offline';
+    serviceRow.classList.add('offline');
+  } else if (!nativeStatus.enforcementArmed) {
+    serviceRow.textContent = '⚠ watchdog connected · waiting to arm';
+    serviceRow.classList.add('blocking');
+  } else if ((nativeStatus.blockedDomains || []).length > 0) {
+    serviceRow.textContent = `● ${nativeStatus.enforcementReason} · Windows policy active`;
+    serviceRow.classList.add('blocking');
+  } else {
+    serviceRow.textContent = '● Windows enforcement armed';
+    serviceRow.classList.add('ready');
+  }
 
   document.getElementById('devBanner').hidden = !isDevMode();
 }

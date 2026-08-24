@@ -1,7 +1,8 @@
 # Force-install Lock In after Chrome Web Store approval
 
-Chrome assigns the extension ID when the Web Store item is created. Replace
-`EXTENSION_ID` below with that value after the unlisted item is approved.
+The existing unlisted item ID is `ceggfchogfcdgnobpekajiojobghcggi`.
+Version 1.4.0 also requires the Windows watchdog to be installed
+before the extension update reaches the browser.
 
 ## Windows policy
 
@@ -11,7 +12,7 @@ Chrome assigns the extension ID when the Web Store item is created. Replace
 3. Create a new **String Value** using the next unused numeric name, such as
    `1`.
 4. Set its value to:
-   `EXTENSION_ID;https://clients2.google.com/service/update2/crx`
+   `ceggfchogfcdgnobpekajiojobghcggi;https://clients2.google.com/service/update2/crx`
 5. Restart Chrome and check `chrome://policy` for
    `ExtensionInstallForcelist`.
 
@@ -22,3 +23,11 @@ the machine policy; it cannot be disabled from the normal Extensions page.
 Keep the Web Store visibility set to **Unlisted**. The policy uses the Web Store
 update service, so no public search listing is required.
 
+For Brave, use the equivalent path:
+`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist`.
+
+After force installation, check both the extension policy and the watchdog:
+
+- `chrome://policy` or `brave://policy` shows `ExtensionInstallForcelist`.
+- The Lock In dashboard shows **Windows enforcement armed**.
+- Task Scheduler shows `Lock In Watchdog` running as `SYSTEM`.

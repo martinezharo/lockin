@@ -1,6 +1,6 @@
 /* Lock In — self-hosted webfonts.
    Bundled instead of linked from fonts.googleapis.com so the pages render
-   offline, no third-party request fires every time a blocked page loads, and
+   offline, no third-party request fires when the extension UI opens, and
    nothing leaks about when the extension is used.
    Latin + latin-ext subsets only; see README for how these were generated.
 

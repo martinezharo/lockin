@@ -18,6 +18,39 @@ html, body {
   padding: 0 28px 60px;
 }
 
+/* ---------- Protected enforcement watchdog ---------- */
+
+.service-panel {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--panel);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-md);
+  padding: 10px 13px;
+  margin-bottom: 16px;
+  box-shadow: 3px 3px 0 var(--c-violet-pale);
+}
+
+.service-dot {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 50%;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  background: var(--c-violet-pale);
+}
+
+.service-copy { display: flex; flex-direction: column; min-width: 0; }
+.service-copy strong { font-size: 12.5px; }
+.service-copy span { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.service-reason { margin-left: auto; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; }
+.service-panel.state-ready .service-dot { background: var(--c-mint); }
+.service-panel.state-blocking .service-dot { background: var(--c-rose); }
+.service-panel.state-warning .service-dot,
+.service-panel.state-disconnected .service-dot { background: var(--c-amber); }
+.service-panel.state-disconnected { box-shadow: 3px 3px 0 var(--c-rose); }
+
 /* ---------- Top bar ---------- */
 
 .topbar {

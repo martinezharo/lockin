@@ -30,35 +30,8 @@ const PRODUCTIVITY_PARAGRAPHS = [
   "Lock In cannot write the code, study the chapter, send the invoice, clean the folder, or make the difficult decision for you 🔒🐭 it can only stand at the edge of the distraction swamp holding a tiny stop sign. the remaining move is yours. turn around, choose the next useful action, and make the stop sign feel ridiculously overqualified for its job 👹🛑"
 ];
 
-const BLOCKED_PROPAGANDA = [
-  "NO. 👹 A previous tiny mammal put this fence here on purpose.",
-  "Containment successful. Tiny mammal redirected away from the scroll pit. 🔒🐭",
-  "The forbidden tunnel is closed. Back to the useful cave. 👹⛏️",
-  "Nice try, tiny mammal. The internet will still be here later. 🐭🚧",
-  "This distraction has been seized by the Department of Tiny Mammal Focus. 👹📋",
-  "A calmer version of you anticipated this exact click. Respect the prophecy. 🔮🐭",
-  "The gate is locked. The task is unfortunately still over there. 👉📚",
-  "Tiny mammal detected near restricted pixels. Please return to assigned objective. 🚨🐭",
-  "No emergency memes were found. Resume operations. 👹🧠",
-  "The scroll pit requested visitation rights. Request denied. 🔒📱",
-  "You built the cage, tiny mammal. Do not act surprised when it contains you. 👁️👄👁️",
-  "This website is currently outside the approved tiny mammal habitat. 🐭🚫",
-  "Distraction portal offline. Productive timeline remains operational. 👹⚙️",
-  "The shiny object is behind glass for a reason. ✨🔒",
-  "Tiny paws off the forbidden domain. There is work in the other tab. 🐾👹",
-  "Your attention has been returned to sender. Please deliver it to the task. 📦🐭",
-  "The algorithm can forage without you for a while. 🌿📱",
-  "You may file an appeal in the dashboard. Bureaucracy awaits. 👹📑",
-  "This is the part where the tiny mammal sighs dramatically and gets something done. 😭⛏️",
-  "Focus perimeter holding. Absolutely devastating news for the distraction. 🔒👹"
-];
-
 export function pickChallengeParagraph() {
   return PRODUCTIVITY_PARAGRAPHS[Math.floor(Math.random() * PRODUCTIVITY_PARAGRAPHS.length)];
-}
-
-export function pickBlockedMessage() {
-  return BLOCKED_PROPAGANDA[Math.floor(Math.random() * BLOCKED_PROPAGANDA.length)];
 }
 
 // Strips emoji/punctuation and collapses whitespace so the match focuses on
