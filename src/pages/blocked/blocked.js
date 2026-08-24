@@ -1,7 +1,7 @@
 import { Storage } from '../../shared/storage.js';
 import { domainMatches } from '../../shared/domains.js';
 import { isGroupActive, isInWindow, formatSchedule } from '../../shared/schedule.js';
-import { isAllowanceSpent, formatDuration } from '../../shared/usage.js';
+import { isAllowanceSpent, isPermanentLimit, formatDuration } from '../../shared/usage.js';
 import { MINUTES_PER_DAY, minutesIntoDay, formatClock, todayShutSegments, nextEventFor } from '../../shared/timeline.js';
 import { tallyFor, blockTallyLine, repeatOffenderLine } from '../../shared/tally.js';
 import { pickBlockedMessage } from '../../shared/challenge.js';
@@ -102,13 +102,16 @@ async function init() {
 
   // Whichever rule actually shut the gates is the one worth naming, and the
   // one whose clock the countdown should follow: a schedule says when they
-  // reopen, a spent allowance says come back tomorrow.
+  // reopen, a spent allowance says come back tomorrow. A permanent allowance
+  // outranks both, because no hour on any clock undoes it.
+  const permanent = matches.find((g) => isPermanentLimit(g.limit));
   const scheduled = matches.find((g) => isInWindow(g, now));
   const spent = matches.find((g) => isAllowanceSpent(g, usage, session, now));
-  const timed = scheduled || spent || null;
+  const timed = permanent || scheduled || spent || null;
 
   let reason = 'contained around the clock';
-  if (scheduled) reason = formatSchedule(scheduled.schedule);
+  if (permanent) reason = 'permanent containment · no allowance at all';
+  else if (scheduled) reason = formatSchedule(scheduled.schedule);
   else if (spent) reason = 'daily allowance spent';
 
   statusEl.textContent = `${names} · ${reason}`;

@@ -10,7 +10,7 @@ import {
   minutesToTimeValue,
   timeValueToMinutes
 } from '../../shared/schedule.js';
-import { limitMs, remainingMs, formatDuration, isAllowanceSpent } from '../../shared/usage.js';
+import { limitMs, remainingMs, formatDuration, isAllowanceSpent, isPermanentLimit } from '../../shared/usage.js';
 import {
   MINUTES_PER_DAY,
   minutesIntoDay,
@@ -39,7 +39,12 @@ const pct = (minutes) => `${((minutes / MINUTES_PER_DAY) * 100).toFixed(3)}%`;
    schedule, capped by a daily allowance, both, or neither — and neither is the
    strict case, since a zone with no rules is contained around the clock. */
 
-const LIMIT_PRESETS = [15, 30, 60, 120];
+// Zero is the "permanent" preset: an allowance nobody ever gets, which shuts
+// the gates for good instead of until midnight. It sits at the end of the row
+// because it is the choice you make on purpose, not the one you nudge towards.
+const LIMIT_PRESETS = [15, 30, 60, 120, 0];
+
+const presetLabel = (minutes) => (minutes === 0 ? 'Permanent 👹' : formatDuration(minutes * 60000));
 
 // The window drawn as a band over the same 24 hours the day strip uses, so
 // "09:00 to 17:00" is the same shape in the editor as it is on the board.
@@ -88,16 +93,19 @@ function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 } = {})
 
 function limitControlsHtml({ minutes = 30 } = {}) {
   const presets = LIMIT_PRESETS.map(
-    (m) => `<button type="button" class="preset ${m === minutes ? 'checked' : ''}"
-      data-limit-preset="${m}">${formatDuration(m * 60000)}</button>`
+    (m) => `<button type="button" class="preset ${m === 0 ? 'preset-permanent' : ''} ${m === minutes ? 'checked' : ''}"
+      data-limit-preset="${m}">${presetLabel(m)}</button>`
   ).join('');
 
   return `
     <div class="preset-row">${presets}</div>
     <label class="field limit-field">
       <span class="field-label">Minutes per day</span>
-      <input type="number" min="1" max="1440" step="1" data-limit-minutes value="${minutes}" />
+      <input type="number" min="0" max="1440" step="1" data-limit-minutes value="${minutes}" />
     </label>
+    <p class="rule-note" data-limit-permanent ${minutes === 0 ? '' : 'hidden'}>
+      🔒 Permanent: zero minutes a day, so these gates never open — not at midnight, not ever, until you change this rule.
+    </p>
     <p class="rule-error" data-limit-error role="alert" hidden></p>
   `;
 }
@@ -138,7 +146,7 @@ export function rulesControlsHtml({ schedule = null, limit = null, showNoRulesHi
     ${section(
       'limit',
       'Daily allowance ⏳',
-      'Time spent on these sites while the gates are open. When it runs out they shut until midnight.',
+      'Time spent on these sites while the gates are open. When it runs out they shut until midnight — or pick <strong>Permanent</strong> for an allowance of nothing at all.',
       Boolean(limit),
       limitControlsHtml(limit || {}) + limitExtra
     )}
@@ -174,9 +182,13 @@ function readSchedule(root) {
 
 function readLimit(root) {
   const errorEl = root.querySelector('[data-limit-error]');
-  const minutes = Math.floor(Number(root.querySelector('[data-limit-minutes]').value));
+  const raw = root.querySelector('[data-limit-minutes]').value.trim();
+  const minutes = Math.floor(Number(raw));
 
-  if (!Number.isFinite(minutes) || minutes < 1) return showError(errorEl, 'An allowance needs at least one minute. ⏳');
+  // Zero is the permanent preset, so only negatives and junk are rejected —
+  // and an empty box is junk, not a silent "permanent".
+  if (raw === '') return showError(errorEl, 'How many minutes? Zero is permanent containment. ⏳');
+  if (!Number.isFinite(minutes) || minutes < 0) return showError(errorEl, 'An allowance cannot be negative, tiny mammal. 🐭');
   if (minutes > 1440) return showError(errorEl, 'A day only has 1440 minutes, tiny mammal. 🐭');
 
   errorEl.hidden = true;
@@ -210,7 +222,10 @@ export function zoneStatusText(g, now = Date.now(), usage = null, session = null
   const event = nextEventFor(g, now, usage, session);
   const left = g.limit ? formatDuration(remainingMs(g, usage, session, now)) : '';
 
-  if (isAllowanceSpent(g, usage, session, now)) {
+  if (isPermanentLimit(g.limit)) {
+    parts.push('permanent allowance of nothing');
+    parts.push('no way out 👹');
+  } else if (isAllowanceSpent(g, usage, session, now)) {
     parts.push('allowance spent');
     parts.push('back at midnight 🌙');
   } else if (isInWindow(g, now)) {
@@ -236,12 +251,15 @@ export function meterState(g, now = Date.now(), usage = null, session = null) {
   const total = limitMs(g.limit);
   const left = remainingMs(g, usage, session, now);
   const spent = left <= 0;
+  const permanent = isPermanentLimit(g.limit);
   return {
     spent,
     percent: total > 0 ? Math.min(100, ((total - left) / total) * 100) : 100,
-    label: spent
-      ? `allowance spent · ${formatDuration(total)} used today`
-      : `${formatDuration(left)} of ${formatDuration(total)} left today`
+    label: permanent
+      ? 'permanent · no allowance, today or any other day'
+      : spent
+        ? `allowance spent · ${formatDuration(total)} used today`
+        : `${formatDuration(left)} of ${formatDuration(total)} left today`
   };
 }
 
@@ -297,6 +315,7 @@ function stripRowHtml(g, now, usage, session) {
   // say "not today" rather than quote hours that are not on this day's strip.
   let note = 'allowance only';
   if (!g.enabled) note = 'disarmed';
+  else if (isPermanentLimit(g.limit)) note = 'permanent';
   else if (segments.some((s) => s.kind === 'spent')) note = 'spent';
   else if (!hasRules(g)) note = 'all day';
   else if (g.schedule) {

@@ -31,7 +31,10 @@ minutes.
   - *Daily allowance* caps how long the sites may be used while the gates are
     open (e.g. 30 minutes). Time is counted only while one of the zone's sites is
     the active tab of the focused window; when the allowance runs out the zone
-    shuts until midnight — the open tab included, not just the next visit.
+    shuts until midnight — the open tab included, not just the next visit. The
+    *Permanent* preset sets the allowance to zero minutes: the zone is spent
+    before the day begins and midnight hands nothing back, so its gates stay
+    shut until the rule itself is changed.
   - At least one rule is required to create a zone. A zone can use either rule
     on its own or both together; an empty rule set is rejected and never saved.
   - Any zone can also be disarmed entirely. Editing rules is lock-gated because

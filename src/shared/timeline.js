@@ -9,7 +9,7 @@
 // Like usage.js these are pure functions over whatever the caller just loaded.
 
 import { isWithinSchedule, hasRules } from './schedule.js';
-import { isAllowanceSpent } from './usage.js';
+import { isAllowanceSpent, isPermanentLimit } from './usage.js';
 
 export const MINUTES_PER_DAY = 1440;
 
@@ -68,7 +68,10 @@ export function todayShutSegments(group, now = Date.now(), usage = null, session
   }
 
   if (isAllowanceSpent(group, usage, session, now)) {
-    segments.push({ start: minutesIntoDay(now), end: MINUTES_PER_DAY, kind: 'spent' });
+    // A permanent allowance was never open, so its band covers the whole day
+    // instead of starting at the moment the last minute went.
+    const start = isPermanentLimit(group.limit) ? 0 : minutesIntoDay(now);
+    segments.push({ start, end: MINUTES_PER_DAY, kind: 'spent' });
   }
 
   return segments;
@@ -110,8 +113,10 @@ export function nextEventFor(group, now = Date.now(), usage = null, session = nu
   if (!group.enabled || !hasRules(group)) return null;
 
   // A spent allowance outranks the schedule: even when the window ends first,
-  // the group stays shut until the allowance resets at midnight.
+  // the group stays shut until the allowance resets at midnight. A permanent
+  // allowance never resets, so there is no moment to count down to at all.
   if (isAllowanceSpent(group, usage, session, now)) {
+    if (isPermanentLimit(group.limit)) return null;
     return { at: addDays(startOfDay(now), 1), kind: 'opens', reason: 'allowance' };
   }
 

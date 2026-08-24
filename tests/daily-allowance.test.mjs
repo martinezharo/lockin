@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { isGroupActive, isWithinSchedule } from '../src/shared/schedule.js';
 import { normalizeGroup, serializeGroup } from '../src/shared/storage.js';
-import { todayKey } from '../src/shared/usage.js';
+import { todayKey, isAllowanceSpent, isPermanentLimit } from '../src/shared/usage.js';
 
 const NOW = new Date(2026, 7, 22, 12, 0).getTime();
 
@@ -86,4 +86,36 @@ test('compatibility serialization keeps empty legacy groups inactive', () => {
   assert.equal(empty.mode, 'schedule');
   assert.equal(previousWorkerIsActive(empty), false);
   assert.equal(isGroupActive(normalizeGroup(empty), NOW, {}, null), false);
+});
+
+test('a permanent allowance blocks from the first minute of the day', () => {
+  const group = normalizeGroup({
+    id: 'permanent',
+    enabled: true,
+    schedule: null,
+    limit: { minutes: 0 }
+  });
+
+  assert.equal(isPermanentLimit(group.limit), true);
+  assert.equal(isAllowanceSpent(group, {}, null, NOW), true);
+  assert.equal(isGroupActive(group, NOW, {}, null), true);
+});
+
+test('a permanent allowance survives a save and stays inactive for the old worker', () => {
+  const stored = serializeGroup({
+    id: 'permanent',
+    enabled: true,
+    schedule: null,
+    limit: { minutes: 0 }
+  });
+
+  assert.equal(stored.mode, 'schedule');
+  assert.deepEqual(stored.limit, { minutes: 0 });
+  assert.equal(previousWorkerIsActive(stored), false);
+  assert.equal(isGroupActive(normalizeGroup(stored), NOW, {}, null), true);
+});
+
+test('an ordinary allowance is not permanent', () => {
+  assert.equal(isPermanentLimit({ minutes: 30 }), false);
+  assert.equal(isPermanentLimit(null), false);
 });

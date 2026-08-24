@@ -146,3 +146,29 @@ test('nextEvent picks the soonest across zones and names it', () => {
 test('nextEvent is null when nothing is on the clock', () => {
   assert.equal(nextEvent([zone({ limit: { minutes: 30 } })], NOW, {}, null), null);
 });
+
+/* ---------- the permanent allowance ---------- */
+
+test('a permanent allowance draws over the whole day, not from now', () => {
+  const g = zone({ id: 'permanent', limit: { minutes: 0 } });
+  const segments = todayShutSegments(g, NOW, {}, null);
+  assert.deepEqual(segments, [{ start: 0, end: MINUTES_PER_DAY, kind: 'spent' }]);
+});
+
+test('a permanent allowance has nothing on the clock, not even midnight', () => {
+  const g = zone({ id: 'permanent', limit: { minutes: 0 } });
+  assert.equal(nextEventFor(g, NOW, {}, null), null);
+});
+
+test('a permanent allowance outranks the schedule it sits next to', () => {
+  const g = zone({
+    id: 'permanent',
+    schedule: { days: WEEKDAYS, start: 9 * 60, end: 17 * 60 },
+    limit: { minutes: 0 }
+  });
+  assert.equal(nextEventFor(g, NOW, {}, null), null);
+  assert.deepEqual(todayShutSegments(g, NOW, {}, null), [
+    { start: 9 * 60, end: 17 * 60, kind: 'schedule' },
+    { start: 0, end: MINUTES_PER_DAY, kind: 'spent' }
+  ]);
+});

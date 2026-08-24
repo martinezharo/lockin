@@ -306,10 +306,16 @@ groupsListEl.addEventListener('keydown', (e) => {
    time a zone opens. */
 
 function markPresets(root) {
-  const minutes = Number(root.querySelector('[data-limit-minutes]').value);
+  const raw = root.querySelector('[data-limit-minutes]').value.trim();
+  const minutes = Number(raw);
   root.querySelectorAll('[data-limit-preset]').forEach((btn) => {
-    btn.classList.toggle('checked', Number(btn.dataset.limitPreset) === minutes);
+    btn.classList.toggle('checked', raw !== '' && Number(btn.dataset.limitPreset) === minutes);
   });
+
+  // Zero minutes is the permanent preset, which is a bigger promise than the
+  // other four: it says so out loud the moment it is picked.
+  const note = root.querySelector('[data-limit-permanent]');
+  if (note) note.hidden = raw === '' || minutes !== 0;
 }
 
 // The band above the time fields is the same picture as a row of the day

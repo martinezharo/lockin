@@ -59,6 +59,14 @@ export function isAllowanceSpent(group, usage, session, now = Date.now()) {
   return Boolean(group.limit) && remainingMs(group, usage, session, now) <= 0;
 }
 
+// The "permanent" preset is an allowance of zero minutes: it is spent before
+// the day starts and midnight hands back nothing, so the gates never open on
+// their own. Readers use it to say "permanent" where they would otherwise say
+// "spent · back at midnight".
+export function isPermanentLimit(limit) {
+  return Boolean(limit) && limitMs(limit) <= 0;
+}
+
 // Returns a fresh usage map with `ms` added to each group's total for today.
 export function bankUsage(usage, groupIds, ms, now = Date.now()) {
   if (!groupIds || groupIds.length === 0 || ms <= 0) return usage || {};

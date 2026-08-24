@@ -887,7 +887,30 @@ select:focus {
   outline-offset: 2px;
 }
 
+/* The permanent preset is not another duration, so it does not look like one:
+   it sits at the end of the row wearing the colour the app uses for "shut". */
+.preset-permanent {
+  margin-left: auto;
+  border-color: var(--rust);
+  color: var(--rust);
+}
+
+.preset-permanent:hover,
+.preset-permanent.checked,
+.preset-permanent.checked:hover {
+  background: var(--rust);
+  color: var(--accent-on);
+}
+
 .limit-field { max-width: 150px; margin-bottom: 4px; }
+
+/* Says what the permanent preset actually promises, only while it is picked. */
+.rule-note {
+  color: var(--rust);
+  font-size: 11.5px;
+  font-weight: 700;
+  margin: 6px 0 0;
+}
 
 .schedule-time-row { gap: 12px; }
 

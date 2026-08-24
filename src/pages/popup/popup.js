@@ -1,6 +1,6 @@
 import { Storage } from '../../shared/storage.js';
 import { isGroupActive, isInWindow } from '../../shared/schedule.js';
-import { isAllowanceSpent, remainingMs, formatDuration } from '../../shared/usage.js';
+import { isAllowanceSpent, isPermanentLimit, remainingMs, formatDuration } from '../../shared/usage.js';
 import { formatClock, nextEvent } from '../../shared/timeline.js';
 import { isDevMode } from '../../shared/dev-mode.js';
 
@@ -17,6 +17,7 @@ function escapeHtml(str) {
 // for that state.
 function zoneLine(g, now, usage, session) {
   if (!g.enabled) return { state: 'off', note: 'off' };
+  if (isPermanentLimit(g.limit)) return { state: 'spent', note: 'permanent' };
   if (isAllowanceSpent(g, usage, session, now)) return { state: 'spent', note: 'spent' };
   if (isInWindow(g, now)) return { state: 'shut', note: 'shut' };
   if (g.limit) return { state: 'open', note: formatDuration(remainingMs(g, usage, session, now)) };
