@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lock In — Privacy Policy</title>
+  <meta name="description" content="Privacy policy for the Lock In site-blocking Chrome extension." />
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #fdf2e0; color: #24102f; }
+    body { margin: 0; padding: 40px 20px; }
+    main { width: min(760px, 100%); box-sizing: border-box; margin: auto; background: #fffaf0; border: 3px solid #24102f; border-radius: 20px; box-shadow: 8px 8px 0 #f9b32d; padding: 36px 40px; }
+    .brand { margin: 0; color: #6b12b8; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 4px 0; font-size: clamp(32px, 6vw, 46px); line-height: 1.05; }
+    .effective { margin: 0 0 30px; color: #8a6a99; font: 12px ui-monospace, monospace; }
+    h2 { margin: 30px 0 8px; font-size: 20px; }
+    p, li { color: #5c3f6b; font-size: 15px; line-height: 1.65; }
+    li + li { margin-top: 6px; }
+    code { color: #4e038a; }
+    @media (max-width: 560px) { body { padding: 18px 10px; } main { padding: 26px 22px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">Lock In — Site Blocker</p>
+    <h1>Privacy Policy</h1>
+    <p class="effective">Effective August 23, 2026 · Version 1.3.0</p>
+
+    <p>
+      Lock In is a local-first site blocker. It uses the minimum browsing activity needed to block
+      user-selected domains and measure optional daily allowances. It does not operate a server and
+      does not transmit data off the device.
+    </p>
+
+    <h2>Data handled</h2>
+    <ul>
+      <li>Zone names, user-selected domains, schedules, daily limits, and edit-lock preference.</li>
+      <li>The hostname of the active tab, used in memory to determine whether a configured allowance should run.</li>
+      <li>Local time totals per zone and a daily tally of visits redirected to the blocked page.</li>
+      <li>The user's privacy-consent choice.</li>
+    </ul>
+
+    <h2>How the data is used</h2>
+    <p>
+      Data is used only to provide Lock In's disclosed purpose: blocking selected websites according
+      to the user's schedules and daily allowances, showing current status, and adding deliberate
+      friction before rules are weakened.
+    </p>
+
+    <h2>Storage, sharing, and retention</h2>
+    <p>
+      All data is stored in <code>chrome.storage.local</code> on the user's device. Lock In does not
+      transmit, sell, share, rent, or use this data for advertising, profiling, credit decisions, or
+      any unrelated purpose. Daily usage and blocked-visit tallies are rotated by date. Configuration
+      remains until the user deletes it or clears the extension's local data.
+    </p>
+
+    <h2>User control</h2>
+    <p>
+      Browsing activity is not handled until the user accepts the in-product disclosure. Users can
+      edit their zones and rules at any time and can delete all locally stored Lock In data from the
+      dashboard's privacy footer.
+    </p>
+
+    <h2>Limited Use compliance</h2>
+    <p>
+      Lock In's use of information received from Chrome APIs adheres to the Chrome Web Store User Data
+      Policy, including the Limited Use requirements. No human can access the user's extension data
+      because it never leaves the user's device.
+    </p>
+
+    <h2>Changes and contact</h2>
+    <p>
+      Material changes to these practices will be disclosed in the extension and reflected in this
+      policy before new data use begins. Privacy questions can be sent to the developer contact shown
+      on Lock In's Chrome Web Store listing.
+    </p>
+  </main>
+</body>
+</html>
