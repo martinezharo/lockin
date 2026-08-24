@@ -32,7 +32,8 @@ async function refresh() {
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureAlarm();
   await migrateGroups();
-  refresh();
+  if (!(await Storage.getPrivacyConsent())) await chrome.runtime.openOptionsPage();
+  await refresh();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -47,7 +48,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Any change to groups (from popup/options) triggers a fresh rule build — and
 // a re-sync, since adding or lifting an allowance changes what is being timed.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.groups) refresh();
+  if (area === 'local' && (changes.groups || changes.privacyConsent)) refresh();
 });
 
 initTracker(rebuildRules);
@@ -60,6 +61,15 @@ async function migrateGroups() {
 }
 
 async function rebuildRules() {
+  const consent = await Storage.getPrivacyConsent();
+  const existing = await chrome.declarativeNetRequest.getDynamicRules();
+  const removeRuleIds = existing.map((r) => r.id);
+
+  if (!consent) {
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules: [] });
+    return;
+  }
+
   const [groups, usage, session] = await Promise.all([
     Storage.getGroups(),
     Storage.getUsage(),
@@ -78,9 +88,6 @@ async function rebuildRules() {
 
   // Every build replaces the whole set, so the ids currently installed are
   // exactly what needs clearing first.
-  const existing = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = existing.map((r) => r.id);
-
   const addRules = Array.from(activeDomains).map((domain, i) => ({
     id: i + 1,
     priority: 1,

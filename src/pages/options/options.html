@@ -129,6 +129,38 @@
     </section>
   </main>
 
+  <footer class="privacy-footer">
+    <span>All settings and usage data stay on this device.</span>
+    <a href="../privacy/privacy.html" target="_blank" rel="noopener">Privacy policy</a>
+    <button id="deleteLocalData" class="btn-danger" type="button">Delete all local data</button>
+  </footer>
+
+  <!-- First-run disclosure. The extension does not inspect the active tab or
+       install blocking rules until the user explicitly accepts this notice. -->
+  <div id="privacyConsentModal" class="modal-overlay">
+    <div class="modal-card privacy-consent-card" role="dialog" aria-modal="true" aria-labelledby="privacyConsentTitle">
+      <div class="modal-header">
+        <span class="modal-emoji" aria-hidden="true">🔐</span>
+        <h3 id="privacyConsentTitle">local data, clearly explained</h3>
+      </div>
+      <p class="modal-instructions">
+        Lock In needs limited browsing activity to provide its site-blocking and daily-allowance features.
+      </p>
+      <ul class="privacy-points">
+        <li>It reads only the hostname of the active tab, never page content.</li>
+        <li>It stores your zones, schedules, local usage totals, and blocked-visit tally in Chrome local storage.</li>
+        <li>Nothing is transmitted, sold, shared, or used for advertising or profiling.</li>
+      </ul>
+      <p class="privacy-detail">
+        No browsing data is handled until you choose <strong>Accept and continue</strong>.
+        Read the <a href="../privacy/privacy.html" target="_blank" rel="noopener">full privacy policy</a>.
+      </p>
+      <div class="modal-actions">
+        <button id="privacyConsentAccept" class="primary" type="button">Accept and continue</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Challenge modal -->
   <div id="challengeModal" class="modal-overlay hidden">
     <div class="modal-card">

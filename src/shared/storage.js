@@ -32,6 +32,13 @@ export function serializeGroup(g) {
 }
 
 export const Storage = {
+  async getPrivacyConsent() {
+    const { privacyConsent = false } = await chrome.storage.local.get('privacyConsent');
+    return privacyConsent === true;
+  },
+  async setPrivacyConsent(value) {
+    await chrome.storage.local.set({ privacyConsent: value === true });
+  },
   async getGroups() {
     const { groups = [] } = await chrome.storage.local.get('groups');
     return groups.map(normalizeGroup);
@@ -81,5 +88,9 @@ export const Storage = {
     const next = addBlock(await this.getBlockTally(), domain, now);
     await chrome.storage.local.set({ blockTally: next });
     return next;
+  },
+
+  async clearAll() {
+    await chrome.storage.local.clear();
   }
 };

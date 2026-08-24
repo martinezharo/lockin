@@ -43,6 +43,7 @@ const newZoneToggle = document.getElementById('newZoneToggle');
 const newZoneBody = document.getElementById('newZoneBody');
 const newGroupForm = document.getElementById('newGroupForm');
 const rulesControls = document.getElementById('rulesControls');
+const privacyConsentModal = document.getElementById('privacyConsentModal');
 
 // Exactly one zone is expanded at a time. A page with three open editors was
 // the old dashboard's worst habit; this is a Set of one so the rule is
@@ -131,6 +132,32 @@ async function refreshLockSwitch() {
 lockSwitch.addEventListener('click', () => toggleLockMode(refreshLockSwitch));
 
 document.getElementById('devBanner').hidden = !isDevMode();
+
+/* ---------------- Privacy consent and local data ---------------- */
+
+async function refreshPrivacyConsent() {
+  const accepted = await Storage.getPrivacyConsent();
+  privacyConsentModal.classList.toggle('hidden', accepted);
+  return accepted;
+}
+
+document.getElementById('privacyConsentAccept').addEventListener('click', async () => {
+  await Storage.setPrivacyConsent(true);
+  privacyConsentModal.classList.add('hidden');
+  await render();
+});
+
+document.getElementById('deleteLocalData').addEventListener('click', () => {
+  const confirmed = window.confirm(
+    'Delete every Lock In zone, schedule, usage total, tally, and consent choice stored on this device?'
+  );
+  if (!confirmed) return;
+
+  withLockCheck(async () => {
+    await Storage.clearAll();
+    location.reload();
+  });
+});
 
 /* ---------------- The new-permit row ----------------
    Folded away by default: creating a zone is the rarest thing anyone does
@@ -370,4 +397,6 @@ setInterval(async () => {
   }
 }, 1000);
 
-render();
+refreshPrivacyConsent().then((accepted) => {
+  if (accepted) render();
+});

@@ -24,6 +24,17 @@ function zoneLine(g, now, usage, session) {
 }
 
 async function init() {
+  const consent = await Storage.getPrivacyConsent();
+
+  if (!consent) {
+    const emptyState = document.getElementById('emptyState');
+    emptyState.textContent = 'setup required · review local data use first 🔐';
+    emptyState.hidden = false;
+    document.getElementById('lockRow').textContent = 'no browsing activity is being read';
+    document.getElementById('openDash').textContent = 'Review privacy & continue';
+    return;
+  }
+
   const [groups, lockMode, usage, session] = await Promise.all([
     Storage.getGroups(),
     Storage.getLockMode(),

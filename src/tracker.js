@@ -91,6 +91,14 @@ async function scheduleDeadline(groups, host, usage, session, now) {
 // The whole cycle: bank what has happened, work out what is being used now,
 // open a fresh session for it and arm the alarm that ends it.
 async function runSync(onUsageBanked) {
+  // Do not inspect the active tab until the user has accepted the prominent
+  // local-data disclosure in the dashboard.
+  if (!(await Storage.getPrivacyConsent())) {
+    await chrome.alarms.clear(DEADLINE_ALARM);
+    await Storage.setUsageSession(null);
+    return;
+  }
+
   const now = Date.now();
   const banked = await flush(now);
 

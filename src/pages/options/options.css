@@ -961,6 +961,52 @@ select:focus {
   padding: 18px 4px 0;
 }
 
+/* ---------- Privacy and local data ---------- */
+
+.privacy-footer {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto 34px;
+  padding-top: 18px;
+  border-top: var(--stroke-w-thin) dashed var(--line-soft);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.privacy-footer span { margin-right: auto; }
+
+.privacy-footer a,
+.privacy-detail a {
+  color: var(--c-violet-deep);
+  font-weight: 700;
+}
+
+.privacy-footer button { padding: 7px 13px; font-size: 11.5px; }
+
+.privacy-consent-card { max-width: 590px; }
+
+.privacy-points {
+  margin: 14px 0;
+  padding: 14px 16px 14px 34px;
+  background: var(--c-paper-bright);
+  border: var(--stroke-w) dashed var(--stroke);
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.privacy-points li + li { margin-top: 7px; }
+
+.privacy-detail {
+  margin: 0;
+  color: var(--c-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
 /* ---------- Challenge modal ----------
    The loudest surface in the product on purpose: a full-bleed amber sticker
    over an ink wash. It should not feel like part of the calm board behind it. */
