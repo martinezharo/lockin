@@ -155,8 +155,31 @@ Pure logic — schedules, allowances, the day strip, the tally — is covered by
 `node:test`, with no browser and no `chrome` stub required:
 
 ```bash
-node --test "tests/*.test.mjs"
+node --test tests/*.test.mjs
 ```
+
+`package.json` declares the extension source as ES modules, so the same suite
+also runs with `npm test` or `pnpm test` when either package manager is
+available. No dependencies need to be installed.
+
+## Chrome Web Store release
+
+Build the reviewed production package with:
+
+```bash
+npm run release
+```
+
+The script runs policy-oriented static checks and the test suite, then creates
+`dist/lock-in-<version>-chrome-web-store.zip` plus its SHA-256 checksum. It
+packages only runtime files and always writes the committed `LOCKIN_DEV = false`
+flag as `env.js`, so an ignored local development override cannot enter the
+store ZIP.
+
+Chrome Web Store copy, privacy declarations, reviewer instructions and the
+unlisted-submission checklist live under `store/`. The public, static privacy
+page ready for hosting lives at `docs/index.html`; the packaged extension also
+contains the same policy at `src/pages/privacy/privacy.html`.
 
 ## Dev mode
 
@@ -192,10 +215,13 @@ spells out the shortcut, so the elevated mammal privileges are never silent.
 ## Notes
 
 - All data stays local in `chrome.storage.local` — nothing leaves your machine.
+- On first run, Lock In shows a prominent disclosure and waits for explicit
+  consent before reading an active-tab hostname or installing blocking rules.
 - The extension requests access to all sites because it needs to be able to
-  redirect *any* domain you choose to block; it does not read page content. The
-  `tabs` permission is what lets daily allowances see which site is in the
-  active tab — the hostname is all that is used, and it never leaves the device.
+  redirect *any* HTTP or HTTPS domain you choose to block; it does not read page
+  content. Host access lets daily allowances see which configured hostname is
+  in the active tab — the hostname is all that is used, and it never leaves the
+  device.
 - The propaganda is presentation only. Blocking, schedules, storage and domain
   matching remain ordinary deterministic extension logic.
 - To change the icon, swap the PNGs in `icons/` — the three sizes the manifest
