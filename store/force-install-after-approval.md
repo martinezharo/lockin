@@ -1,7 +1,7 @@
 # Force-install Lock In after Chrome Web Store approval
 
 The existing unlisted item ID is `ceggfchogfcdgnobpekajiojobghcggi`.
-Version 1.4.0 also requires the Windows watchdog to be installed
+Version 1.4.1 also requires the Windows watchdog to be installed
 before the extension update reaches the browser.
 
 ## Windows policy

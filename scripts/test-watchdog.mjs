@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -7,6 +8,11 @@ import { join, resolve } from 'node:path';
 const dataDirectory = await mkdtemp(join(tmpdir(), 'lockin-watchdog-'));
 const port = 18766;
 const endpoint = `http://127.0.0.1:${port}/api/request`;
+const currentUserSid = execFileSync('powershell.exe', [
+  '-NoProfile',
+  '-Command',
+  '[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'
+], { encoding: 'utf8' }).trim();
 const watchdog = spawn('powershell.exe', [
   '-NoProfile',
   '-ExecutionPolicy', 'Bypass',
@@ -14,19 +20,20 @@ const watchdog = spawn('powershell.exe', [
   '-DataDirectory', dataDirectory,
   '-Port', String(port),
   '-HeartbeatTimeoutSeconds', '2',
+  '-ProtectedUserSids', `${currentUserSid},S-1-5-18`,
   '-TestMode',
   '-AssumeBrowserRunning'
 ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-function waitForReady() {
+function waitForReady(process) {
   return new Promise((resolveReady, reject) => {
     const timeout = setTimeout(() => reject(new Error('Watchdog did not become ready.')), 10000);
-    watchdog.stdout.on('data', (chunk) => {
+    process.stdout.on('data', (chunk) => {
       if (!chunk.toString().includes('LOCKIN_WATCHDOG_READY')) return;
       clearTimeout(timeout);
       resolveReady();
     });
-    watchdog.once('exit', (code) => reject(new Error(`Watchdog exited early with ${code}.`)));
+    process.once('exit', (code) => reject(new Error(`Watchdog exited early with ${code}.`)));
   });
 }
 
@@ -46,7 +53,7 @@ async function send(type, payload = {}) {
 }
 
 try {
-  await waitForReady();
+  await waitForReady(watchdog);
   await send('bootstrap', {
     groups: [{
       id: 'permanent-test',
@@ -70,13 +77,42 @@ try {
   assert.deepEqual(armed.blockedDomains, ['example.com']);
 
   await new Promise((resolveWait) => setTimeout(resolveWait, 3000));
-  const missing = await send('getState');
+  const missing = await send('heartbeat', { host: 'example.com', focused: true });
   assert.equal(missing.failClosedActive, true);
   assert.equal(missing.firewallBlocked, true);
-  assert.match(missing.enforcementReason, /sensor missing/);
+  assert.match(missing.enforcementReason, /sensor missing: SYSTEM/);
   console.log('PowerShell watchdog integration test passed.');
 } finally {
   watchdog.kill();
   await new Promise((resolveExit) => watchdog.once('exit', resolveExit));
   await rm(dataDirectory, { recursive: true, force: true });
+}
+
+const rejectedDataDirectory = await mkdtemp(join(tmpdir(), 'lockin-watchdog-rejected-'));
+const rejectedPort = 18767;
+const rejectedWatchdog = spawn('powershell.exe', [
+  '-NoProfile',
+  '-ExecutionPolicy', 'Bypass',
+  '-File', resolve('watchdog/LockInWatchdog.ps1'),
+  '-DataDirectory', rejectedDataDirectory,
+  '-Port', String(rejectedPort),
+  '-ProtectedUserSids', 'S-1-5-18',
+  '-TestMode',
+  '-AssumeBrowserRunning'
+], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+try {
+  await waitForReady(rejectedWatchdog);
+  const response = await fetch(`http://127.0.0.1:${rejectedPort}/api/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'heartbeat', requestId: 'wrong-account', payload: {} })
+  });
+  const message = await response.json();
+  assert.equal(response.status, 403);
+  assert.match(message.error, /not the protected Lock In sensor/);
+} finally {
+  rejectedWatchdog.kill();
+  await new Promise((resolveExit) => rejectedWatchdog.once('exit', resolveExit));
+  await rm(rejectedDataDirectory, { recursive: true, force: true });
 }

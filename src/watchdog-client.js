@@ -132,6 +132,8 @@ class WatchdogClient {
           failClosedActive: snapshot.failClosedActive === true,
           firewallBlocked: snapshot.firewallBlocked === true,
           lastHeartbeatMs: snapshot.lastHeartbeatMs || 0,
+          protectedWindowsAccount: snapshot.protectedWindowsAccount || '',
+          protectedWindowsAccounts: snapshot.protectedWindowsAccounts || [],
           blockedDomains: snapshot.blockedDomains || [],
           enforcementReason: snapshot.enforcementReason || 'open',
           updatedAt: Date.now()

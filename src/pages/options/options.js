@@ -190,13 +190,20 @@ async function refreshServiceStatus() {
   }
 
   const blocking = (nativeStatus.blockedDomains || []).length > 0;
+  const protectedAccounts = (nativeStatus.protectedWindowsAccounts?.length
+    ? nativeStatus.protectedWindowsAccounts
+    : [nativeStatus.protectedWindowsAccount]
+  ).filter(Boolean).map((account) => account.split('\\').pop());
   servicePanel.classList.add(blocking ? 'state-blocking' : 'state-ready');
   serviceHeadline.textContent = blocking
     ? `Windows is containing ${nativeStatus.blockedDomains.length} domain${nativeStatus.blockedDomains.length === 1 ? '' : 's'}`
     : 'Windows enforcement armed · tunnels currently open';
-  serviceDetail.textContent = nativeStatus.failClosedActive
+  const accountPrefix = protectedAccounts.length
+    ? `Protected Windows users: ${protectedAccounts.join(' + ')}. `
+    : '';
+  serviceDetail.textContent = accountPrefix + (nativeStatus.failClosedActive
     ? 'Lock In sensor disappeared, so the watchdog blocked browser networking.'
-    : 'Usage and schedules are owned by the protected local watchdog.';
+    : 'Usage and schedules are owned by the protected local watchdog.');
   serviceReason.textContent = nativeStatus.enforcementReason || 'open';
 }
 

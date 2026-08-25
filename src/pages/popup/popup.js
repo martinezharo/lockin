@@ -83,7 +83,13 @@ async function init() {
     serviceRow.textContent = `● ${nativeStatus.enforcementReason} · Windows policy active`;
     serviceRow.classList.add('blocking');
   } else {
-    serviceRow.textContent = '● Windows enforcement armed';
+    const protectedAccounts = (nativeStatus.protectedWindowsAccounts?.length
+      ? nativeStatus.protectedWindowsAccounts
+      : [nativeStatus.protectedWindowsAccount]
+    ).filter(Boolean).map((account) => account.split('\\').pop());
+    serviceRow.textContent = protectedAccounts.length
+      ? `● Windows enforcement armed · ${protectedAccounts.join(' + ')}`
+      : '● Windows enforcement armed';
     serviceRow.classList.add('ready');
   }
 

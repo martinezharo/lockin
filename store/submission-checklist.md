@@ -1,4 +1,4 @@
-# Unlisted update checklist — version 1.4.0
+# Unlisted update checklist — version 1.4.1
 
 ## Developer account
 
@@ -10,11 +10,11 @@
 
 ## Package
 
-- [ ] Install and test `dist/lock-in-1.4.0-windows-watchdog.zip` first.
+- [ ] Install and test `dist/lock-in-1.4.1-windows-watchdog.zip` first.
 - [ ] Publish a reviewer-accessible HTTPS download for that exact watchdog archive and record its SHA-256.
 - [ ] Replace the submission-blocker paragraph in `store/reviewer-notes.md` with that URL and checksum.
-- [ ] Upload `dist/lock-in-1.4.0-chrome-web-store.zip`.
-- [ ] Confirm the dashboard detects Manifest V3 and version 1.4.0.
+- [ ] Upload `dist/lock-in-1.4.1-chrome-web-store.zip`.
+- [ ] Confirm the dashboard detects Manifest V3 and version 1.4.1.
 - [ ] Do not upload the repository or a manually created ZIP.
 
 ## Store listing
@@ -33,7 +33,7 @@
 - [ ] Declare no remote code.
 - [ ] Declare browsing activity, user activity, and user-provided configuration accurately.
 - [ ] Certify Limited Use compliance.
-- [ ] Update the public privacy-policy URL to the version 1.4.0 text before uploading the package.
+- [ ] Update the public privacy-policy URL to the version 1.4.1 text before uploading the package.
 
 ## Distribution and review
 
@@ -44,7 +44,7 @@
 - [ ] Confirm the reviewer can download and install the Windows watchdog without repository access.
 - [ ] Submit for review only after every warning in the dashboard is resolved.
 
-## After approval of 1.4.0
+## After approval of 1.4.1
 
 - [ ] Confirm the existing extension ID remains `ceggfchogfcdgnobpekajiojobghcggi`.
 - [ ] Install the Windows watchdog before Chrome updates the extension.

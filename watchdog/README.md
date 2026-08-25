@@ -1,4 +1,4 @@
-# Lock In Windows watchdog 1.4.0
+# Lock In Windows watchdog 1.4.1
 
 This bundle contains the local PowerShell enforcement component for Lock In.
 It contains no custom executable and requires no certificate or online account.
@@ -9,10 +9,12 @@ Extract the complete archive. Open PowerShell as administrator in the extracted 
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\install-windows-watchdog.ps1
+.\install-windows-watchdog.ps1 -ProtectedWindowsUser 'user1,user2'
 ```
 
-Reload Lock In 1.4.0 in Brave or Chrome. The dashboard must show **Windows enforcement armed** after three heartbeats.
+Only those Windows accounts can configure the watchdog. Each active protected account must maintain its own heartbeat; a Lock In copy running under another account cannot prevent fail-closed enforcement.
+
+Reload Lock In 1.4.1 in Brave or Chrome. The dashboard must show **Windows enforcement armed** after three heartbeats.
 
 ## Emergency recovery
 

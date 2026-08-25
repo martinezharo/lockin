@@ -1,15 +1,15 @@
-# Reviewer notes and test instructions — version 1.4.0
+# Reviewer notes and test instructions — version 1.4.1
 
-Lock In is a local-only site blocker for Windows. It has no account or external service, but version `1.4.0` requires the reproducible PowerShell watchdog bundle.
+Lock In is a local-only site blocker for Windows. It has no account or external service, but version `1.4.1` requires the reproducible PowerShell watchdog bundle.
 
-> Submission blocker: replace this paragraph with a reviewer-accessible HTTPS download and SHA-256 for `lock-in-1.4.0-windows-watchdog.zip` before submitting the update.
+> Submission blocker: replace this paragraph with a reviewer-accessible HTTPS download and SHA-256 for `lock-in-1.4.1-windows-watchdog.zip` before submitting the update.
 
 ## Companion setup
 
 1. Extract the Windows watchdog archive.
 2. Open an elevated PowerShell window in the extracted folder.
 3. Run `Set-ExecutionPolicy -Scope Process Bypass`.
-4. Run `./install-windows-watchdog.ps1`.
+4. Run `./install-windows-watchdog.ps1 -ProtectedWindowsUser 'YOUR WINDOWS USERNAME'` (comma-separate multiple local accounts if needed).
 5. Install or reload the submitted extension.
 6. Open its dashboard. Confirm it progresses from **watchdog connected · waiting to arm** to **Windows enforcement armed** after three sensor heartbeats.
 

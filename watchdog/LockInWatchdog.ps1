@@ -3,6 +3,8 @@ param(
   [string]$DataDirectory = "$env:ProgramData\LockIn",
   [int]$Port = 8765,
   [int]$HeartbeatTimeoutSeconds = 30,
+  [string]$ProtectedUserSids = '',
+  [string]$ProtectedUserSid = '',
   [switch]$TestMode,
   [switch]$AssumeBrowserRunning
 )
@@ -15,14 +17,27 @@ $policyPaths = [ordered]@{
   brave = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\URLBlocklist'
 }
 $firewallGroup = 'LockInWatchdog'
-$script:ConsecutiveHeartbeats = 0
-$script:BrowserSeenAtMs = 0L
+$script:ConsecutiveHeartbeatsBySid = @{}
+$script:BrowserSeenAtMsBySid = @{}
+$script:SensorHeartbeatMsBySid = @{}
 $script:BlockedDomains = @()
 $script:EnforcementReason = 'not armed'
 $script:FailClosedActive = $false
 $script:FirewallBlocked = $null
 $script:LastPolicyFingerprint = $null
 $script:Dirty = $false
+$script:ProtectedAccounts = [ordered]@{}
+$script:CurrentRequestUserSid = ''
+
+if ([string]::IsNullOrWhiteSpace($ProtectedUserSids)) { $ProtectedUserSids = $ProtectedUserSid }
+foreach ($protectedSidValue in @($ProtectedUserSids -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)) {
+  try {
+    $sid = [Security.Principal.SecurityIdentifier]::new($protectedSidValue)
+    $script:ProtectedAccounts[$protectedSidValue] = $sid.Translate([Security.Principal.NTAccount]).Value
+  } catch {
+    throw "ProtectedUserSids contains an invalid local Windows account SID: $protectedSidValue"
+  }
+}
 
 function Get-NowMs {
   return [long]([DateTime]::UtcNow - [DateTime]'1970-01-01').TotalMilliseconds
@@ -184,9 +199,24 @@ function Add-ElapsedUsage([long]$Now) {
   }
 }
 
-function Test-SupportedBrowserRunning {
-  if ($AssumeBrowserRunning) { return $true }
-  return $null -ne (Get-Process chrome, brave -ErrorAction SilentlyContinue | Select-Object -First 1)
+function Get-RunningProtectedUserSids {
+  if ($AssumeBrowserRunning) {
+    if ($script:ProtectedAccounts.Count -gt 0) { return @($script:ProtectedAccounts.Keys) }
+    return @('__legacy__')
+  }
+  $processes = @(Get-Process chrome, brave -IncludeUserName -ErrorAction SilentlyContinue)
+  if ($script:ProtectedAccounts.Count -eq 0) {
+    if ($processes.Count -gt 0) { return @('__legacy__') }
+    return @()
+  }
+  $running = @()
+  foreach ($protectedSidValue in $script:ProtectedAccounts.Keys) {
+    $account = [string]$script:ProtectedAccounts[$protectedSidValue]
+    if ($null -ne ($processes | Where-Object { $_.UserName -ieq $account } | Select-Object -First 1)) {
+      $running += [string]$protectedSidValue
+    }
+  }
+  return @($running)
 }
 
 function Set-FirewallBlocked([bool]$Blocked) {
@@ -205,6 +235,49 @@ function Test-RequestOrigin($Context) {
   $origin = [string]$Context.Request.Headers['Origin']
   if ([string]::IsNullOrWhiteSpace($origin)) { return $true }
   return $origin -match '^chrome-extension://[a-p]{32}$'
+}
+
+function Get-ProcessOwnerSid([int]$ProcessId) {
+  try {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+    if ($null -eq $process) { return '' }
+    $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid -ErrorAction Stop
+    if ([int]$owner.ReturnValue -ne 0) { return '' }
+    return [string]$owner.Sid
+  } catch { return '' }
+}
+
+function Get-RequestUserSid($Context) {
+  try {
+    $clientPort = [int]$Context.Request.RemoteEndPoint.Port
+    $connection = Get-NetTCPConnection `
+      -LocalAddress '127.0.0.1' `
+      -LocalPort $clientPort `
+      -RemoteAddress '127.0.0.1' `
+      -RemotePort $Port `
+      -State Established `
+      -ErrorAction Stop | Select-Object -First 1
+    if ($null -eq $connection) { return '' }
+    return Get-ProcessOwnerSid ([int]$connection.OwningProcess)
+  } catch {
+    Write-WatchdogLog "Could not identify loopback client SID: $($_.Exception.Message)"
+    return ''
+  }
+}
+
+function Test-ProtectedAccountRequest($Context, $Request) {
+  $script:CurrentRequestUserSid = ''
+  if ($script:ProtectedAccounts.Count -eq 0) { return $true }
+  $origin = [string]$Context.Request.Headers['Origin']
+  if ([string]$Request.type -eq 'disarm' -and [string]::IsNullOrWhiteSpace($origin)) { return $true }
+  $requestUserSid = Get-RequestUserSid $Context
+  if ($script:ProtectedAccounts.Contains($requestUserSid)) {
+    $script:CurrentRequestUserSid = $requestUserSid
+    return $true
+  }
+  $protectedNames = @($script:ProtectedAccounts.Values) -join ', '
+  Write-WatchdogLog "Rejected $($Request.type) request from SID '$requestUserSid'; protected accounts are '$protectedNames'."
+  return $false
 }
 
 function Apply-BrowserPolicy([string]$Browser, [string[]]$Domains) {
@@ -259,16 +332,29 @@ function Evaluate-Enforcement([long]$Now) {
       }
     }
 
-    $browserRunning = Test-SupportedBrowserRunning
-    if ($browserRunning -and $script:BrowserSeenAtMs -eq 0) { $script:BrowserSeenAtMs = $Now }
-    if (-not $browserRunning) { $script:BrowserSeenAtMs = 0L }
-    $graceStart = [Math]::Max([long]$script:BrowserSeenAtMs, [long]$script:State.lastHeartbeatMs)
-    $sensorMissing = $enabledGroups.Count -gt 0 -and $browserRunning -and $graceStart -gt 0 -and ($Now - $graceStart) -gt ([long]$script:State.heartbeatTimeoutSeconds * 1000L)
-    if ($script:State.failClosed -eq $true -and $sensorMissing) {
+    $runningUserSids = @(Get-RunningProtectedUserSids)
+    $runningSet = @{}
+    $missingAccounts = @()
+    foreach ($runningUserSid in $runningUserSids) {
+      $runningSet[$runningUserSid] = $true
+      if (-not $script:BrowserSeenAtMsBySid.ContainsKey($runningUserSid)) { $script:BrowserSeenAtMsBySid[$runningUserSid] = $Now }
+      $lastSensorHeartbeat = if ($script:SensorHeartbeatMsBySid.ContainsKey($runningUserSid)) {
+        [long]$script:SensorHeartbeatMsBySid[$runningUserSid]
+      } else { 0L }
+      $graceStart = [Math]::Max([long]$script:BrowserSeenAtMsBySid[$runningUserSid], $lastSensorHeartbeat)
+      if ($enabledGroups.Count -gt 0 -and $graceStart -gt 0 -and ($Now - $graceStart) -gt ([long]$script:State.heartbeatTimeoutSeconds * 1000L)) {
+        $accountName = if ($script:ProtectedAccounts.Contains($runningUserSid)) { [string]$script:ProtectedAccounts[$runningUserSid] } else { 'browser' }
+        $missingAccounts += ($accountName -split '\\')[-1]
+      }
+    }
+    foreach ($knownSid in @($script:BrowserSeenAtMsBySid.Keys)) {
+      if (-not $runningSet.ContainsKey($knownSid)) { $script:BrowserSeenAtMsBySid.Remove($knownSid) }
+    }
+    if ($script:State.failClosed -eq $true -and $missingAccounts.Count -gt 0) {
       foreach ($group in $enabledGroups) {
         foreach ($domain in @($group.domains)) { [void]$domains.Add([string]$domain) }
       }
-      $reasons.Add('sensor missing')
+      $reasons.Add("sensor missing: $($missingAccounts -join ', ')")
       $script:FailClosedActive = $true
     }
   }
@@ -304,10 +390,12 @@ function Get-Snapshot([long]$Now) {
     privacyConsent = $script:State.privacyConsent -eq $true
     blockedDomains = @($script:BlockedDomains)
     enforcementReason = $script:EnforcementReason
+    protectedWindowsAccount = (@($script:ProtectedAccounts.Values) -join ', ')
+    protectedWindowsAccounts = @($script:ProtectedAccounts.Values)
   }
 }
 
-function Handle-Request($Request) {
+function Handle-Request($Request, [string]$RequestUserSid = '') {
   $now = Get-NowMs
   switch ([string]$Request.type) {
     'bootstrap' {
@@ -331,15 +419,18 @@ function Handle-Request($Request) {
     }
     'heartbeat' {
       Add-ElapsedUsage $now
-      if ([long]$script:State.lastHeartbeatMs -eq 0 -or ($now - [long]$script:State.lastHeartbeatMs) -gt ([long]$script:State.heartbeatTimeoutSeconds * 2000L)) {
-        $script:ConsecutiveHeartbeats = 0
+      $sensorKey = if ([string]::IsNullOrWhiteSpace($RequestUserSid)) { '__legacy__' } else { $RequestUserSid }
+      $previousSensorHeartbeat = if ($script:SensorHeartbeatMsBySid.ContainsKey($sensorKey)) { [long]$script:SensorHeartbeatMsBySid[$sensorKey] } else { 0L }
+      if ($previousSensorHeartbeat -eq 0 -or ($now - $previousSensorHeartbeat) -gt ([long]$script:State.heartbeatTimeoutSeconds * 2000L)) {
+        $script:ConsecutiveHeartbeatsBySid[$sensorKey] = 0
       }
-      $script:ConsecutiveHeartbeats++
+      $script:ConsecutiveHeartbeatsBySid[$sensorKey] = [int]$script:ConsecutiveHeartbeatsBySid[$sensorKey] + 1
+      $script:SensorHeartbeatMsBySid[$sensorKey] = $now
       $script:State.lastHeartbeatMs = $now
       $script:State.lastSampleMs = $now
       $script:State.lastHost = Normalize-Domain ([string]$Request.payload.host)
       $script:State.lastFocused = $Request.payload.focused -eq $true
-      if ($script:State.configured -eq $true -and $script:State.enforcementArmed -ne $true -and $script:ConsecutiveHeartbeats -ge 3) {
+      if ($script:State.configured -eq $true -and $script:State.enforcementArmed -ne $true -and [int]$script:ConsecutiveHeartbeatsBySid[$sensorKey] -ge 3) {
         $script:State.enforcementArmed = $true
       }
       $script:Dirty = $true
@@ -356,12 +447,13 @@ function Handle-Request($Request) {
       $script:State.lastSampleMs = $now
       $script:State.lastHost = ''
       $script:State.lastFocused = $false
-      $script:ConsecutiveHeartbeats = 0
+      $script:ConsecutiveHeartbeatsBySid.Clear()
+      $script:SensorHeartbeatMsBySid.Clear()
       $script:Dirty = $true
     }
     'disarm' {
       $script:State.enforcementArmed = $false
-      $script:ConsecutiveHeartbeats = 0
+      $script:ConsecutiveHeartbeatsBySid.Clear()
       $script:Dirty = $true
     }
     default { throw "Unknown request type: $($Request.type)" }
@@ -432,7 +524,11 @@ try {
       }
       $reader = [IO.StreamReader]::new($context.Request.InputStream, $context.Request.ContentEncoding)
       try { $request = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-      $data = Handle-Request $request
+      if (-not (Test-ProtectedAccountRequest $context $request)) {
+        Write-JsonResponse $context 403 ([pscustomobject]@{ ok = $false; error = 'This Windows account is not the protected Lock In sensor.' })
+        continue
+      }
+      $data = Handle-Request $request $script:CurrentRequestUserSid
       Write-JsonResponse $context 200 ([pscustomobject]@{ ok = $true; requestId = $request.requestId; data = $data })
     } catch {
       Write-WatchdogLog "Request failed: $($_.Exception.Message)"

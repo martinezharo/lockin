@@ -1,12 +1,12 @@
-# Chrome Web Store privacy practices — version 1.4.0
+# Chrome Web Store privacy practices — version 1.4.1
 
-Use these answers for the `1.4.0` update. Keep them consistent with `docs/index.html` and the in-product privacy page.
+Use these answers for the `1.4.1` update. Keep them consistent with `docs/index.html` and the in-product privacy page.
 
 ## Permission justifications
 
 ### storage
 
-Stores the privacy-consent choice, a local display mirror of user-created zones, schedules and authoritative watchdog usage totals, the edit-lock preference, and local watchdog health. The authoritative records remain in protected Windows storage and nothing leaves the device.
+Stores the privacy-consent choice, a local display mirror of user-created zones, schedules and authoritative watchdog usage totals, the edit-lock preference, local watchdog health, and the selected Windows account identities used to authenticate protected sensors independently. The authoritative records remain in protected Windows storage and nothing leaves the device.
 
 ### alarms
 

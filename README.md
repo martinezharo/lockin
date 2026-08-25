@@ -38,7 +38,7 @@ Run once from an elevated PowerShell window:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install-windows-watchdog.ps1
+.\scripts\install-windows-watchdog.ps1 -ProtectedWindowsUser 'user1,user2'
 ```
 
 The installer:
@@ -50,7 +50,7 @@ The installer:
 - configures automatic restart; and
 - starts safely disarmed.
 
-Reload extension version `1.4.0` after installation. The dashboard must progress from **connected · waiting to arm** to **Windows enforcement armed** after three heartbeats.
+Reload extension version `1.4.1` after installation. The dashboard must progress from **connected · waiting to arm** to **Windows enforcement armed** after three heartbeats. Only the selected Windows accounts can configure the watchdog. Their heartbeats are tracked independently, so one account cannot hide a missing sensor in another active account.
 
 ## Emergency recovery and uninstall
 
@@ -77,7 +77,7 @@ pnpm release
 
 `pnpm verify` runs the extension suite plus an end-to-end loopback watchdog test. The test proves three-heartbeat arming and fail-closed firewall activation without touching the real registry or firewall.
 
-The Chrome Web Store archive is written to `dist/lock-in-1.4.0-chrome-web-store.zip` with a SHA-256 file beside it.
+The Chrome Web Store archive is written to `dist/lock-in-1.4.1-chrome-web-store.zip` with a SHA-256 file beside it.
 
 ## Repository layout
 

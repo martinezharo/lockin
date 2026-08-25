@@ -23,7 +23,14 @@ test('the watchdog client is pinned to loopback', () => {
 
 test('safe rollout arms only after the watchdog is reachable', async () => {
   const watchdog = await readFile('watchdog/LockInWatchdog.ps1', 'utf8');
-  assert.match(watchdog, /ConsecutiveHeartbeats -ge 3/);
+  assert.match(watchdog, /ConsecutiveHeartbeatsBySid\[\$sensorKey\].*-ge 3/);
   assert.match(watchdog, /sensor missing/);
   assert.match(watchdog, /Set-FirewallBlocked/);
+  assert.match(watchdog, /Test-ProtectedAccountRequest/);
+  assert.match(watchdog, /Get-NetTCPConnection/);
+  assert.match(watchdog, /GetOwnerSid/);
+  assert.match(installer, /ProtectedWindowsUser/);
+  assert.match(installer, /ProtectedUserSids/);
+  assert.match(watchdog, /SensorHeartbeatMsBySid/);
+  assert.match(watchdog, /missingAccounts/);
 });

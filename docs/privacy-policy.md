@@ -1,6 +1,6 @@
 # Lock In — Privacy Policy
 
-Effective August 24, 2026 · Version 1.4.0
+Effective August 24, 2026 · Version 1.4.1
 
 Lock In is a local-first site-blocking system composed of a Chrome extension and a protected Windows PowerShell watchdog. It uses the minimum browsing activity required to measure user-configured daily allowances. It has no internet server and does not transmit data off the device.
 
@@ -10,6 +10,7 @@ Lock In is a local-first site-blocking system composed of a Chrome extension and
 - The hostname of the active tab and whether its browser window is focused.
 - Local time totals per zone and the current enforcement state.
 - The user's privacy-consent choice and the health of the local watchdog connection.
+- The selected Windows account names and SIDs, used locally to authenticate each protected sensor independently.
 
 Lock In does not read page content, form values, messages, passwords, full browsing history, or unrelated tabs.
 

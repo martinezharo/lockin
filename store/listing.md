@@ -1,4 +1,4 @@
-# Chrome Web Store listing — version 1.4.0
+# Chrome Web Store listing — version 1.4.1
 
 ## Product details
 
@@ -31,7 +31,7 @@ Lock In's single purpose is to help the user avoid distracting websites by measu
 
 ## Store fields
 
-- Privacy policy URL: update the existing public policy to version `1.4.0` before submission.
+- Privacy policy URL: update the existing public policy to version `1.4.1` before submission.
 - Official URL: leave blank.
 - Support URL: use the reviewer-accessible Windows watchdog download page when available.
 - Mature content: `No`
