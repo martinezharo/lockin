@@ -114,6 +114,17 @@ const saveRules = (id, rules) =>
 
 const enableGroup = (id) => updateGroup(id, (g) => { g.enabled = true; });
 
+function saveGroupName(id, input) {
+  const name = input.value.trim();
+  if (!name) {
+    input.setCustomValidity('Enter a zone name.');
+    input.reportValidity();
+    return;
+  }
+  input.setCustomValidity('');
+  return updateGroup(id, (g) => { g.name = name; });
+}
+
 function addDomain(id, rawDomain) {
   const domain = normalizeDomainInput(rawDomain);
   if (!domain) return;
@@ -322,6 +333,10 @@ const ZONE_ACTIONS = {
   delete: (id) => deleteGroup(id),
   disable: (id) => disableGroup(id),
   enable: (id) => enableGroup(id),
+  'save-name': (id, btn) => {
+    const input = btn.closest('.zone').querySelector('[data-zone-name-input]');
+    saveGroupName(id, input);
+  },
   'remove-domain': (id, btn) => removeDomain(id, btn.dataset.domain),
   'add-domain': (id, btn) => {
     const input = btn.closest('.zone').querySelector('[data-add-domain-input]');
@@ -343,7 +358,15 @@ groupsListEl.addEventListener('click', (e) => {
 });
 
 groupsListEl.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || !e.target.matches('[data-add-domain-input]')) return;
+  if (e.key !== 'Enter') return;
+
+  if (e.target.matches('[data-zone-name-input]')) {
+    e.preventDefault();
+    saveGroupName(e.target.getAttribute('data-zone-name-input'), e.target);
+    return;
+  }
+
+  if (!e.target.matches('[data-add-domain-input]')) return;
   e.preventDefault();
   addDomain(e.target.getAttribute('data-add-domain-input'), e.target.value);
   e.target.value = '';
@@ -422,6 +445,7 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.matches('[data-zone-name-input]')) e.target.setCustomValidity('');
   if (e.target.matches('[data-limit-minutes]')) markPresets(e.target.closest('[data-rule-body]'));
   if (e.target.matches('[data-sched-start], [data-sched-end]')) paintWindowBand(e.target.closest('[data-rule-body]'));
 });

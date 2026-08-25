@@ -404,6 +404,15 @@ function meterHtml(g, now, usage, session) {
 function zoneBodyHtml(g, now, usage, session) {
   return `
     <div class="zone-body">
+      <div class="zone-name-editor">
+        <label class="field-label" for="zone-name-${g.id}">Zone name</label>
+        <div class="zone-name-row">
+          <input type="text" id="zone-name-${g.id}" value="${escapeHtml(g.name)}"
+            data-zone-name-input="${g.id}" aria-label="Edit the name of ${escapeHtml(g.name)}" required />
+          <button type="button" class="ghost" data-action="save-name" data-group="${g.id}">Save name</button>
+        </div>
+      </div>
+
       <div class="zone-columns">
         <div class="zone-col">
           <div class="col-label">Forbidden tunnels</div>

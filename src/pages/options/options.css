@@ -529,6 +529,34 @@ html, body {
   padding: 16px 16px 15px;
 }
 
+.zone-name-editor {
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: var(--stroke-w-thin) dashed var(--line-soft);
+}
+
+.zone-name-editor .field-label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.zone-name-row {
+  display: flex;
+  gap: 8px;
+  max-width: 430px;
+}
+
+.zone-name-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.zone-name-row button {
+  flex: none;
+  font-size: 12px;
+  padding: 7px 15px;
+}
+
 /* Two columns, divided by a line rather than by a box. The card is already a
    box; putting a second one inside it for the rules, and a third around each
    rule, was three frames around one thought. */
