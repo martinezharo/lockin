@@ -41,6 +41,19 @@ test('a weekday window draws nothing on a weekend', () => {
   assert.deepEqual(todayShutSegments(g, saturday), []);
 });
 
+test('multiple windows draw multiple bands on the same day', () => {
+  const g = zone({
+    schedule: {
+      days: WEEKDAYS,
+      windows: [{ start: 8 * 60, end: 10 * 60 }, { start: 14 * 60, end: 18 * 60 }]
+    }
+  });
+  assert.deepEqual(todayShutSegments(g, NOW), [
+    { start: 480, end: 600, kind: 'schedule' },
+    { start: 840, end: 1080, kind: 'schedule' }
+  ]);
+});
+
 test('an overnight window draws a band at each end of the day', () => {
   const g = zone({ schedule: { days: [0, 1, 2, 3, 4, 5, 6], start: 22 * 60, end: 6 * 60 } });
   assert.deepEqual(todayShutSegments(g, NOW), [
@@ -70,6 +83,25 @@ test('a disarmed zone draws nothing at all', () => {
 test('the next boundary inside a window is the moment it ends', () => {
   const at = nextScheduleBoundary({ days: WEEKDAYS, start: 9 * 60, end: 17 * 60 }, NOW);
   assert.equal(at, new Date(2026, 7, 25, 17, 0).getTime());
+});
+
+test('the next boundary moves between separate windows', () => {
+  const schedule = {
+    days: WEEKDAYS,
+    windows: [{ start: 9 * 60, end: 12 * 60 }, { start: 14 * 60, end: 18 * 60 }]
+  };
+  const lunch = new Date(2026, 7, 25, 13, 0).getTime();
+  assert.equal(nextScheduleBoundary(schedule, lunch), new Date(2026, 7, 25, 14, 0).getTime());
+  assert.equal(nextScheduleBoundary(schedule, NOW), new Date(2026, 7, 25, 18, 0).getTime());
+});
+
+test('a touching window boundary is skipped when containment never opens', () => {
+  const schedule = {
+    days: WEEKDAYS,
+    windows: [{ start: 9 * 60, end: 12 * 60 }, { start: 12 * 60, end: 18 * 60 }]
+  };
+  const morning = new Date(2026, 7, 25, 10, 0).getTime();
+  assert.equal(nextScheduleBoundary(schedule, morning), new Date(2026, 7, 25, 18, 0).getTime());
 });
 
 test('the next boundary before a window is the moment it starts', () => {

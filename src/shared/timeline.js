@@ -8,7 +8,7 @@
 //
 // Like usage.js these are pure functions over whatever the caller just loaded.
 
-import { isWithinSchedule, hasRules } from './schedule.js';
+import { isWithinSchedule, hasRules, scheduleWindows } from './schedule.js';
 import { isAllowanceSpent, isPermanentLimit } from './usage.js';
 
 export const MINUTES_PER_DAY = 1440;
@@ -51,19 +51,21 @@ export function todayShutSegments(group, now = Date.now(), usage = null, session
 
   const schedule = group.schedule;
   if (schedule && Array.isArray(schedule.days) && schedule.days.length > 0) {
-    const { days, start = 0, end = 0 } = schedule;
+    const { days } = schedule;
     const today = new Date(now).getDay();
     const yesterday = (today + 6) % 7;
 
-    if (start === end) {
-      if (days.includes(today)) segments.push({ start: 0, end: MINUTES_PER_DAY, kind: 'schedule' });
-    } else if (start < end) {
-      if (days.includes(today)) segments.push({ start, end, kind: 'schedule' });
-    } else {
-      // Overnight: the tail of a window that opened today, plus the head of
-      // the one that opened yesterday.
-      if (days.includes(today)) segments.push({ start, end: MINUTES_PER_DAY, kind: 'schedule' });
-      if (days.includes(yesterday)) segments.push({ start: 0, end, kind: 'schedule' });
+    for (const { start, end } of scheduleWindows(schedule)) {
+      if (start === end) {
+        if (days.includes(today)) segments.push({ start: 0, end: MINUTES_PER_DAY, kind: 'schedule' });
+      } else if (start < end) {
+        if (days.includes(today)) segments.push({ start, end, kind: 'schedule' });
+      } else {
+        // Overnight: the tail of a window that opened today, plus the head of
+        // the one that opened yesterday.
+        if (days.includes(today)) segments.push({ start, end: MINUTES_PER_DAY, kind: 'schedule' });
+        if (days.includes(yesterday)) segments.push({ start: 0, end, kind: 'schedule' });
+      }
     }
   }
 
@@ -85,25 +87,33 @@ export function todayShutSegments(group, now = Date.now(), usage = null, session
 
 export function nextScheduleBoundary(schedule, now = Date.now()) {
   if (!schedule || !Array.isArray(schedule.days) || schedule.days.length === 0) return null;
-  const { days, start = 0, end = 0 } = schedule;
-  let best = null;
+  const { days } = schedule;
+  const candidates = [];
 
   for (let offset = -1; offset <= 7; offset++) {
     const dayStart = addDays(startOfDay(now), offset);
     if (!days.includes(new Date(dayStart).getDay())) continue;
 
-    const opens = start === end ? dayStart : dayStart + start * 60000;
-    const closes =
-      start === end ? addDays(dayStart, 1)
-      : start < end ? dayStart + end * 60000
-      : addDays(dayStart, 1) + end * 60000;
-
-    for (const boundary of [opens, closes]) {
-      if (boundary > now && (best === null || boundary < best)) best = boundary;
+    for (const { start, end } of scheduleWindows(schedule)) {
+      const opens = start === end ? dayStart : dayStart + start * 60000;
+      const closes =
+        start === end ? addDays(dayStart, 1)
+        : start < end ? dayStart + end * 60000
+        : addDays(dayStart, 1) + end * 60000;
+      candidates.push(opens, closes);
     }
   }
 
-  return best;
+  // Overlapping or touching windows can contribute raw boundaries at which
+  // the zone remains shut. Only return a boundary where its actual state
+  // changes, otherwise the dashboard would promise a reopen that never comes.
+  for (const boundary of [...new Set(candidates)].sort((a, b) => a - b)) {
+    if (boundary <= now) continue;
+    const before = isWithinSchedule(schedule, new Date(boundary - 1000));
+    const after = isWithinSchedule(schedule, new Date(boundary + 1000));
+    if (before !== after) return boundary;
+  }
+  return null;
 }
 
 // { at, kind: 'opens' | 'shuts', reason: 'schedule' | 'allowance' } or null when

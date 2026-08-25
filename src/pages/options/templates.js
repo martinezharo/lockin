@@ -7,6 +7,7 @@ import {
   isGroupActive,
   isInWindow,
   hasRules,
+  scheduleWindows,
   minutesToTimeValue,
   timeValueToMinutes
 } from '../../shared/schedule.js';
@@ -51,12 +52,20 @@ const presetLabel = (minutes) => (minutes === 0 ? 'Permanent 👹' : formatDurat
 // Read-only on purpose: the time inputs stay the thing you edit, because a
 // hand-rolled drag control would lose keyboard entry, screen readers and the
 // browser's own clock picker for the sake of looking clever.
-function windowBandHtml(start, end) {
-  const overnight = start > end;
-  const fills = overnight
-    ? `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(MINUTES_PER_DAY - start)}"></span>
-       <span class="band-fill" style="left: 0; width: ${pct(end)}"></span>`
-    : `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(Math.max(0, end - start))}"></span>`;
+function windowFillsHtml(windows) {
+  return windows.map(({ start, end }, index) => {
+    const className = `band-fill window-${index % 3}`;
+    return start === end
+      ? `<span class="${className}" style="left: 0; width: 100%"></span>`
+      : start > end
+      ? `<span class="${className}" style="left: ${pct(start)}; width: ${pct(MINUTES_PER_DAY - start)}"></span>
+         <span class="${className}" style="left: 0; width: ${pct(end)}"></span>`
+      : `<span class="${className}" style="left: ${pct(start)}; width: ${pct(Math.max(0, end - start))}"></span>`;
+  }).join('');
+}
+
+function windowBandHtml(windows) {
+  const fills = windowFillsHtml(windows);
 
   return `
     <div class="band" data-window-band aria-hidden="true">${fills}</div>
@@ -64,8 +73,27 @@ function windowBandHtml(start, end) {
   `;
 }
 
-function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 } = {}) {
+export function scheduleWindowRowHtml({ start, end }, index, total) {
+  return `
+    <div class="schedule-window" data-sched-window>
+      <span class="window-number" aria-hidden="true">${index + 1}</span>
+      <label class="field">
+        <span class="field-label">Gates close</span>
+        <input type="time" data-sched-start value="${minutesToTimeValue(start)}" />
+      </label>
+      <span class="window-arrow" aria-hidden="true">→</span>
+      <label class="field">
+        <span class="field-label">Gates reopen</span>
+        <input type="time" data-sched-end value="${minutesToTimeValue(end)}" />
+      </label>
+      <button type="button" class="remove-window" data-remove-window
+        aria-label="Remove time window ${index + 1}" title="Remove this window" ${total === 1 ? 'hidden' : ''}>×</button>
+    </div>`;
+}
+
+function scheduleControlsHtml({ days = [], windows, start = 9 * 60, end = 17 * 60 } = {}) {
   const selected = new Set(days);
+  const ranges = Array.isArray(windows) && windows.length > 0 ? windows : [{ start, end }];
   const pills = DAYS.map(
     ({ value, label }) => `
       <label class="day-pill ${selected.has(value) ? 'checked' : ''}">
@@ -76,17 +104,11 @@ function scheduleControlsHtml({ days = [], start = 9 * 60, end = 17 * 60 } = {})
 
   return `
     <div class="day-toggle">${pills}</div>
-    ${windowBandHtml(start, end)}
-    <div class="field-row schedule-time-row">
-      <label class="field">
-        <span class="field-label">Gates close</span>
-        <input type="time" data-sched-start value="${minutesToTimeValue(start)}" />
-      </label>
-      <label class="field">
-        <span class="field-label">Gates reopen</span>
-        <input type="time" data-sched-end value="${minutesToTimeValue(end)}" />
-      </label>
+    ${windowBandHtml(ranges)}
+    <div class="schedule-windows" data-schedule-windows>
+      ${ranges.map((window, index) => scheduleWindowRowHtml(window, index, ranges.length)).join('')}
     </div>
+    <button type="button" class="add-window" data-add-window><span aria-hidden="true">＋</span> Add another window</button>
     <p class="rule-error" data-sched-error role="alert" hidden></p>
   `;
 }
@@ -139,7 +161,7 @@ export function rulesControlsHtml({ schedule = null, limit = null, showNoRulesHi
     ${section(
       'schedule',
       'Scheduled hours ⏰',
-      'The gates stay shut only during this window. Overnight containment (e.g. 22:00 &rarr; 06:00) works too.',
+      'Add as many shut windows as you need. They share the selected days, and overnight containment (e.g. 22:00 &rarr; 06:00) works too.',
       Boolean(schedule),
       scheduleControlsHtml(schedule || {})
     )}
@@ -172,12 +194,14 @@ function readSchedule(root) {
 
   if (days.length === 0) return showError(errorEl, 'Pick at least one containment day, tiny mammal. 🐭');
 
+  const windows = Array.from(root.querySelectorAll('[data-sched-window]')).map((row) => ({
+    start: timeValueToMinutes(row.querySelector('[data-sched-start]').value),
+    end: timeValueToMinutes(row.querySelector('[data-sched-end]').value)
+  }));
+  if (windows.length === 0) return showError(errorEl, 'Add at least one containment window. ⏰');
+
   errorEl.hidden = true;
-  return {
-    days,
-    start: timeValueToMinutes(root.querySelector('[data-sched-start]').value),
-    end: timeValueToMinutes(root.querySelector('[data-sched-end]').value)
-  };
+  return { days, windows, start: windows[0].start, end: windows[0].end };
 }
 
 function readLimit(root) {
@@ -320,8 +344,12 @@ function stripRowHtml(g, now, usage, session) {
   else if (!hasRules(g)) note = 'all day';
   else if (g.schedule) {
     if (segments.length === 0) note = 'not today';
-    else if (g.schedule.start === g.schedule.end) note = 'all day';
-    else note = `${minutesToTimeValue(g.schedule.start)}–${minutesToTimeValue(g.schedule.end)}`;
+    else {
+      const windows = scheduleWindows(g.schedule);
+      if (windows.some((window) => window.start === window.end)) note = 'all day';
+      else if (windows.length > 1) note = `${windows.length} windows`;
+      else note = `${minutesToTimeValue(windows[0].start)}–${minutesToTimeValue(windows[0].end)}`;
+    }
   }
 
   return `

@@ -13,8 +13,10 @@ $ErrorActionPreference = 'Stop'
 $statePath = Join-Path $DataDirectory 'state.json'
 $logPath = Join-Path $DataDirectory 'watchdog.log'
 $policyPaths = [ordered]@{
-  chrome = 'HKLM:\SOFTWARE\Policies\Google\Chrome\URLBlocklist'
-  brave = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\URLBlocklist'
+  chrome   = 'HKLM:\SOFTWARE\Policies\Google\Chrome\URLBlocklist'
+  brave    = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\URLBlocklist'
+  chrome32 = 'HKLM:\SOFTWARE\WOW6432Node\Policies\Google\Chrome\URLBlocklist'
+  brave32  = 'HKLM:\SOFTWARE\WOW6432Node\Policies\BraveSoftware\Brave\URLBlocklist'
 }
 $firewallGroup = 'LockInWatchdog'
 $script:ConsecutiveHeartbeatsBySid = @{}
@@ -64,7 +66,7 @@ function New-DefaultState {
     lastSampleMs = 0L
     lastHost = ''
     lastFocused = $false
-    ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @() }
+    ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
   }
 }
 
@@ -80,7 +82,7 @@ function Ensure-StateShape($Value) {
   if ($null -eq $Value.usage) { $Value.usage = [pscustomobject]@{} }
   if ($null -eq $Value.groups) { $Value.groups = @() }
   if ($null -eq $Value.ownedPolicyValues) {
-    $Value.ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @() }
+    $Value.ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
   }
   foreach ($browser in $policyPaths.Keys) {
     if ($null -eq $Value.ownedPolicyValues.PSObject.Properties[$browser]) {
@@ -133,13 +135,22 @@ function Test-WithinSchedule($Schedule, [long]$Now) {
   $local = ([DateTime]'1970-01-01').AddMilliseconds($Now).ToLocalTime()
   $day = [int]$local.DayOfWeek
   $minutes = $local.Hour * 60 + $local.Minute
-  $start = [int]$Schedule.start
-  $end = [int]$Schedule.end
   $days = @($Schedule.days | ForEach-Object { [int]$_ })
-  if ($start -eq $end) { return $days -contains $day }
-  if ($start -lt $end) { return ($days -contains $day) -and $minutes -ge $start -and $minutes -lt $end }
-  $previous = ($day + 6) % 7
-  return (($days -contains $day) -and $minutes -ge $start) -or (($days -contains $previous) -and $minutes -lt $end)
+  $windows = @($Schedule.windows)
+  if ($windows.Count -eq 0 -and ($null -ne $Schedule.start -or $null -ne $Schedule.end)) {
+    $windows = @([pscustomobject]@{ start = $Schedule.start; end = $Schedule.end })
+  }
+  foreach ($window in $windows) {
+    $start = [int]$window.start
+    $end = [int]$window.end
+    if ($start -eq $end -and $days -contains $day) { return $true }
+    if ($start -lt $end -and ($days -contains $day) -and $minutes -ge $start -and $minutes -lt $end) { return $true }
+    if ($start -gt $end) {
+      $previous = ($day + 6) % 7
+      if ((($days -contains $day) -and $minutes -ge $start) -or (($days -contains $previous) -and $minutes -lt $end)) { return $true }
+    }
+  }
+  return $false
 }
 
 function Test-GroupMatchesHost($Group, [string]$HostName) {
@@ -308,9 +319,26 @@ function Apply-BrowserPolicy([string]$Browser, [string[]]$Domains) {
   $script:Dirty = $true
 }
 
+function Test-OwnedPoliciesCurrent([string[]]$Domains) {
+  if ($TestMode) { return $true }
+  foreach ($browser in $policyPaths.Keys) {
+    $path = $policyPaths[$browser]
+    $owned = @($script:State.ownedPolicyValues.$browser)
+    if ($owned.Count -ne $Domains.Count) { return $false }
+    if ($owned.Count -eq 0) { continue }
+    if (-not (Test-Path -LiteralPath $path)) { return $false }
+    $key = Get-Item -LiteralPath $path
+    foreach ($entry in $owned) {
+      $current = $key.GetValue([string]$entry.name, $null)
+      if ($current -isnot [string] -or $current -ne [string]$entry.value) { return $false }
+    }
+  }
+  return $true
+}
+
 function Apply-Policies([string[]]$Domains) {
   $fingerprint = ($Domains -join "`n")
-  if ($script:LastPolicyFingerprint -eq $fingerprint) { return }
+  if ($script:LastPolicyFingerprint -eq $fingerprint -and (Test-OwnedPoliciesCurrent $Domains)) { return }
   foreach ($browser in $policyPaths.Keys) { Apply-BrowserPolicy $browser $Domains }
   $script:LastPolicyFingerprint = $fingerprint
 }

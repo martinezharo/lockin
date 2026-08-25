@@ -88,6 +88,39 @@ test('compatibility serialization keeps empty legacy groups inactive', () => {
   assert.equal(isGroupActive(normalizeGroup(empty), NOW, {}, null), false);
 });
 
+test('legacy schedule becomes the first window and stays old-worker compatible', () => {
+  const stored = serializeGroup({
+    id: 'legacy-window',
+    enabled: true,
+    schedule: { days: [6], start: 9 * 60, end: 17 * 60 },
+    limit: null
+  });
+
+  assert.deepEqual(stored.schedule.windows, [{ start: 540, end: 1020 }]);
+  assert.equal(stored.schedule.start, 540);
+  assert.equal(stored.schedule.end, 1020);
+  assert.equal(previousWorkerIsActive(stored), true);
+});
+
+test('multiple schedule windows survive serialization', () => {
+  const stored = serializeGroup({
+    id: 'split-day',
+    enabled: true,
+    schedule: {
+      days: [6],
+      windows: [{ start: 8 * 60, end: 10 * 60 }, { start: 14 * 60, end: 18 * 60 }]
+    },
+    limit: null
+  });
+
+  assert.deepEqual(stored.schedule.windows, [
+    { start: 480, end: 600 },
+    { start: 840, end: 1080 }
+  ]);
+  assert.equal(stored.schedule.start, 480);
+  assert.equal(stored.schedule.end, 600);
+});
+
 test('a permanent allowance blocks from the first minute of the day', () => {
   const group = normalizeGroup({
     id: 'permanent',

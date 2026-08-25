@@ -12,6 +12,7 @@ import {
   dayStripHtml,
   nowPanelState,
   rulesControlsHtml,
+  scheduleWindowRowHtml,
   readRules,
   zoneStatusText,
   zoneStateClass,
@@ -372,15 +373,29 @@ function markPresets(root) {
 function paintWindowBand(root) {
   const band = root.querySelector('[data-window-band]');
   if (!band) return;
-  const start = timeValueToMinutes(root.querySelector('[data-sched-start]').value);
-  const end = timeValueToMinutes(root.querySelector('[data-sched-end]').value);
   const pct = (m) => `${((m / MINUTES_PER_DAY) * 100).toFixed(3)}%`;
+  band.innerHTML = Array.from(root.querySelectorAll('[data-sched-window]')).map((row, index) => {
+    const start = timeValueToMinutes(row.querySelector('[data-sched-start]').value);
+    const end = timeValueToMinutes(row.querySelector('[data-sched-end]').value);
+    const className = `band-fill window-${index % 3}`;
+    return start === end
+      ? `<span class="${className}" style="left: 0; width: 100%"></span>`
+      : start > end
+      ? `<span class="${className}" style="left: ${pct(start)}; width: ${pct(MINUTES_PER_DAY - start)}"></span>
+         <span class="${className}" style="left: 0; width: ${pct(end)}"></span>`
+      : `<span class="${className}" style="left: ${pct(start)}; width: ${pct(Math.max(0, end - start))}"></span>`;
+  }).join('');
+}
 
-  band.innerHTML =
-    start > end
-      ? `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(MINUTES_PER_DAY - start)}"></span>
-         <span class="band-fill" style="left: 0; width: ${pct(end)}"></span>`
-      : `<span class="band-fill" style="left: ${pct(start)}; width: ${pct(Math.max(0, end - start))}"></span>`;
+function refreshWindowRows(root) {
+  const rows = Array.from(root.querySelectorAll('[data-sched-window]'));
+  rows.forEach((row, index) => {
+    row.querySelector('.window-number').textContent = String(index + 1);
+    const remove = row.querySelector('[data-remove-window]');
+    remove.hidden = rows.length === 1;
+    remove.setAttribute('aria-label', `Remove time window ${index + 1}`);
+  });
+  paintWindowBand(root);
 }
 
 // "No rules set" is only true for the controls it sits in, so the hint is
@@ -412,6 +427,30 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('click', (e) => {
+  const addWindow = e.target.closest('[data-add-window]');
+  if (addWindow) {
+    const body = addWindow.closest('[data-rule-body]');
+    const list = body.querySelector('[data-schedule-windows]');
+    const rows = Array.from(list.querySelectorAll('[data-sched-window]'));
+    const previousEnd = rows.length
+      ? timeValueToMinutes(rows.at(-1).querySelector('[data-sched-end]').value)
+      : 9 * 60;
+    const start = (previousEnd + 60) % MINUTES_PER_DAY;
+    const end = (start + 120) % MINUTES_PER_DAY;
+    list.insertAdjacentHTML('beforeend', scheduleWindowRowHtml({ start, end }, rows.length, rows.length + 1));
+    refreshWindowRows(body);
+    list.lastElementChild.querySelector('[data-sched-start]').focus();
+    return;
+  }
+
+  const removeWindow = e.target.closest('[data-remove-window]');
+  if (removeWindow) {
+    const body = removeWindow.closest('[data-rule-body]');
+    if (body.querySelectorAll('[data-sched-window]').length > 1) removeWindow.closest('[data-sched-window]').remove();
+    refreshWindowRows(body);
+    return;
+  }
+
   const preset = e.target.closest('[data-limit-preset]');
   if (!preset) return;
   const body = preset.closest('[data-rule-body]');

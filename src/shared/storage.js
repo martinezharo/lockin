@@ -3,6 +3,21 @@
 // their defaults are defined exactly once.
 
 import { pruneUsage } from './usage.js';
+import { scheduleWindows } from './schedule.js';
+
+function normalizeSchedule(schedule) {
+  if (!schedule) return null;
+  const windows = scheduleWindows(schedule);
+  if (windows.length === 0) return null;
+  const first = windows[0];
+  return {
+    days: Array.isArray(schedule.days) ? schedule.days : [],
+    windows,
+    // Kept for a previous service worker and older watchdog installations.
+    start: first.start,
+    end: first.end
+  };
+}
 
 /* Groups used to carry a `mode` of 'permanent' | 'schedule' (and, further
    back, 'temporary'). The current code reads independent `schedule` and
@@ -17,7 +32,7 @@ export function normalizeGroup(g) {
   const { mode, expiresAt, ...rest } = g;
   return {
     ...rest,
-    schedule: (legacy ? mode === 'schedule' && g.schedule : g.schedule) || null,
+    schedule: normalizeSchedule((legacy ? mode === 'schedule' && g.schedule : g.schedule) || null),
     limit: g.limit || null
   };
 }

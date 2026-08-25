@@ -2,13 +2,15 @@
 //
 // A group carries two independent, optional rules:
 //
-//   schedule  { days: [1,2,3,4,5], start: 540, end: 1020 }  -- when it is shut
+//   schedule  { days: [1,2,3,4,5], windows: [{ start: 540, end: 1020 }] }
+//                                                               -- when it is shut
 //   limit     { minutes: 30 }                               -- how long it may
 //                                                              be used while open
 //
 // `days` uses JS getDay() numbering (0 = Sunday .. 6 = Saturday).
-// `start`/`end` are minutes since local midnight. `start > end` means the
-// window crosses midnight (e.g. 22:00 -> 06:00), anchored to the start day.
+// Window `start`/`end` values are minutes since local midnight. `start > end`
+// means that window crosses midnight (e.g. 22:00 -> 06:00), anchored to the
+// start day. Legacy schedules with top-level start/end are still accepted.
 //
 // Both rules are optional, but a group without either one is invalid and must
 // not be active. The dashboard rejects empty rule sets before saving them;
@@ -30,22 +32,30 @@ export const DAYS = [
 
 const LABEL_BY_DAY = Object.fromEntries(DAYS.map((d) => [d.value, d.label]));
 
-export function isWithinSchedule(schedule, now = new Date()) {
-  if (!schedule || !Array.isArray(schedule.days) || schedule.days.length === 0) return false;
-  const { days, start = 0, end = 0 } = schedule;
-  const day = now.getDay();
-  const minutes = now.getHours() * 60 + now.getMinutes();
+export function scheduleWindows(schedule) {
+  if (!schedule) return [];
+  if (Array.isArray(schedule.windows) && schedule.windows.length > 0) {
+    return schedule.windows.map(({ start = 0, end = 0 }) => ({ start, end }));
+  }
+  if ('start' in schedule || 'end' in schedule) {
+    return [{ start: schedule.start ?? 0, end: schedule.end ?? 0 }];
+  }
+  return [];
+}
 
-  if (start === end) {
-    // Same start/end = block all day on the selected days.
-    return days.includes(day);
-  }
-  if (start < end) {
-    return days.includes(day) && minutes >= start && minutes < end;
-  }
-  // Overnight window (e.g. 22:00 -> 06:00), anchored to the day it starts on.
+function isWithinWindow(days, { start = 0, end = 0 }, day, minutes) {
+  if (start === end) return days.includes(day);
+  if (start < end) return days.includes(day) && minutes >= start && minutes < end;
   const prevDay = (day + 6) % 7;
   return (days.includes(day) && minutes >= start) || (days.includes(prevDay) && minutes < end);
+}
+
+export function isWithinSchedule(schedule, now = new Date()) {
+  if (!schedule || !Array.isArray(schedule.days) || schedule.days.length === 0) return false;
+  const { days } = schedule;
+  const day = now.getDay();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return scheduleWindows(schedule).some((window) => isWithinWindow(days, window, day, minutes));
 }
 
 export function isInWindow(g, now = Date.now()) {
@@ -103,9 +113,10 @@ export function formatScheduleDays(days) {
 
 export function formatSchedule(schedule) {
   if (!schedule) return '';
-  const range =
-    schedule.start === schedule.end
+  const ranges = scheduleWindows(schedule).map((window) =>
+    window.start === window.end
       ? 'all day'
-      : `${formatMinutes(schedule.start)}–${formatMinutes(schedule.end)}`;
-  return `${formatScheduleDays(schedule.days)} · ${range}`;
+      : `${formatMinutes(window.start)}–${formatMinutes(window.end)}`
+  );
+  return `${formatScheduleDays(schedule.days)} · ${ranges.join(', ')}`;
 }

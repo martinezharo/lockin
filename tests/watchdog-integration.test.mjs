@@ -33,4 +33,8 @@ test('safe rollout arms only after the watchdog is reachable', async () => {
   assert.match(installer, /ProtectedUserSids/);
   assert.match(watchdog, /SensorHeartbeatMsBySid/);
   assert.match(watchdog, /missingAccounts/);
+  assert.match(watchdog, /Schedule\.windows/);
+  assert.match(watchdog, /function Test-OwnedPoliciesCurrent/);
+  assert.match(watchdog, /LastPolicyFingerprint.*Test-OwnedPoliciesCurrent/);
+  assert.match(watchdog, /WOW6432Node\\Policies\\BraveSoftware\\Brave\\URLBlocklist/);
 });
