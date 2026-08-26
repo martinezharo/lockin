@@ -36,6 +36,10 @@ test('safe rollout arms only after the watchdog is reachable', async () => {
   assert.match(watchdog, /Get-NetTCPConnection/);
   assert.match(watchdog, /GetOwnerSid/);
   assert.match(watchdog, /Get-CimInstance Win32_Process/);
+  assert.match(watchdog, /Group-Object SessionId/);
+  assert.match(watchdog, /Get-CimProcessOwnerSid \$process/);
+  assert.match(watchdog, /Invoke-CimMethod -InputObject \$Process/);
+  assert.doesNotMatch(watchdog, /Get-ProcessOwnerSid \(\[int\]\$process\.ProcessId\)/);
   assert.doesNotMatch(watchdog, /Get-Process chrome, brave -IncludeUserName/);
   assert.match(installer, /ProtectedWindowsUser/);
   assert.match(installer, /ProtectedUserSids/);

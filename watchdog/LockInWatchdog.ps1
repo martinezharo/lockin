@@ -250,14 +250,27 @@ function Get-RunningProtectedUserSids([long]$Now) {
   }
 
   $running = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-  foreach ($process in $processes) {
-    $ownerSid = Get-ProcessOwnerSid ([int]$process.ProcessId)
-    if ([string]::IsNullOrWhiteSpace($ownerSid)) {
-      $script:BrowserOwnerLookupFailed = $true
-      continue
+  # Every browser subprocess in a Windows session has the same owner. Resolve
+  # one live process per session instead of making a pair of WMI calls for every
+  # Brave/Chrome subprocess on every probe. Apart from avoiding listener
+  # starvation, trying the next process when one exits prevents normal browser
+  # churn from being mistaken for an unverified account.
+  foreach ($session in @($processes | Group-Object SessionId)) {
+    $ownerSid = ''
+    $liveLookupFailed = $false
+    foreach ($process in @($session.Group)) {
+      $ownerSid = Get-CimProcessOwnerSid $process
+      if (-not [string]::IsNullOrWhiteSpace($ownerSid)) { break }
+      if ($null -ne (Get-Process -Id ([int]$process.ProcessId) -ErrorAction SilentlyContinue)) {
+        $liveLookupFailed = $true
+      }
     }
-    if ($script:ProtectedAccounts.Contains($ownerSid)) {
-      [void]$running.Add([string]$ownerSid)
+    if (-not [string]::IsNullOrWhiteSpace($ownerSid)) {
+      if ($script:ProtectedAccounts.Contains($ownerSid)) {
+        [void]$running.Add([string]$ownerSid)
+      }
+    } elseif ($liveLookupFailed) {
+      $script:BrowserOwnerLookupFailed = $true
     }
   }
 
@@ -301,13 +314,19 @@ function Test-RequestOrigin($Context) {
   return $origin -match '^chrome-extension://[a-p]{32}$'
 }
 
+function Get-CimProcessOwnerSid($Process) {
+  try {
+    if ($null -eq $Process) { return '' }
+    $owner = Invoke-CimMethod -InputObject $Process -MethodName GetOwnerSid -ErrorAction Stop
+    if ([int]$owner.ReturnValue -ne 0) { return '' }
+    return [string]$owner.Sid
+  } catch { return '' }
+}
+
 function Get-ProcessOwnerSid([int]$ProcessId) {
   try {
     $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
-    if ($null -eq $process) { return '' }
-    $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid -ErrorAction Stop
-    if ([int]$owner.ReturnValue -ne 0) { return '' }
-    return [string]$owner.Sid
+    return Get-CimProcessOwnerSid $process
   } catch { return '' }
 }
 
