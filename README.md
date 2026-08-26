@@ -26,9 +26,12 @@ The watchdog starts disarmed and imports the extension's current groups. It arms
 
 - scheduled zones are written to managed browser URL policy;
 - zones whose daily allowance is spent are written to the same policy; and
+- policy decisions are reevaluated every 250 ms; when a newly blocked domain is
+  already the active tab, Lock In reloads that tab once so the browser applies
+  the policy without a manual refresh; and
 - if Brave or Chrome is running and the sensor disappears for more than 30 seconds, all enabled zone domains are blocked and outbound network access for the browser executable is disabled.
 
-The firewall rule prevents disabling the extension from becoming an escape route while browser policy refreshes. Reconnecting the extension removes the emergency firewall block and returns to ordinary schedule/allowance evaluation.
+The firewall rule prevents disabling the extension from becoming an escape route while browser policy refreshes. Reconnecting the extension removes the emergency firewall block and returns to ordinary schedule/allowance evaluation. Configuration edits are queued across a temporary watchdog disconnect and replayed after reconnect.
 
 Lock In removes only registry values it recorded as its own. Its firewall rules have the group name `LockInWatchdog` and never modify unrelated rules.
 

@@ -1,12 +1,14 @@
 // Loopback bridge between the MV3 service worker and the protected PowerShell
-// watchdog. The extension remains only a sensor and UI.
+// watchdog. The watchdog remains the enforcement authority; the extension
+// only mirrors state and nudges an already-open active tab to re-run policy.
 
 import { Storage, serializeGroup } from './shared/storage.js';
-import { normalizeDomainInput } from './shared/domains.js';
+import { domainMatches, normalizeDomainInput } from './shared/domains.js';
 
 const ENDPOINT = 'http://127.0.0.1:8765/api/request';
-const HEARTBEAT_MS = 5000;
+const HEARTBEAT_MS = 1000;
 const REQUEST_TIMEOUT_MS = 4000;
+const CONFIG_KEYS = new Set(['groups', 'lockMode', 'privacyConsent']);
 
 function hostOf(url) {
   if (!url || !/^https?:/i.test(url)) return '';
@@ -17,25 +19,50 @@ function hostOf(url) {
   }
 }
 
-async function focusedPage() {
-  if (!(await Storage.getPrivacyConsent())) return { host: '', focused: false };
+async function focusedTab() {
   try {
     const win = await chrome.windows.getLastFocused();
-    if (!win?.focused) return { host: '', focused: false };
+    if (!win?.focused) return null;
     const [tab] = await chrome.tabs.query({ active: true, windowId: win.id });
-    const host = hostOf(tab?.url);
-    return { host, focused: Boolean(tab && host) };
+    return tab || null;
   } catch {
-    return { host: '', focused: false };
+    return null;
   }
 }
 
-class WatchdogClient {
+async function focusedPage() {
+  if (!(await Storage.getPrivacyConsent())) return { host: '', focused: false };
+  const tab = await focusedTab();
+  const host = hostOf(tab?.url);
+  return { host, focused: Boolean(tab && host) };
+}
+
+async function reloadActiveTabForPolicyChange(domains) {
+  const listedDomains = [...new Set(domains.map(normalizeDomainInput).filter(Boolean))];
+  if (!listedDomains.length || typeof chrome.tabs?.query !== 'function' || typeof chrome.tabs?.reload !== 'function') return;
+  try {
+    if (!(await Storage.getPrivacyConsent())) return;
+    const tab = await focusedTab();
+    if (typeof tab?.id !== 'number' || !listedDomains.some((domain) => domainMatches(hostOf(tab.url), domain))) return;
+    await Promise.resolve(chrome.tabs.reload(tab.id)).catch(() => undefined);
+  } catch {
+    // A browser-internal tab or a tab closed during the query is not a
+    // watchdog failure; URLBlocklist still protects its next navigation.
+  }
+}
+
+export class WatchdogClient {
   constructor() {
     this.connected = false;
     this.requestNumber = 0;
     this.heartbeatTimer = null;
     this.reconnectTimer = null;
+    this.connectPromise = null;
+    this.configSyncPromise = null;
+    this.requestQueue = Promise.resolve();
+    this.configRevision = 0;
+    this.configSyncPending = false;
+    this.lastObservedBlockedDomains = null;
     this.applyingSnapshot = false;
     this.started = false;
   }
@@ -47,8 +74,16 @@ class WatchdogClient {
   }
 
   async connect() {
+    if (this.connectPromise) return this.connectPromise;
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    this.connectPromise = this.finishConnect().finally(() => {
+      this.connectPromise = null;
+    });
+    return this.connectPromise;
+  }
+
+  async finishConnect() {
     try {
       const state = await chrome.storage.local.get(['usage', 'lockMode', 'privacyConsent']);
       await this.request('bootstrap', {
@@ -60,6 +95,11 @@ class WatchdogClient {
       this.connected = true;
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
+
+      // A storage change can arrive while the watchdog is offline. Bootstrap
+      // intentionally does not overwrite an existing authoritative state, so
+      // replay only a queued configuration once the connection is usable again.
+      if (this.configSyncPending) await this.syncConfig();
       await this.heartbeat();
     } catch (error) {
       this.onDisconnect(error?.message || String(error));
@@ -70,30 +110,60 @@ class WatchdogClient {
     try {
       await this.request('heartbeat', await focusedPage());
       this.connected = true;
+      if (this.configSyncPending && !this.configSyncPromise) await this.syncConfig();
     } catch (error) {
       this.onDisconnect(error?.message || String(error));
     }
   }
 
   async syncConfig() {
+    this.configSyncPending = true;
     if (!this.connected || this.applyingSnapshot) return;
-    const state = await chrome.storage.local.get(['lockMode', 'privacyConsent']);
-    try {
+    if (this.configSyncPromise) return this.configSyncPromise;
+
+    const revision = this.configRevision;
+    this.configSyncPromise = (async () => {
+      const state = await chrome.storage.local.get(['lockMode', 'privacyConsent']);
       await this.request('updateConfig', {
         groups: await Storage.getGroups(),
         lockMode: state.lockMode === true,
         privacyConsent: state.privacyConsent === true
       });
-    } catch (error) {
+      if (this.configRevision === revision) this.configSyncPending = false;
+    })().catch((error) => {
       this.onDisconnect(error?.message || String(error));
-    }
+    }).finally(() => {
+      this.configSyncPromise = null;
+      // If storage changed while the request was in flight, the listener may
+      // have observed the old promise. Run the newer revision immediately.
+      if (this.configSyncPending && this.connected) void this.syncConfig();
+    });
+    return this.configSyncPromise;
+  }
+
+  markConfigDirty() {
+    this.configRevision += 1;
+    this.configSyncPending = true;
+    return this.syncConfig();
+  }
+
+  pulse() {
+    return this.connected ? this.heartbeat() : this.connect();
   }
 
   async clearData() {
-    return this.request('clearData', {});
+    const data = await this.request('clearData', {});
+    this.configSyncPending = false;
+    return data;
   }
 
   async request(type, payload = {}) {
+    const request = this.requestQueue.then(() => this.performRequest(type, payload));
+    this.requestQueue = request.catch(() => undefined);
+    return request;
+  }
+
+  async performRequest(type, payload = {}) {
     const requestId = `${Date.now()}-${++this.requestNumber}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -107,14 +177,22 @@ class WatchdogClient {
       });
       const message = await response.json();
       if (!response.ok || !message?.ok) throw new Error(message?.error || `Watchdog returned HTTP ${response.status}.`);
-      await this.applySnapshot(message.data);
+      // A local edit can be queued while the watchdog is offline or while a
+      // request is in flight. Preserve those three local values until the
+      // queued update has reached the watchdog, while still mirroring usage
+      // and enforcement status from every successful response.
+      const preserveConfig = this.configSyncPending;
+      await this.applySnapshot(message.data, {
+        preserveConfig,
+        reloadActiveTab: type !== 'bootstrap' || !preserveConfig
+      });
       return message.data;
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  async applySnapshot(snapshot) {
+  async applySnapshot(snapshot, { preserveConfig = false, reloadActiveTab = true } = {}) {
     if (!snapshot) return;
     this.applyingSnapshot = true;
     try {
@@ -140,10 +218,18 @@ class WatchdogClient {
         }
       };
       const current = await chrome.storage.local.get(Object.keys(next));
+      const previousBlockedDomains = new Set(this.lastObservedBlockedDomains || []);
+      const nextBlockedDomains = new Set(next.nativeStatus.blockedDomains);
+      const changedPolicyDomains = [...new Set([...previousBlockedDomains, ...nextBlockedDomains])]
+        .filter((domain) => previousBlockedDomains.has(domain) !== nextBlockedDomains.has(domain));
       const changed = Object.fromEntries(
-        Object.entries(next).filter(([key, value]) => JSON.stringify(current[key]) !== JSON.stringify(value))
+        Object.entries(next).filter(([key, value]) =>
+          (!preserveConfig || !CONFIG_KEYS.has(key)) && JSON.stringify(current[key]) !== JSON.stringify(value)
+        )
       );
       if (Object.keys(changed).length) await chrome.storage.local.set(changed);
+      this.lastObservedBlockedDomains = [...next.nativeStatus.blockedDomains];
+      if (reloadActiveTab) await reloadActiveTabForPolicyChange(changedPolicyDomains);
     } finally {
       this.applyingSnapshot = false;
     }

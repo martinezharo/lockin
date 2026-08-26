@@ -29,7 +29,11 @@ $firewallGroup = 'LockInWatchdog'
 $protectedAccounts = @()
 foreach ($userName in @($ProtectedWindowsUser -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)) {
   try {
-    $account = [Security.Principal.NTAccount]::new($env:COMPUTERNAME, $userName)
+    $account = if ($userName -match '\\') {
+      [Security.Principal.NTAccount]::new(($userName -replace '^\.\\', ($env:COMPUTERNAME + '\')))
+    } else {
+      [Security.Principal.NTAccount]::new($env:COMPUTERNAME, $userName)
+    }
     $sidValue = $account.Translate([Security.Principal.SecurityIdentifier]).Value
     $accountName = ([Security.Principal.SecurityIdentifier]::new($sidValue)).Translate([Security.Principal.NTAccount]).Value
     $protectedAccounts += [pscustomobject]@{ Name = $accountName; Sid = $sidValue }
@@ -106,6 +110,7 @@ $settings = New-ScheduledTaskSettingsSet `
   -AllowStartIfOnBatteries `
   -DontStopIfGoingOnBatteries `
   -StartWhenAvailable `
+  -MultipleInstances IgnoreNew `
   -RestartCount 999 `
   -RestartInterval (New-TimeSpan -Minutes 1) `
   -ExecutionTimeLimit ([TimeSpan]::Zero)

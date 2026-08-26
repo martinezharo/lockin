@@ -25,7 +25,7 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === RECONNECT_ALARM) watchdogClient.connect();
+  if (alarm.name === RECONNECT_ALARM) watchdogClient.pulse();
 });
 
 let configSyncTimer = null;
@@ -33,7 +33,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || watchdogClient.applyingSnapshot) return;
   if (!changes.groups && !changes.lockMode && !changes.privacyConsent) return;
   clearTimeout(configSyncTimer);
-  configSyncTimer = setTimeout(() => watchdogClient.syncConfig(), 100);
+  configSyncTimer = setTimeout(() => watchdogClient.markConfigDirty(), 100);
 });
 
 chrome.tabs.onActivated.addListener(() => watchdogClient.heartbeat());

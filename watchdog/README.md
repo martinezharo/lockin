@@ -14,6 +14,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 Only those Windows accounts can configure the watchdog. Each active protected account must maintain its own heartbeat; a Lock In copy running under another account cannot prevent fail-closed enforcement.
 
+The watchdog identifies Brave and Chrome processes by their Windows owner SID across sessions, reevaluates policy every 250 ms, and reconciles its firewall rules continuously. This keeps account coverage independent of display names and avoids waiting for a browser or dashboard refresh after a rule changes.
+
 Reload Lock In 1.4.1 in Brave or Chrome. The dashboard must show **Windows enforcement armed** after three heartbeats.
 
 ## Emergency recovery

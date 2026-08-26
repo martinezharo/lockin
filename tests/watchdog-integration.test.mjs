@@ -11,6 +11,8 @@ test('the extension is a loopback sensor rather than a DNR blocker', () => {
   assert.ok(!manifest.permissions.includes('nativeMessaging'));
   assert.ok(!manifest.permissions.includes('declarativeNetRequest'));
   assert.match(background, /watchdogClient\.heartbeat/);
+  assert.match(background, /watchdogClient\.pulse/);
+  assert.match(background, /watchdogClient\.markConfigDirty/);
   assert.doesNotMatch(background, /updateDynamicRules/);
 });
 
@@ -19,6 +21,9 @@ test('the watchdog client is pinned to loopback', () => {
   assert.match(installer, /New-ScheduledTaskPrincipal/);
   assert.match(installer, /SYSTEM/);
   assert.match(installer, /New-NetFirewallRule/);
+  assert.match(installer, /MultipleInstances IgnoreNew/);
+  assert.match(installer, /ProtectedWindowsUser/);
+  assert.match(client, /HEARTBEAT_MS = 1000/);
 });
 
 test('safe rollout arms only after the watchdog is reachable', async () => {
@@ -26,9 +31,12 @@ test('safe rollout arms only after the watchdog is reachable', async () => {
   assert.match(watchdog, /ConsecutiveHeartbeatsBySid\[\$sensorKey\].*-ge 3/);
   assert.match(watchdog, /sensor missing/);
   assert.match(watchdog, /Set-FirewallBlocked/);
+  assert.match(watchdog, /EvaluationIntervalMilliseconds = 250/);
   assert.match(watchdog, /Test-ProtectedAccountRequest/);
   assert.match(watchdog, /Get-NetTCPConnection/);
   assert.match(watchdog, /GetOwnerSid/);
+  assert.match(watchdog, /Get-CimInstance Win32_Process/);
+  assert.doesNotMatch(watchdog, /Get-Process chrome, brave -IncludeUserName/);
   assert.match(installer, /ProtectedWindowsUser/);
   assert.match(installer, /ProtectedUserSids/);
   assert.match(watchdog, /SensorHeartbeatMsBySid/);

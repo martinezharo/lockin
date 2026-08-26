@@ -5,6 +5,7 @@ param(
   [int]$HeartbeatTimeoutSeconds = 30,
   [string]$ProtectedUserSids = '',
   [string]$ProtectedUserSid = '',
+  [int]$EvaluationIntervalMilliseconds = 250,
   [switch]$TestMode,
   [switch]$AssumeBrowserRunning
 )
@@ -30,6 +31,10 @@ $script:LastPolicyFingerprint = $null
 $script:Dirty = $false
 $script:ProtectedAccounts = [ordered]@{}
 $script:CurrentRequestUserSid = ''
+$script:RunningProtectedUserSids = @()
+$script:BrowserOwnerLookupFailed = $false
+$script:NextBrowserProbeMs = 0L
+$script:BrowserProbeIntervalMs = 1000L
 
 if ([string]::IsNullOrWhiteSpace($ProtectedUserSids)) { $ProtectedUserSids = $ProtectedUserSid }
 foreach ($protectedSidValue in @($ProtectedUserSids -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)) {
@@ -210,36 +215,84 @@ function Add-ElapsedUsage([long]$Now) {
   }
 }
 
-function Get-RunningProtectedUserSids {
+function Get-RunningProtectedUserSids([long]$Now) {
   if ($AssumeBrowserRunning) {
     if ($script:ProtectedAccounts.Count -gt 0) { return @($script:ProtectedAccounts.Keys) }
     return @('__legacy__')
   }
-  $processes = @(Get-Process chrome, brave -IncludeUserName -ErrorAction SilentlyContinue)
-  if ($script:ProtectedAccounts.Count -eq 0) {
-    if ($processes.Count -gt 0) { return @('__legacy__') }
+
+  if ($Now -lt $script:NextBrowserProbeMs) {
+    return @($script:RunningProtectedUserSids)
+  }
+
+  $script:NextBrowserProbeMs = $Now + $script:BrowserProbeIntervalMs
+  $script:BrowserOwnerLookupFailed = $false
+  try {
+    $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe' OR Name = 'brave.exe'" -ErrorAction Stop)
+  } catch {
+    # A SYSTEM task should be able to enumerate every session, but if WMI is
+    # temporarily unavailable, use the process list only to distinguish
+    # "nothing running" from "a browser whose owner we cannot verify".
+    $processes = @(Get-Process chrome, brave -ErrorAction SilentlyContinue)
+    $script:BrowserOwnerLookupFailed = $processes.Count -gt 0
+    if ($script:BrowserOwnerLookupFailed) {
+      $script:RunningProtectedUserSids = @('__unknown__')
+      Write-WatchdogLog "Could not enumerate browser owners: $($_.Exception.Message)"
+      return @($script:RunningProtectedUserSids)
+    }
+    $script:RunningProtectedUserSids = @()
     return @()
   }
-  $running = @()
-  foreach ($protectedSidValue in $script:ProtectedAccounts.Keys) {
-    $account = [string]$script:ProtectedAccounts[$protectedSidValue]
-    if ($null -ne ($processes | Where-Object { $_.UserName -ieq $account } | Select-Object -First 1)) {
-      $running += [string]$protectedSidValue
+
+  if ($script:ProtectedAccounts.Count -eq 0) {
+    $script:RunningProtectedUserSids = if ($processes.Count -gt 0) { @('__legacy__') } else { @() }
+    return @($script:RunningProtectedUserSids)
+  }
+
+  $running = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  foreach ($process in $processes) {
+    $ownerSid = Get-ProcessOwnerSid ([int]$process.ProcessId)
+    if ([string]::IsNullOrWhiteSpace($ownerSid)) {
+      $script:BrowserOwnerLookupFailed = $true
+      continue
+    }
+    if ($script:ProtectedAccounts.Contains($ownerSid)) {
+      [void]$running.Add([string]$ownerSid)
     }
   }
-  return @($running)
+
+  if ($script:BrowserOwnerLookupFailed) {
+    [void]$running.Add('__unknown__')
+    Write-WatchdogLog 'Could not verify the owner SID of at least one browser process; fail-closed protection will be used.'
+  }
+  $script:RunningProtectedUserSids = @($running)
+  return @($script:RunningProtectedUserSids)
 }
 
 function Set-FirewallBlocked([bool]$Blocked) {
-  if ($script:FirewallBlocked -eq $Blocked) { return }
-  if (-not $TestMode) {
-    $rules = @(Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue)
-    if ($rules.Count -gt 0) {
-      $rules | Set-NetFirewallRule -Enabled $(if ($Blocked) { 'True' } else { 'False' })
+  if ($TestMode) {
+    if ($script:FirewallBlocked -ne $Blocked) {
+      $script:FirewallBlocked = $Blocked
+      Write-WatchdogLog "Emergency browser firewall block: $Blocked"
     }
+    return
+  }
+
+  $rules = @(Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue)
+  $desiredEnabled = if ($Blocked) { 'True' } else { 'False' }
+  $needsUpdate = $script:FirewallBlocked -ne $Blocked -or $rules.Count -eq 0 -or
+    @($rules | Where-Object { [string]$_.Enabled -ne $desiredEnabled }).Count -gt 0
+  if ($needsUpdate -and $rules.Count -gt 0) {
+    $rules | Set-NetFirewallRule -Enabled $desiredEnabled
   }
   $script:FirewallBlocked = $Blocked
-  Write-WatchdogLog "Emergency browser firewall block: $Blocked"
+  if ($needsUpdate) {
+    if ($rules.Count -eq 0) {
+      Write-WatchdogLog "Emergency browser firewall rules are missing; desired block is $Blocked."
+    } else {
+      Write-WatchdogLog "Emergency browser firewall block: $Blocked"
+    }
+  }
 }
 
 function Test-RequestOrigin($Context) {
@@ -360,7 +413,7 @@ function Evaluate-Enforcement([long]$Now) {
       }
     }
 
-    $runningUserSids = @(Get-RunningProtectedUserSids)
+    $runningUserSids = @(Get-RunningProtectedUserSids $Now)
     $runningSet = @{}
     $missingAccounts = @()
     foreach ($runningUserSid in $runningUserSids) {
@@ -371,7 +424,11 @@ function Evaluate-Enforcement([long]$Now) {
       } else { 0L }
       $graceStart = [Math]::Max([long]$script:BrowserSeenAtMsBySid[$runningUserSid], $lastSensorHeartbeat)
       if ($enabledGroups.Count -gt 0 -and $graceStart -gt 0 -and ($Now - $graceStart) -gt ([long]$script:State.heartbeatTimeoutSeconds * 1000L)) {
-        $accountName = if ($script:ProtectedAccounts.Contains($runningUserSid)) { [string]$script:ProtectedAccounts[$runningUserSid] } else { 'browser' }
+        $accountName = if ($script:ProtectedAccounts.Contains($runningUserSid)) {
+          [string]$script:ProtectedAccounts[$runningUserSid]
+        } elseif ($runningUserSid -eq '__unknown__') {
+          'unverified browser owner'
+        } else { 'browser' }
         $missingAccounts += ($accountName -split '\\')[-1]
       }
     }
@@ -533,7 +590,7 @@ try {
     Add-ElapsedUsage $now
     Evaluate-Enforcement $now
     Save-State
-    if (-not $pending.Wait(1000)) { continue }
+    if (-not $pending.Wait([Math]::Max(50, $EvaluationIntervalMilliseconds))) { continue }
     $context = $pending.Result
     $pending = $listener.GetContextAsync()
     try {
