@@ -19,6 +19,13 @@ function normalizeSchedule(schedule) {
   };
 }
 
+/* A malformed entry — a null left behind by an older watchdog state file,
+   say — must never reach normalizeGroup: the throw would be caught as a
+   watchdog disconnect and every zone would silently stop being enforced. */
+export function isGroup(g) {
+  return Boolean(g) && typeof g === 'object';
+}
+
 /* Groups used to carry a `mode` of 'permanent' | 'schedule' (and, further
    back, 'temporary'). The current code reads independent `schedule` and
    `limit` rules and keeps a schedule marker for the older service worker.
@@ -55,7 +62,7 @@ export const Storage = {
   },
   async getGroups() {
     const { groups = [] } = await chrome.storage.local.get('groups');
-    return groups.map(normalizeGroup);
+    return groups.filter(isGroup).map(normalizeGroup);
   },
   async saveGroups(groups) {
     await chrome.storage.local.set({ groups: groups.map(serializeGroup) });

@@ -487,7 +487,7 @@ function Get-Snapshot([long]$Now) {
     firewallBlocked = $script:FirewallBlocked -eq $true
     heartbeatTimeoutSeconds = [int]$script:State.heartbeatTimeoutSeconds
     lastHeartbeatMs = [long]$script:State.lastHeartbeatMs
-    groups = @($script:State.groups)
+    groups = @($script:State.groups | Where-Object { $null -ne $_ })
     usage = $script:State.usage
     usageSession = $session
     lockMode = $script:State.lockMode -eq $true
@@ -504,7 +504,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
   switch ([string]$Request.type) {
     'bootstrap' {
       if ($script:State.configured -ne $true) {
-        $script:State.groups = Normalize-Groups $Request.payload.groups
+        $script:State.groups = @(Normalize-Groups $Request.payload.groups)
         if ($null -ne $Request.payload.usage) { $script:State.usage = $Request.payload.usage }
         $script:State.lockMode = $Request.payload.lockMode -eq $true
         $script:State.privacyConsent = $Request.payload.privacyConsent -eq $true
@@ -515,7 +515,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
     }
     'updateConfig' {
       Add-ElapsedUsage $now
-      $script:State.groups = Normalize-Groups $Request.payload.groups
+      $script:State.groups = @(Normalize-Groups $Request.payload.groups)
       $script:State.lockMode = $Request.payload.lockMode -eq $true
       $script:State.privacyConsent = $Request.payload.privacyConsent -eq $true
       $script:State.configured = $true

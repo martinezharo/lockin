@@ -157,3 +157,48 @@ test('newly blocked open tabs are reloaded so policy takes effect without manual
   });
   assert.deepEqual(tabState.reloaded, [11]);
 });
+
+test('a malformed group in a snapshot does not take the connection down', async () => {
+  const client = new WatchdogClient();
+  state.groups = [{ id: 'kept', name: 'Kept', domains: ['example.com'], enabled: true, schedule: null, limit: { minutes: 0 } }];
+  tabState.tabs = [];
+
+  await client.applySnapshot({
+    groups: [null, { id: 'live', name: 'Live', domains: ['live.example'], enabled: true, schedule: null, limit: null }],
+    usage: {},
+    lockMode: false,
+    privacyConsent: true,
+    blockedDomains: []
+  });
+
+  assert.deepEqual(state.groups.map(({ id }) => id), ['live']);
+});
+
+test('a watchdog that lost every zone is re-seeded instead of mirrored', async () => {
+  const client = new WatchdogClient();
+  const localGroups = [{ id: 'kept', name: 'Kept', domains: ['example.com'], enabled: true, schedule: null, limit: { minutes: 0 } }];
+  state.groups = structuredClone(localGroups);
+  tabState.tabs = [];
+
+  await client.applySnapshot({
+    groups: [null],
+    usage: {},
+    lockMode: true,
+    privacyConsent: true,
+    blockedDomains: []
+  });
+
+  assert.deepEqual(state.groups.map(({ id }) => id), ['kept']);
+  assert.equal(client.configSyncPending, true);
+  assert.equal(state.lockMode, true);
+});
+
+test('clearing the data still empties the local zones', async () => {
+  const client = new WatchdogClient();
+  state.groups = [{ id: 'kept', name: 'Kept', domains: ['example.com'], enabled: true, schedule: null, limit: null }];
+  tabState.tabs = [];
+
+  await client.applySnapshot({ groups: [], usage: {}, lockMode: false, privacyConsent: false, blockedDomains: [] }, { adoptEmptyGroups: true });
+
+  assert.deepEqual(state.groups, []);
+});

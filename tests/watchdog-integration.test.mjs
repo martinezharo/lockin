@@ -16,6 +16,14 @@ test('the extension is a loopback sensor rather than a DNR blocker', () => {
   assert.doesNotMatch(background, /updateDynamicRules/);
 });
 
+test('the snapshot never reports a group the extension cannot read', async () => {
+  const watchdog = await readFile('watchdog/LockInWatchdog.ps1', 'utf8');
+  assert.ok(watchdog.includes('groups = @($script:State.groups | Where-Object { $null -ne $_ })'));
+  assert.ok(watchdog.includes('$script:State.groups = @(Normalize-Groups $Request.payload.groups)'));
+  assert.ok(client.includes('.filter(isGroup).map(serializeGroup)'));
+  assert.ok(client.includes('next.groups.length === 0 && (current.groups || []).length > 0'));
+});
+
 test('the watchdog client is pinned to loopback', () => {
   assert.match(client, /127\.0\.0\.1:8765/);
   assert.match(installer, /New-ScheduledTaskPrincipal/);

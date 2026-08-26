@@ -2,7 +2,7 @@
 // watchdog. The watchdog remains the enforcement authority; the extension
 // only mirrors state and nudges an already-open active tab to re-run policy.
 
-import { Storage, serializeGroup } from './shared/storage.js';
+import { Storage, isGroup, serializeGroup } from './shared/storage.js';
 import { domainMatches, normalizeDomainInput } from './shared/domains.js';
 
 const ENDPOINT = 'http://127.0.0.1:8765/api/request';
@@ -184,6 +184,7 @@ export class WatchdogClient {
       const preserveConfig = this.configSyncPending;
       await this.applySnapshot(message.data, {
         preserveConfig,
+        adoptEmptyGroups: type === 'clearData',
         reloadActiveTab: type !== 'bootstrap' || !preserveConfig
       });
       return message.data;
@@ -192,12 +193,12 @@ export class WatchdogClient {
     }
   }
 
-  async applySnapshot(snapshot, { preserveConfig = false, reloadActiveTab = true } = {}) {
+  async applySnapshot(snapshot, { preserveConfig = false, adoptEmptyGroups = false, reloadActiveTab = true } = {}) {
     if (!snapshot) return;
     this.applyingSnapshot = true;
     try {
       const next = {
-        groups: (snapshot.groups || []).map(serializeGroup),
+        groups: (snapshot.groups || []).filter(isGroup).map(serializeGroup),
         usage: snapshot.usage || {},
         usageSession: snapshot.usageSession || null,
         lockMode: snapshot.lockMode === true,
@@ -218,6 +219,13 @@ export class WatchdogClient {
         }
       };
       const current = await chrome.storage.local.get(Object.keys(next));
+      // A watchdog that answers with no zones at all — its state file lost them,
+      // or a malformed entry was just dropped — is re-seeded from the local copy
+      // instead of mirrored. Mirroring it would leave every zone unenforced.
+      if (!adoptEmptyGroups && next.groups.length === 0 && (current.groups || []).length > 0) {
+        delete next.groups;
+        this.configSyncPending = true;
+      }
       const previousBlockedDomains = new Set(this.lastObservedBlockedDomains || []);
       const nextBlockedDomains = new Set(next.nativeStatus.blockedDomains);
       const changedPolicyDomains = [...new Set([...previousBlockedDomains, ...nextBlockedDomains])]
