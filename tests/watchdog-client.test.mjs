@@ -129,9 +129,10 @@ test('a pending local edit is not overwritten by a stale bootstrap snapshot', as
   assert.equal(state.privacyConsent, localConfig.privacyConsent);
 });
 
-test('newly blocked open tabs are reloaded so policy takes effect without manual refresh', async () => {
+test('all affected open tabs are reloaded so policy changes take effect without manual refresh', async () => {
   tabState.tabs = [
     { id: 11, url: 'https://www.example.com/feed' },
+    { id: 14, url: 'https://example.com/settings' },
     { id: 12, url: 'https://other.example.net/' },
     { id: 13, url: 'chrome://newtab/' }
   ];
@@ -146,7 +147,7 @@ test('newly blocked open tabs are reloaded so policy takes effect without manual
     blockedDomains: ['example.com']
   });
 
-  assert.deepEqual(tabState.reloaded, [11]);
+  assert.deepEqual(tabState.reloaded, [11, 14]);
 
   await client.applySnapshot({
     groups: [],
@@ -155,7 +156,28 @@ test('newly blocked open tabs are reloaded so policy takes effect without manual
     privacyConsent: true,
     blockedDomains: ['example.com']
   });
-  assert.deepEqual(tabState.reloaded, [11]);
+  assert.deepEqual(tabState.reloaded, [11, 14]);
+});
+
+test('a restarted service worker reloads tabs for domains removed since its last stored snapshot', async () => {
+  state.nativeStatus = { blockedDomains: ['chatgpt.com', 'claude.ai', 'x.com'] };
+  tabState.tabs = [
+    { id: 21, url: 'chrome-error://chromewebdata/', pendingUrl: 'https://chatgpt.com/' },
+    { id: 22, url: 'https://claude.ai/new' },
+    { id: 23, url: 'https://x.com/home' }
+  ];
+  tabState.reloaded = [];
+  const client = new WatchdogClient();
+
+  await client.applySnapshot({
+    groups: [],
+    usage: {},
+    lockMode: false,
+    privacyConsent: true,
+    blockedDomains: ['x.com']
+  });
+
+  assert.deepEqual(tabState.reloaded, [21, 22]);
 });
 
 test('a malformed group in a snapshot does not take the connection down', async () => {

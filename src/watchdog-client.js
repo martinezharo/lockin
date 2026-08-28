@@ -37,16 +37,18 @@ async function focusedPage() {
   return { host, focused: Boolean(tab && host) };
 }
 
-async function reloadActiveTabForPolicyChange(domains) {
+async function reloadTabsForPolicyChange(domains) {
   const listedDomains = [...new Set(domains.map(normalizeDomainInput).filter(Boolean))];
   if (!listedDomains.length || typeof chrome.tabs?.query !== 'function' || typeof chrome.tabs?.reload !== 'function') return;
   try {
     if (!(await Storage.getPrivacyConsent())) return;
-    const tab = await focusedTab();
-    if (typeof tab?.id !== 'number' || !listedDomains.some((domain) => domainMatches(hostOf(tab.url), domain))) return;
-    await Promise.resolve(chrome.tabs.reload(tab.id)).catch(() => undefined);
+    const tabs = await chrome.tabs.query({});
+    await Promise.all(tabs
+      .filter((tab) => typeof tab?.id === 'number' && [tab.url, tab.pendingUrl]
+        .some((url) => listedDomains.some((domain) => domainMatches(hostOf(url), domain))))
+      .map((tab) => Promise.resolve(chrome.tabs.reload(tab.id)).catch(() => undefined)));
   } catch {
-    // A browser-internal tab or a tab closed during the query is not a
+    // A browser-internal tab or tabs closed during the query are not a
     // watchdog failure; URLBlocklist still protects its next navigation.
   }
 }
@@ -226,7 +228,9 @@ export class WatchdogClient {
         delete next.groups;
         this.configSyncPending = true;
       }
-      const previousBlockedDomains = new Set(this.lastObservedBlockedDomains || []);
+      const previousBlockedDomains = new Set(
+        this.lastObservedBlockedDomains ?? current.nativeStatus?.blockedDomains ?? []
+      );
       const nextBlockedDomains = new Set(next.nativeStatus.blockedDomains);
       const changedPolicyDomains = [...new Set([...previousBlockedDomains, ...nextBlockedDomains])]
         .filter((domain) => previousBlockedDomains.has(domain) !== nextBlockedDomains.has(domain));
@@ -237,7 +241,7 @@ export class WatchdogClient {
       );
       if (Object.keys(changed).length) await chrome.storage.local.set(changed);
       this.lastObservedBlockedDomains = [...next.nativeStatus.blockedDomains];
-      if (reloadActiveTab) await reloadActiveTabForPolicyChange(changedPolicyDomains);
+      if (reloadActiveTab) await reloadTabsForPolicyChange(changedPolicyDomains);
     } finally {
       this.applyingSnapshot = false;
     }
