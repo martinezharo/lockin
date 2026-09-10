@@ -73,6 +73,15 @@ Add `-PurgeData` only to permanently remove protected configuration and usage.
 
 ## Build and test
 
+When switching Windows users, disconnected sessions do not require a browser
+sensor. Connected sessions still require their own sensor; reconnecting starts
+a fresh grace period. Scheduled blocks continue to apply machine-wide.
+
+To update an existing watchdog without resetting its rules, usage, or armed
+state, run `scripts/update-windows-watchdog.ps1` from an administrator PowerShell.
+The updater backs up the installed script and restores it if startup fails.
+Reload the unpacked extension in the current browser to activate client changes.
+
 ```powershell
 pnpm verify
 pnpm release

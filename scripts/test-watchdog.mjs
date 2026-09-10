@@ -5,6 +5,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('tests/watchdog-sessions.ps1')], { stdio: 'inherit' });
+
 const dataDirectory = await mkdtemp(join(tmpdir(), 'lockin-watchdog-'));
 const port = 18766;
 const endpoint = `http://127.0.0.1:${port}/api/request`;

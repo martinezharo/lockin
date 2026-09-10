@@ -61,4 +61,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
+// Recreate the alarm on every worker wake, including extension reloads where
+// neither onStartup nor onInstalled is guaranteed to run.
+void ensureReconnectAlarm();
 watchdogClient.start();

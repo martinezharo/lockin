@@ -61,6 +61,7 @@ export class WatchdogClient {
     this.reconnectTimer = null;
     this.connectPromise = null;
     this.configSyncPromise = null;
+    this.heartbeatPromise = null;
     this.requestQueue = Promise.resolve();
     this.configRevision = 0;
     this.configSyncPending = false;
@@ -109,6 +110,14 @@ export class WatchdogClient {
   }
 
   async heartbeat() {
+    if (this.heartbeatPromise) return this.heartbeatPromise;
+    this.heartbeatPromise = this.finishHeartbeat().finally(() => {
+      this.heartbeatPromise = null;
+    });
+    return this.heartbeatPromise;
+  }
+
+  async finishHeartbeat() {
     try {
       await this.request('heartbeat', await focusedPage());
       this.connected = true;

@@ -33,6 +33,21 @@ globalThis.chrome = {
 
 const { WatchdogClient } = await import('../src/watchdog-client.js');
 
+test('slow heartbeats are coalesced instead of starving configuration updates', async () => {
+  const client = new WatchdogClient();
+  let release;
+  let calls = 0;
+  const pending = new Promise((resolve) => { release = resolve; });
+  client.request = async () => { calls += 1; await pending; };
+  const pulses = Array.from({ length: 20 }, () => client.heartbeat());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 1);
+  release();
+  await Promise.all(pulses);
+  await client.heartbeat();
+  assert.equal(calls, 2);
+});
+
 test('configuration changed while offline is replayed after reconnect', async () => {
   const client = new WatchdogClient();
   const requests = [];

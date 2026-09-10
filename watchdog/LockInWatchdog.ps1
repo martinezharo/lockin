@@ -215,6 +215,33 @@ function Add-ElapsedUsage([long]$Now) {
   }
 }
 
+function Test-InteractiveBrowserSession([int]$SessionId) {
+  if (-not ('LockIn.SessionState' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace LockIn {
+  public static class SessionState {
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSQuerySessionInformation(IntPtr server, int session, int info, out IntPtr buffer, out int bytes);
+    [DllImport("wtsapi32.dll")]
+    private static extern void WTSFreeMemory(IntPtr buffer);
+    public static bool RequiresSensor(int session) {
+      IntPtr buffer;
+      int bytes;
+      // WTSConnectState = 8; WTSDisconnected = 4. An unknown state must
+      // remain protected, including failures during a session transition.
+      if (!WTSQuerySessionInformation(IntPtr.Zero, session, 8, out buffer, out bytes)) return true;
+      try { return bytes < 4 || Marshal.ReadInt32(buffer) != 4; }
+      finally { WTSFreeMemory(buffer); }
+    }
+  }
+}
+'@
+  }
+  return [LockIn.SessionState]::RequiresSensor($SessionId)
+}
+
 function Get-RunningProtectedUserSids([long]$Now) {
   if ($AssumeBrowserRunning) {
     if ($script:ProtectedAccounts.Count -gt 0) { return @($script:ProtectedAccounts.Keys) }
@@ -256,6 +283,10 @@ function Get-RunningProtectedUserSids([long]$Now) {
   # starvation, trying the next process when one exits prevents normal browser
   # churn from being mistaken for an unverified account.
   foreach ($session in @($processes | Group-Object SessionId)) {
+    # Fast user switching leaves browsers running in disconnected sessions.
+    # Their missing sensors must not activate the machine-wide firewall.
+    # A reconnected session is probed again and receives a fresh grace period.
+    if (-not (Test-InteractiveBrowserSession ([int]$session.Name))) { continue }
     $ownerSid = ''
     $liveLookupFailed = $false
     foreach ($process in @($session.Group)) {
