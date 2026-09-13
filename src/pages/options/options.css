@@ -1306,21 +1306,6 @@ select:focus {
   margin: 8px 0 0;
 }
 
-.challenge-dev-hint {
-  margin: 6px 0 0;
-  color: var(--c-ink-soft);
-  font-size: 12px;
-}
-
-.challenge-dev-hint kbd {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  background: rgba(36, 16, 47, 0.1);
-  border: 1px solid rgba(36, 16, 47, 0.2);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
 .modal-actions {
   display: flex;
   align-items: center;
@@ -1337,13 +1322,6 @@ select:focus {
 }
 
 .modal-actions .ghost { background: var(--c-paper-bright); }
-
-/* ---------- Dev mode banner ---------- */
-
-.dev-banner {
-  border-bottom: var(--stroke-w) solid var(--stroke);
-  padding: 10px 28px;
-}
 
 /* ---------- Narrow windows ----------
    The dashboard is an options page, so it is often opened in a half-width

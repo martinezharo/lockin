@@ -20,8 +20,8 @@ createServer(async (request, response) => {
     let body = await readFile(path);
     if (requested.endsWith('/options.html') || requested.endsWith('/popup.html')) {
       body = Buffer.from(body.toString('utf8').replace(
-        '<script src="../../../env.js"></script>',
-        '<script src="../../../tests/ui/chrome-mock.js"></script><script src="../../../env.example.js"></script>'
+        '<script type="module"',
+        '<script src="../../../tests/ui/chrome-mock.js"></script><script type="module"'
       ));
     }
     response.writeHead(200, { 'content-type': mime[extname(path)] || 'application/octet-stream' });

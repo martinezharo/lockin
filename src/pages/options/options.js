@@ -5,7 +5,6 @@ import { Storage } from '../../shared/storage.js';
 import { uid, normalizeDomainInput, parseDomainList } from '../../shared/domains.js';
 import { timeValueToMinutes } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
-import { isDevMode } from '../../shared/dev-mode.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
 import {
   zoneRowHtml,
@@ -146,8 +145,6 @@ async function refreshLockSwitch() {
 }
 
 lockSwitch.addEventListener('click', () => toggleLockMode(refreshLockSwitch));
-
-document.getElementById('devBanner').hidden = !isDevMode();
 
 /* ---------------- Privacy consent and local data ---------------- */
 

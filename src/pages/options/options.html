@@ -9,12 +9,6 @@
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <div id="devBanner" class="dev-banner" hidden>
-    ⚡ <strong>Dev mode is on</strong> — tiny mammal has forbidden admin powers.
-    Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd> to bypass any typing challenge.
-    Set <code>LOCKIN_DEV = false</code> in <code>env.js</code> and refresh to restore containment.
-  </div>
-
   <!-- The top bar carries the seal and nothing else. What edit lock does is
        explained by the seal's own subtitle rather than by a paragraph that
        spends the width of the page on every single visit. -->
@@ -196,9 +190,6 @@
         spellcheck="false"
       ></textarea>
       <div id="challengeError" class="challenge-error"></div>
-      <p id="challengeDevHint" class="challenge-dev-hint" hidden>
-        ⚡ dev mammal override: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>
-      </p>
       <div class="modal-actions">
         <span class="modal-nudge">still time to change your mind 🐭</span>
         <button id="challengeCancel" class="ghost" type="button">Return to the mines</button>
@@ -207,9 +198,6 @@
     </div>
   </div>
 
-  <!-- Plain script on purpose: env.js is git-ignored and optional, and a
-       missing module import would take the whole page down with it. -->
-  <script src="../../../env.js"></script>
   <script type="module" src="options.js"></script>
 </body>
 </html>

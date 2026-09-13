@@ -2,7 +2,6 @@ import { Storage } from '../../shared/storage.js';
 import { isGroupActive, isInWindow } from '../../shared/schedule.js';
 import { isAllowanceSpent, isPermanentLimit, remainingMs, formatDuration } from '../../shared/usage.js';
 import { formatClock, nextEvent } from '../../shared/timeline.js';
-import { isDevMode } from '../../shared/dev-mode.js';
 
 function escapeHtml(str) {
   return String(str)
@@ -92,8 +91,6 @@ async function init() {
       : '● Windows enforcement armed';
     serviceRow.classList.add('ready');
   }
-
-  document.getElementById('devBanner').hidden = !isDevMode();
 }
 
 document.getElementById('openDash').addEventListener('click', () => {

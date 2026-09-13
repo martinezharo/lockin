@@ -2,6 +2,3 @@ node_modules/
 .DS_Store
 *.zip
 dist/
-
-# Local dev config (see the Dev mode section in README.md)
-env.js

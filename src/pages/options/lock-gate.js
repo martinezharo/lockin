@@ -5,7 +5,6 @@
 
 import { Storage } from '../../shared/storage.js';
 import { pickChallengeParagraph, isChallengeMatch } from '../../shared/challenge.js';
-import { isDevMode } from '../../shared/dev-mode.js';
 
 const MODAL_EMOJIS = ['👹', '🐭', '🔒', '⛏️', '🧠', '🚧', '📑', '🐾', '🛑', '👁️'];
 const REJECTION_MESSAGES = [
@@ -22,7 +21,6 @@ const modalEmoji = document.getElementById('modalEmoji');
 const textEl = document.getElementById('challengeText');
 const inputEl = document.getElementById('challengeInput');
 const errorEl = document.getElementById('challengeError');
-const devHintEl = document.getElementById('challengeDevHint');
 const progressFill = document.getElementById('challengeProgressFill');
 const progressLabel = document.getElementById('challengeProgressLabel');
 
@@ -48,7 +46,6 @@ function open(action) {
   errorEl.textContent = '';
   refreshProgress();
   modalEmoji.textContent = MODAL_EMOJIS[Math.floor(Math.random() * MODAL_EMOJIS.length)];
-  devHintEl.hidden = !isDevMode();
   modal.classList.remove('hidden');
   setTimeout(() => inputEl.focus(), 30);
 }
@@ -90,16 +87,6 @@ document.getElementById('challengeCancel').addEventListener('click', close);
 
 modal.addEventListener('click', (e) => {
   if (e.target === modal) close();
-});
-
-// Dev-mode escape hatch: the modal still shows up exactly as usual, but with
-// LOCKIN_DEV on in env.js this shortcut runs the pending action without typing.
-document.addEventListener('keydown', (e) => {
-  if (!isDevMode()) return;
-  if (modal.classList.contains('hidden')) return;
-  if (!(e.ctrlKey && e.shiftKey && e.key === 'Enter')) return;
-  e.preventDefault();
-  runPending();
 });
 
 // Run `action` now if edit lock is off, or behind the typing challenge if not.

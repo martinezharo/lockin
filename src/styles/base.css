@@ -126,27 +126,3 @@ h1, h2, h3 {
   .ghost:hover, .ghost:active,
   .btn-danger:hover, .btn-danger:active { transform: none; }
 }
-
-/* ---------- Dev mode banner ----------
-   Shown on the dashboard and in the popup whenever env.js turns LOCKIN_DEV on,
-   so the skip-the-challenge shortcut is never a silent state. */
-
-.dev-banner {
-  background: var(--c-ink);
-  color: var(--c-amber);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  text-align: center;
-}
-
-.dev-banner strong { color: var(--c-amber-bright); }
-
-.dev-banner code,
-.dev-banner kbd {
-  font-family: var(--font-mono);
-  /* the banner is an ink strip in both themes, so this wash is fixed */
-  background: rgba(249, 179, 45, 0.16);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
