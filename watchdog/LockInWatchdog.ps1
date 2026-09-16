@@ -127,17 +127,22 @@ function Normalize-Site([string]$Raw) {
   if ($value -match '^[a-z][a-z0-9+.-]*://' -and $value -notmatch '^https?://') { throw 'Only HTTP(S) site rules are supported.' }
   if ($value -notmatch '^https?://') { $value = "https://$value" }
   $uri = [Uri]$value
-  if (-not $uri.IsAbsoluteUri -or $uri.UserInfo -or ($uri.Host + $uri.AbsolutePath + $uri.Query) -match '[\s*@]') { throw 'Invalid site rule.' }
+  if (-not $uri.IsAbsoluteUri -or $uri.UserInfo -or ($uri.Host + $uri.AbsolutePath + $uri.Query + $uri.Fragment) -match '[\s*@]') { throw 'Invalid site rule.' }
   $hostName = Normalize-Domain $uri.Host
   if ($hostName -notmatch '^[a-z0-9.-]+$' -or $hostName.StartsWith('.') -or $hostName.Contains('..')) { throw 'Invalid site hostname.' }
   $portPart = if ($uri.IsDefaultPort) { '' } else { ':' + $uri.Port }
   $queryParts = @($uri.Query.TrimStart('?').Split('&') | Where-Object { $_ -and ($_ -split '=', 2)[0] -notmatch '^(utm_.+|fbclid|gclid|msclkid)$' })
   $queryPart = if ($queryParts.Count) { '?' + ($queryParts -join '&') } else { '' }
-  $pathPart = if ($uri.AbsolutePath -eq '/' -and -not $queryPart) { '' } else { $uri.AbsolutePath }
-  return "$hostName$portPart$pathPart$queryPart"
+  $fragmentPart = if ($uri.Fragment -eq '#') { '' } else { $uri.Fragment }
+  $pathPart = if ($uri.AbsolutePath -eq '/' -and -not $queryPart -and -not $fragmentPart) { '' } else { $uri.AbsolutePath }
+  return "$hostName$portPart$pathPart$queryPart$fragmentPart"
 }
 
 function ConvertTo-PolicyFilter([string]$Rule) {
+  # Chromium explicitly ignores # and everything after it. Fragment-specific
+  # rules are enforced by the extension and must never broaden into a domain
+  # or path policy here.
+  if ($Rule.Contains('#')) { return '' }
   # Chromium separates the query filter from the path with @.
   return $Rule.Replace('?', '@')
 }
@@ -164,6 +169,7 @@ function Test-SiteMatches([string]$Page, [string]$Rule) {
       }
       if (-not $matched) { return $false }
     }
+    if ($listed.Fragment -and -not $url.Fragment.StartsWith($listed.Fragment, [StringComparison]::Ordinal)) { return $false }
     return $true
   } catch { return $false }
 }
@@ -551,7 +557,7 @@ function Evaluate-Enforcement([long]$Now) {
   if ($script:State.enforcementArmed -ne $true) { $script:EnforcementReason = 'not armed' }
   elseif ($reasons.Count -eq 0) { $script:EnforcementReason = 'open' }
   else { $script:EnforcementReason = $reasons -join ', ' }
-  Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ })
+  Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ })
   Set-FirewallBlocked $script:FailClosedActive
 }
 

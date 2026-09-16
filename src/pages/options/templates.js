@@ -416,7 +416,7 @@ function zoneBodyHtml(g, now, usage, session) {
       <div class="zone-columns">
         <div class="zone-col">
           <div class="col-label">Forbidden tunnels</div>
-          <p class="site-help">Domains cover subdomains. URL paths match by prefix (case-sensitive); /shorts/ covers that section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters and #fragments are ignored. HTTP and HTTPS are both covered.</p>
+          <p class="site-help">Domains cover subdomains. URL paths and #fragments match by prefix (case-sensitive); /shorts/ or #settings/Personalization can cover one section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters are ignored. HTTP and HTTPS are both covered.</p>
           <div class="domain-chips">${chipsHtml(g)}</div>
           <div class="add-domain-row">
             <input type="text" placeholder="domain.com or domain.com/path" data-add-domain-input="${g.id}"

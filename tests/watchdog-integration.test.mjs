@@ -5,6 +5,7 @@ import test from 'node:test';
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 const background = await readFile('src/background.js', 'utf8');
 const client = await readFile('src/watchdog-client.js', 'utf8');
+const fragmentBlocker = await readFile('src/fragment-blocker.js', 'utf8');
 const installer = await readFile('scripts/install-windows-watchdog.ps1', 'utf8');
 
 test('the extension is a loopback sensor rather than a DNR blocker', () => {
@@ -14,6 +15,14 @@ test('the extension is a loopback sensor rather than a DNR blocker', () => {
   assert.match(background, /watchdogClient\.pulse/);
   assert.match(background, /watchdogClient\.markConfigDirty/);
   assert.doesNotMatch(background, /updateDynamicRules/);
+});
+
+test('fragment rules block in place without changing the tab URL or history', () => {
+  assert.ok(manifest.content_scripts.some(({ js }) => js.includes('src/fragment-blocker.js')));
+  assert.match(fragmentBlocker, /location\.href/);
+  assert.match(fragmentBlocker, /attachShadow/);
+  assert.doesNotMatch(fragmentBlocker, /location\.(assign|replace)|history\.(go|back|forward)|chrome\.tabs/);
+  assert.doesNotMatch(client, /chrome\.tabs\.update/);
 });
 
 test('the snapshot never reports a group the extension cannot read', async () => {

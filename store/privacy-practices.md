@@ -14,7 +14,7 @@ Retries the local watchdog connection if the Manifest V3 service worker is resta
 
 ### Host permissions: http://*/* and https://*/*
 
-Reads the hostname of the active tab and, when it matches a configured URL rule, its path and query in the focused browser window so the local watchdog can determine whether a configured daily allowance should run. Lock In does not inject scripts, read page content, inspect forms, or contact internet servers.
+Reads the hostname of the active tab and, when it matches a configured URL rule, its path, query, and fragment in the focused browser window so the local watchdog can determine whether a configured daily allowance should run. A local content script displays an in-page blocking barrier only for active user-configured fragment rules. It does not read page content or forms and does not contact internet servers.
 
 ### Host permission: http://127.0.0.1:8765/*
 
@@ -30,7 +30,7 @@ All extension JavaScript, CSS, fonts, icons, and text are contained in the submi
 
 Do not select “This item does not collect or use user data.” Declare the dashboard categories corresponding to:
 
-- Web history or browsing activity: the active-tab hostname and matching URL path and query.
+- Web history or browsing activity: the active-tab hostname and matching URL path, query, and fragment.
 - User activity: locally calculated time spent on configured domains or URLs.
 - User-provided content: zone names, domain lists, schedules and limits.
 

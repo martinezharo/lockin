@@ -266,6 +266,10 @@ test('heartbeats send URL details only for a matching configured URL rule', asyn
   tabState.tabs = [{ id: 1, url: 'https://youtube.com/watch?v=ABC#fragment' }];
   await client.heartbeat();
   assert.equal(payload.url, 'https://youtube.com/watch?v=ABC');
+  state.groups = [{ id: 'fragment', domains: ['chatgpt.com/#settings/Personalization'] }];
+  tabState.tabs = [{ id: 1, url: 'https://chatgpt.com/#settings/Personalization' }];
+  await client.heartbeat();
+  assert.equal(payload.url, 'https://chatgpt.com/#settings/Personalization');
   state.privacyConsent = false;
   await client.heartbeat();
   assert.deepEqual(payload, { host: '', focused: false });
@@ -299,4 +303,16 @@ test('single-page navigation rechecks policy once without reloading unrelated ro
   await client.checkNavigation(90, tabState.tabs[0].url);
   assert.deepEqual(tabState.reloaded, [90]);
   assert.equal(client.checkedNavigations.size, 0);
+});
+
+test('active fragment rules do not navigate or reload the tab', async () => {
+  const client = new WatchdogClient();
+  state.privacyConsent = true;
+  state.nativeStatus = { blockedDomains: ['chatgpt.com/#settings/Personalization'] };
+  tabState.tabs = [{ id: 91, url: 'https://chatgpt.com/#settings/Personalization' }];
+  tabState.reloaded = [];
+
+  await client.checkNavigation(91, tabState.tabs[0].url);
+
+  assert.deepEqual(tabState.reloaded, []);
 });

@@ -7,8 +7,9 @@ foreach ($name in @('Normalize-Domain', 'Normalize-Site', 'Normalize-Groups', 'T
   $fn = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
   Invoke-Expression $fn.Extent.Text
 }
-if ((Normalize-Site 'https://WWW.YouTube.com/watch?v=AbC&utm_source=test#details') -cne 'youtube.com/watch?v=AbC') { throw 'Lost URL specificity' }
+if ((Normalize-Site 'https://WWW.YouTube.com/watch?v=AbC&utm_source=test#details') -cne 'youtube.com/watch?v=AbC#details') { throw 'Lost URL specificity' }
 if ((ConvertTo-PolicyFilter 'youtube.com/watch?v=ABC') -cne 'youtube.com/watch@v=ABC') { throw 'Invalid policy query delimiter' }
+if ((ConvertTo-PolicyFilter 'chatgpt.com/#settings/Personalization') -cne '') { throw 'Fragment rule broadened into a browser policy' }
 $cases = @(
   @('https://youtube.com/shorts/ABC', 'youtube.com/shorts/', $true),
   @('https://youtube.com/watch?v=ABC', 'youtube.com/shorts/', $false),
@@ -20,7 +21,9 @@ $cases = @(
   @('https://example.com:8443/a', 'example.com:8443/a', $true),
   @('https://example.com/a', 'example.com:8443/a', $false),
   @('https://example.com/a?x=y%3Dz', 'example.com/a?x%3Dy=z', $false),
-  @('https://example.com/a?key', 'example.com/a?key=', $true)
+  @('https://example.com/a?key', 'example.com/a?key=', $true),
+  @('https://chatgpt.com/#settings/Personalization', 'chatgpt.com/#settings/Personalization', $true),
+  @('https://chatgpt.com/#settings/General', 'chatgpt.com/#settings/Personalization', $false)
 )
 foreach ($case in $cases) {
   if ((Test-SiteMatches $case[0] $case[1]) -ne $case[2]) { throw "URL mismatch: $($case[0]) against $($case[1])" }

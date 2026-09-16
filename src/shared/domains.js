@@ -27,21 +27,24 @@ export function domainMatches(domain, listed) {
   return domain === listed || domain.endsWith('.' + listed);
 }
 
-// Rules omit the scheme so HTTP/HTTPS share the same restriction. Paths and
-// query values remain case-sensitive, as in Chromium's URLBlocklist.
+// Rules omit the scheme so HTTP/HTTPS share the same restriction. Paths,
+// query values and fragments remain case-sensitive. Chromium's URLBlocklist
+// ignores fragments, so fragment rules are enforced by the extension while
+// the watchdog remains the source of truth for whether the rule is active.
 export function normalizeSiteInput(raw) {
   const input = String(raw || '').trim();
   if (!input) return '';
   try {
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input) && !/^https?:\/\//i.test(input)) return '';
     const url = new URL(/^https?:\/\//i.test(input) ? input : 'https://' + input);
-    if (url.username || url.password || !url.hostname || /[\s*@]/.test(url.host + url.pathname + url.search)) return '';
+    if (url.username || url.password || !url.hostname || /[\s*@]/.test(url.host + url.pathname + url.search + url.hash)) return '';
     const host = normalizeDomainInput(url.hostname);
     if (!/^[a-z0-9.-]+$/.test(host) || host.startsWith('.') || host.includes('..')) return '';
     const query = [...url.searchParams].filter(([key]) => !/^(utm_.+|fbclid|gclid|msclkid)$/i.test(key));
     const params = new URLSearchParams(query);
     params.sort();
-    return host + (url.port ? ':' + url.port : '') + (url.pathname === '/' && !params.size ? '' : url.pathname) + (params.size ? '?' + params : '');
+    const fragment = url.hash === '#' ? '' : url.hash;
+    return host + (url.port ? ':' + url.port : '') + (url.pathname === '/' && !params.size && !fragment ? '' : url.pathname) + (params.size ? '?' + params : '') + fragment;
   } catch { return ''; }
 }
 
@@ -60,6 +63,7 @@ export function siteMatches(page, rule) {
     if (!domainMatches(normalizeDomainInput(url.hostname), listed.hostname)) return false;
     if (listed.port && (url.port || (url.protocol === 'https:' ? '443' : '80')) !== listed.port) return false;
     if (!url.pathname.startsWith(listed.pathname)) return false;
-    return [...listed.searchParams].every(([key, value]) => url.searchParams.getAll(key).includes(value));
+    if (![...listed.searchParams].every(([key, value]) => url.searchParams.getAll(key).includes(value))) return false;
+    return !listed.hash || url.hash.startsWith(listed.hash);
   } catch { return false; }
 }

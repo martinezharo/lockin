@@ -30,11 +30,16 @@
     <h2>Data handled</h2>
     <ul>
       <li>Zone names, user-selected domains or URLs, schedules, daily limits, and edit-lock preference.</li>
-      <li>The hostname of the active tab, plus its path and query when it matches a configured URL rule, and whether its browser window is focused.</li>
+      <li>The hostname of the active tab, plus its path, query, and fragment when it matches a configured URL rule, and whether its browser window is focused.</li>
       <li>Local time totals per zone and the current enforcement state.</li>
       <li>The privacy-consent choice and local watchdog health.</li>
       <li>The selected Windows account names and SIDs, used locally to authenticate each protected sensor independently.</li>
     </ul>
+    <p>
+      For an active user-configured URL fragment rule, such as a route beginning with <code>#</code>,
+      Lock In displays a local blocking barrier over the matching page. The barrier does not inspect or
+      modify page content and does not navigate or alter browser history.
+    </p>
 
     <h2>How the data is used</h2>
     <p>

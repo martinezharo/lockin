@@ -7,12 +7,14 @@ Lock In is a local-first site-blocking system composed of a Chrome extension and
 ## Data handled
 
 - Zone names, user-selected domains or URLs, schedules, daily limits, and edit-lock preference.
-- The hostname of the active tab, plus its path and query when it matches a configured URL rule, and whether its browser window is focused.
+- The hostname of the active tab, plus its path, query, and fragment when it matches a configured URL rule, and whether its browser window is focused.
 - Local time totals per zone and the current enforcement state.
 - The user's privacy-consent choice and the health of the local watchdog connection.
 - The selected Windows account names and SIDs, used locally to authenticate each protected sensor independently.
 
 Lock In does not read page content, form values, messages, passwords, full browsing history, or unrelated tabs.
+
+For an active user-configured URL fragment rule, such as a route beginning with `#`, Lock In displays a local blocking barrier over the matching page. The barrier does not inspect or modify page content and does not navigate or alter browser history.
 
 ## How the data is used
 

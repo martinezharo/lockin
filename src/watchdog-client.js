@@ -10,6 +10,10 @@ const HEARTBEAT_MS = 1000;
 const REQUEST_TIMEOUT_MS = 4000;
 const CONFIG_KEYS = new Set(['groups', 'lockMode', 'privacyConsent']);
 
+function isFragmentRule(rule) {
+  return String(rule || '').includes('#');
+}
+
 function hostOf(url) {
   if (!url || !/^https?:/i.test(url)) return '';
   try {
@@ -36,18 +40,20 @@ async function focusedPage() {
   const host = hostOf(tab?.url);
   const groups = await Storage.getGroups();
   // Only send a URL when a configured URL rule matches this page.
-  const needsUrl = groups.some(g => g.domains.some(rule => /[/? :]/.test(rule) && siteMatches(tab?.url, rule)));
+  const matchingUrlRules = groups.flatMap(g => g.domains)
+    .filter(rule => /[/?# :]/.test(rule) && siteMatches(tab?.url, rule));
   let url = '';
-  if (needsUrl) {
+  if (matchingUrlRules.length) {
     const page = new URL(tab.url);
-    page.username = ''; page.password = ''; page.hash = '';
+    page.username = ''; page.password = '';
+    if (!matchingUrlRules.some(isFragmentRule)) page.hash = '';
     url = page.href;
   }
   return { host, url, focused: Boolean(tab && host) };
 }
 
 async function reloadTabsForPolicyChange(domains) {
-  const listedDomains = [...new Set(domains.filter(Boolean))];
+  const listedDomains = [...new Set(domains.filter((rule) => rule && !isFragmentRule(rule)))];
   if (!listedDomains.length || typeof chrome.tabs?.query !== 'function' || typeof chrome.tabs?.reload !== 'function') return;
   try {
     if (!(await Storage.getPrivacyConsent())) return;
@@ -177,12 +183,16 @@ export class WatchdogClient {
     // route once so managed-browser policy also applies inside single-page apps.
     if (!(await Storage.getPrivacyConsent())) return;
     const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
-    const matches = (nativeStatus?.blockedDomains || []).some(rule => siteMatches(url, rule));
+    const matchingRule = (nativeStatus?.blockedDomains || []).find(rule => siteMatches(url, rule));
+    const matches = Boolean(matchingRule);
     if (!matches) { this.checkedNavigations.delete(tabId); return; }
     if (this.checkedNavigations.get(tabId) === url) return;
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab || (tab.pendingUrl || tab.url) !== url) return;
     this.checkedNavigations.set(tabId, url);
+    // Fragment routes never make a document request. The content script keeps
+    // the URL and browser history intact while covering an active match.
+    if (isFragmentRule(matchingRule)) return;
     await chrome.tabs.reload(tabId).catch(() => this.checkedNavigations.delete(tabId));
   }
 
@@ -199,7 +209,7 @@ export class WatchdogClient {
   }
 
   async performRequest(type, payload = {}) {
-    if (['bootstrap', 'updateConfig'].includes(type) && payload.groups?.some(g => g.domains.some(rule => /[/? :]/.test(rule)))) {
+    if (['bootstrap', 'updateConfig'].includes(type) && payload.groups?.some(g => g.domains.some(rule => /[/?# :]/.test(rule)))) {
       const health = await fetch('http://127.0.0.1:8765/health', { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: 'no-store' });
       const status = await health.json();
       if (!health.ok || status.data?.supportsUrlRules !== true) throw new Error('Update the Windows watchdog before using URL rules.');

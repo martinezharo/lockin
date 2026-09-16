@@ -23,7 +23,7 @@ Main features:
 - Display authoritative remaining time, current policy state and watchdog health.
 - Keep all configuration and usage information on the device, with no account, analytics, ads or server.
 
-Lock In requires its Windows watchdog package. It reads the hostname of the active tab and, when it matches a configured URL rule, its path and query and never reads page content. This data is sent only to `127.0.0.1` and is never transmitted over the internet.
+Lock In requires its Windows watchdog package. It reads the hostname of the active tab and, when it matches a configured URL rule, its path, query, and fragment and never reads page content. This data is sent only to `127.0.0.1` and is never transmitted over the internet.
 
 ## Single purpose
 
