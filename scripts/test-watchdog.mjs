@@ -7,6 +7,8 @@ import { join, resolve } from 'node:path';
 
 execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('tests/watchdog-sessions.ps1')], { stdio: 'inherit' });
 
+execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('tests/watchdog-sites.ps1')], { stdio: 'inherit' });
+
 const dataDirectory = await mkdtemp(join(tmpdir(), 'lockin-watchdog-'));
 const port = 18766;
 const endpoint = `http://127.0.0.1:${port}/api/request`;
@@ -83,6 +85,21 @@ try {
   assert.equal(missing.failClosedActive, true);
   assert.equal(missing.firewallBlocked, true);
   assert.match(missing.enforcementReason, /sensor missing: SYSTEM/);
+  await send('updateConfig', {
+    groups: [{ id: 'url', name: 'URL allowance', domains: ['example.com/Path?v=ABC'], enabled: true, schedule: null, limit: { minutes: 1 } }],
+    privacyConsent: true, lockMode: false
+  });
+  const outside = await send('heartbeat', { host: 'example.com', url: 'https://example.com/elsewhere', focused: true });
+  assert.equal(outside.supportsUrlRules, true);
+  assert.ok(!outside.usageSession?.groupIds?.includes('url'));
+  const inside = await send('heartbeat', { host: 'example.com', url: 'https://example.com/Path?extra=1&v=ABC', focused: true });
+  assert.ok(inside.usageSession?.groupIds?.includes('url'));
+  assert.deepEqual(inside.groups[0].domains, ['example.com/Path?v=ABC']);
+  const caseSensitive = await send('updateConfig', {
+    groups: [{ id: 'case', name: 'Distinct paths', domains: ['example.com/Path', 'example.com/path'], enabled: true, limit: { minutes: 0 } }],
+    privacyConsent: true, lockMode: false
+  });
+  assert.equal(caseSensitive.blockedDomains.length, 2);
   console.log('PowerShell watchdog integration test passed.');
 } finally {
   watchdog.kill();

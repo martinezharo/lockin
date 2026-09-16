@@ -27,6 +27,7 @@ globalThis.chrome = {
   },
   tabs: {
     async query() { return tabState.tabs; },
+    async get(id) { return tabState.tabs.find(tab => tab.id === id); },
     async reload(tabId) { tabState.reloaded.push(tabId); }
   }
 };
@@ -238,4 +239,64 @@ test('clearing the data still empties the local zones', async () => {
   await client.applySnapshot({ groups: [], usage: {}, lockMode: false, privacyConsent: false, blockedDomains: [] }, { adoptEmptyGroups: true });
 
   assert.deepEqual(state.groups, []);
+});
+
+test('URL policy changes reload only matching pages, including pending navigation', async () => {
+  const client = new WatchdogClient();
+  client.lastObservedBlockedDomains = [];
+  tabState.reloaded = [];
+  tabState.tabs = [
+    { id: 80, url: 'https://youtube.com/watch?v=ABC&extra=1' },
+    { id: 81, url: 'https://youtube.com/watch?v=OTHER' },
+    { id: 82, url: 'chrome-error://chromewebdata/', pendingUrl: 'https://youtube.com/watch?v=ABC' }
+  ];
+  await client.applySnapshot({ groups: state.groups, privacyConsent: true, blockedDomains: ['youtube.com/watch?v=ABC'] });
+  assert.deepEqual(tabState.reloaded, [80, 82]);
+});
+
+test('heartbeats send URL details only for a matching configured URL rule', async () => {
+  const client = new WatchdogClient();
+  state.privacyConsent = true;
+  state.groups = [{ id: 'url', domains: ['youtube.com/watch?v=ABC'] }];
+  let payload;
+  client.request = async (_type, value) => { payload = value; };
+  tabState.tabs = [{ id: 1, url: 'https://youtube.com/watch?v=OTHER&private=value' }];
+  await client.heartbeat();
+  assert.equal(payload.url, '');
+  tabState.tabs = [{ id: 1, url: 'https://youtube.com/watch?v=ABC#fragment' }];
+  await client.heartbeat();
+  assert.equal(payload.url, 'https://youtube.com/watch?v=ABC');
+  state.privacyConsent = false;
+  await client.heartbeat();
+  assert.deepEqual(payload, { host: '', focused: false });
+});
+
+test('old watchdogs never receive URL configuration that they would broaden', async () => {
+  const oldFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return { ok: true, json: async () => ({ data: { configured: true } }) };
+  };
+  try {
+    const client = new WatchdogClient();
+    await assert.rejects(client.performRequest('updateConfig', { groups: [{ domains: ['example.com/path'] }] }), /Update the Windows watchdog/);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].url, /health$/);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test('single-page navigation rechecks policy once without reloading unrelated routes', async () => {
+  const client = new WatchdogClient();
+  state.privacyConsent = true;
+  state.nativeStatus = { blockedDomains: ['youtube.com/shorts/'] };
+  tabState.tabs = [{ id: 90, url: 'https://youtube.com/shorts/ABC' }];
+  tabState.reloaded = [];
+  await client.checkNavigation(90, 'https://youtube.com/shorts/ABC');
+  await client.checkNavigation(90, 'https://youtube.com/shorts/ABC');
+  assert.deepEqual(tabState.reloaded, [90]);
+  tabState.tabs[0].url = 'https://youtube.com/watch?v=OTHER';
+  await client.checkNavigation(90, tabState.tabs[0].url);
+  assert.deepEqual(tabState.reloaded, [90]);
+  assert.equal(client.checkedNavigations.size, 0);
 });

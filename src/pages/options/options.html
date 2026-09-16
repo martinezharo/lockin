@@ -105,8 +105,9 @@
                 </label>
 
                 <label class="field">
-                  <span class="field-label">Forbidden tunnels (one per line, or comma separated)</span>
-                  <textarea id="groupDomains" rows="4" placeholder="x.com&#10;instagram.com&#10;reddit.com" required></textarea>
+                  <span class="field-label">Domains or URLs (one per line, or comma separated)</span>
+                  <textarea id="groupDomains" rows="4" placeholder="x.com&#10;youtube.com/shorts/&#10;youtube.com/watch?v=ABC" required></textarea>
+                  <span class="site-help">Domains cover subdomains. URL paths match by prefix (case-sensitive); /shorts/ covers that section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters and #fragments are ignored. HTTP and HTTPS are both covered.</span>
                 </label>
               </div>
 
@@ -150,7 +151,7 @@
         Lock In needs limited browsing activity to provide its site-blocking and daily-allowance features.
       </p>
       <ul class="privacy-points">
-        <li>It reads only the hostname of the active tab, never page content.</li>
+        <li>It reads the hostname of the active tab and, when it matches a configured URL rule, its path and query, never page content.</li>
         <li>It stores your zones, schedules, and usage totals in the protected local Lock In watchdog.</li>
         <li>Nothing is transmitted, sold, shared, or used for advertising or profiling.</li>
       </ul>

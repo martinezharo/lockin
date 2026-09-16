@@ -30,6 +30,7 @@
     usageSession: { groupIds: ['social'], startedAt: Date.now() },
     nativeStatus: {
       connected: true,
+      supportsUrlRules: true,
       configured: true,
       enforcementArmed: true,
       failClosed: true,

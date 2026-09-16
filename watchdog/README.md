@@ -33,3 +33,20 @@ This disarms Lock In and disables only the emergency firewall rules in the `Lock
 ```
 
 Add `-PurgeData` only to permanently remove the protected configuration and usage stored under `C:\ProgramData\LockIn`.
+
+## Domain and URL rules
+
+Enter a domain, a section such as `youtube.com/shorts/`, or a page such as
+`youtube.com/watch?v=ABC` in a zone. Existing domain rules remain unchanged.
+URL paths are case-sensitive prefixes, not exact-path matches. HTTP and HTTPS
+and subdomains are covered. Query tokens must match but may be reordered or
+accompanied by additional tokens. Common tracking parameters and fragments
+are removed from configured rules. Encode literal commas as %2C in the list.
+
+Update the watchdog with `scripts/update-windows-watchdog.ps1` from an elevated
+PowerShell in the repository, then reload the extension. The updater backs up
+the installed script. Older watchdogs cannot accept URL rules; the dashboard
+and bridge reject those writes until the watchdog advertises support.
+
+Only pages matching configured URL rules send their path and query over
+loopback. The active URL is held in memory, not written to the state file.

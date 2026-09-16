@@ -1361,3 +1361,8 @@ select:focus {
   .schedule-window .window-arrow { display: none; }
   .schedule-window .remove-window { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 }
+
+.site-help { font-size: 12px; line-height: 1.6; color: var(--muted, #666); margin: 8px 0 12px; }
+.chip { max-width: 100%; min-width: 0; }
+.site-label { overflow-wrap: anywhere; min-width: 0; }
+.chip button { flex-shrink: 0; }

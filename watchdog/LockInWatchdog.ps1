@@ -23,6 +23,7 @@ $firewallGroup = 'LockInWatchdog'
 $script:ConsecutiveHeartbeatsBySid = @{}
 $script:BrowserSeenAtMsBySid = @{}
 $script:SensorHeartbeatMsBySid = @{}
+$script:LastUrl = ''
 $script:BlockedDomains = @()
 $script:EnforcementReason = 'not armed'
 $script:FailClosedActive = $false
@@ -119,11 +120,59 @@ function Normalize-Domain([string]$Raw) {
   return $value
 }
 
+
+function Normalize-Site([string]$Raw) {
+  if ([string]::IsNullOrWhiteSpace($Raw)) { return '' }
+  $value = $Raw.Trim()
+  if ($value -match '^[a-z][a-z0-9+.-]*://' -and $value -notmatch '^https?://') { throw 'Only HTTP(S) site rules are supported.' }
+  if ($value -notmatch '^https?://') { $value = "https://$value" }
+  $uri = [Uri]$value
+  if (-not $uri.IsAbsoluteUri -or $uri.UserInfo -or ($uri.Host + $uri.AbsolutePath + $uri.Query) -match '[\s*@]') { throw 'Invalid site rule.' }
+  $hostName = Normalize-Domain $uri.Host
+  if ($hostName -notmatch '^[a-z0-9.-]+$' -or $hostName.StartsWith('.') -or $hostName.Contains('..')) { throw 'Invalid site hostname.' }
+  $portPart = if ($uri.IsDefaultPort) { '' } else { ':' + $uri.Port }
+  $queryParts = @($uri.Query.TrimStart('?').Split('&') | Where-Object { $_ -and ($_ -split '=', 2)[0] -notmatch '^(utm_.+|fbclid|gclid|msclkid)$' })
+  $queryPart = if ($queryParts.Count) { '?' + ($queryParts -join '&') } else { '' }
+  $pathPart = if ($uri.AbsolutePath -eq '/' -and -not $queryPart) { '' } else { $uri.AbsolutePath }
+  return "$hostName$portPart$pathPart$queryPart"
+}
+
+function ConvertTo-PolicyFilter([string]$Rule) {
+  # Chromium separates the query filter from the path with @.
+  return $Rule.Replace('?', '@')
+}
+
+function Test-SiteMatches([string]$Page, [string]$Rule) {
+  try {
+    $url = [Uri]$Page
+    $listed = [Uri]("https://$Rule")
+    if (-not $url.IsAbsoluteUri -or $url.Scheme -notin @('http', 'https')) { return $false }
+    $hostName = Normalize-Domain $url.Host
+    if ($hostName -ne $listed.Host -and -not $hostName.EndsWith('.' + $listed.Host, [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    if (-not $listed.IsDefaultPort -and $url.Port -ne $listed.Port) { return $false }
+    if (-not $url.AbsolutePath.StartsWith($listed.AbsolutePath, [StringComparison]::Ordinal)) { return $false }
+    foreach ($token in $listed.Query.TrimStart('?').Split('&')) {
+      if (-not $token) { continue }
+      $wanted = $token -split '=', 2
+      $matched = $false
+      foreach ($actualToken in $url.Query.TrimStart('?').Split('&')) {
+        $actual = $actualToken -split '=', 2
+        $sameKey = [Uri]::UnescapeDataString($actual[0].Replace('+', ' ')) -ceq [Uri]::UnescapeDataString($wanted[0].Replace('+', ' '))
+        $actualValue = if ($actual.Count -gt 1) { $actual[1] } else { '' }
+        $wantedValue = if ($wanted.Count -gt 1) { $wanted[1] } else { '' }
+        if ($sameKey -and [Uri]::UnescapeDataString($actualValue.Replace('+', ' ')) -ceq [Uri]::UnescapeDataString($wantedValue.Replace('+', ' '))) { $matched = $true; break }
+      }
+      if (-not $matched) { return $false }
+    }
+    return $true
+  } catch { return $false }
+}
+
 function Normalize-Groups($Groups) {
   $result = @()
   foreach ($group in @($Groups)) {
     if ($null -eq $group -or [string]::IsNullOrWhiteSpace([string]$group.id)) { continue }
-    $domains = @($group.domains | ForEach-Object { Normalize-Domain ([string]$_) } | Where-Object { $_ } | Sort-Object -Unique)
+    $domains = @($group.domains | ForEach-Object { Normalize-Site ([string]$_) } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
     $group.domains = $domains
     if ([string]::IsNullOrWhiteSpace([string]$group.name)) { $group.name = 'Unnamed zone' }
     $result += $group
@@ -160,6 +209,10 @@ function Test-WithinSchedule($Schedule, [long]$Now) {
 
 function Test-GroupMatchesHost($Group, [string]$HostName) {
   foreach ($domain in @($Group.domains)) {
+    if ($domain -match '[/?:]') {
+      if (Test-SiteMatches ([string]$script:LastUrl) ([string]$domain)) { return $true }
+      continue
+    }
     if ($HostName -eq $domain -or $HostName.EndsWith(".$domain", [StringComparison]::OrdinalIgnoreCase)) { return $true }
   }
   return $false
@@ -441,13 +494,13 @@ function Test-OwnedPoliciesCurrent([string[]]$Domains) {
 
 function Apply-Policies([string[]]$Domains) {
   $fingerprint = ($Domains -join "`n")
-  if ($script:LastPolicyFingerprint -eq $fingerprint -and (Test-OwnedPoliciesCurrent $Domains)) { return }
+  if ($script:LastPolicyFingerprint -ceq $fingerprint -and (Test-OwnedPoliciesCurrent $Domains)) { return }
   foreach ($browser in $policyPaths.Keys) { Apply-BrowserPolicy $browser $Domains }
   $script:LastPolicyFingerprint = $fingerprint
 }
 
 function Evaluate-Enforcement([long]$Now) {
-  $domains = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  $domains = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
   $reasons = New-Object 'System.Collections.Generic.List[string]'
   $script:FailClosedActive = $false
   $enabledGroups = @($script:State.groups | Where-Object { $_.enabled -eq $true })
@@ -498,7 +551,7 @@ function Evaluate-Enforcement([long]$Now) {
   if ($script:State.enforcementArmed -ne $true) { $script:EnforcementReason = 'not armed' }
   elseif ($reasons.Count -eq 0) { $script:EnforcementReason = 'open' }
   else { $script:EnforcementReason = $reasons -join ', ' }
-  Apply-Policies $script:BlockedDomains
+  Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ })
   Set-FirewallBlocked $script:FailClosedActive
 }
 
@@ -523,6 +576,7 @@ function Get-Snapshot([long]$Now) {
     usageSession = $session
     lockMode = $script:State.lockMode -eq $true
     privacyConsent = $script:State.privacyConsent -eq $true
+    supportsUrlRules = $true
     blockedDomains = @($script:BlockedDomains)
     enforcementReason = $script:EnforcementReason
     protectedWindowsAccount = (@($script:ProtectedAccounts.Values) -join ', ')
@@ -564,6 +618,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
       $script:State.lastHeartbeatMs = $now
       $script:State.lastSampleMs = $now
       $script:State.lastHost = Normalize-Domain ([string]$Request.payload.host)
+      $script:LastUrl = [string]$Request.payload.url
       $script:State.lastFocused = $Request.payload.focused -eq $true
       if ($script:State.configured -eq $true -and $script:State.enforcementArmed -ne $true -and [int]$script:ConsecutiveHeartbeatsBySid[$sensorKey] -ge 3) {
         $script:State.enforcementArmed = $true
@@ -581,6 +636,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
       $script:State.lastHeartbeatMs = $now
       $script:State.lastSampleMs = $now
       $script:State.lastHost = ''
+      $script:LastUrl = ''
       $script:State.lastFocused = $false
       $script:ConsecutiveHeartbeatsBySid.Clear()
       $script:SensorHeartbeatMsBySid.Clear()

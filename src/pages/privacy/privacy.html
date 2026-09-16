@@ -29,8 +29,8 @@
 
     <h2>Data handled</h2>
     <ul>
-      <li>Zone names, user-selected domains, schedules, daily limits, and edit-lock preference.</li>
-      <li>The hostname of the active tab and whether its browser window is focused.</li>
+      <li>Zone names, user-selected domains or URLs, schedules, daily limits, and edit-lock preference.</li>
+      <li>The hostname of the active tab, plus its path and query when it matches a configured URL rule, and whether its browser window is focused.</li>
       <li>Local time totals per zone and the current enforcement state.</li>
       <li>The privacy-consent choice and local watchdog health.</li>
       <li>The selected Windows account names and SIDs, used locally to authenticate each protected sensor independently.</li>
@@ -38,7 +38,7 @@
 
     <h2>How the data is used</h2>
     <p>
-      The active hostname is compared only with domains configured by the user. The Windows watchdog
+      The active hostname and matching URL are compared only with site rules configured by the user. The Windows watchdog
       calculates elapsed time, evaluates schedules and allowances, and applies local managed-browser
       URL policies. If the sensor disappears after setup, configured zones can fail closed.
     </p>

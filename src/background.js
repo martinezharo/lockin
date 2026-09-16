@@ -37,10 +37,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.tabs.onActivated.addListener(() => watchdogClient.heartbeat());
-chrome.tabs.onRemoved.addListener(() => watchdogClient.heartbeat());
+chrome.tabs.onRemoved.addListener((tabId) => {
+  watchdogClient.checkedNavigations.delete(tabId);
+  watchdogClient.heartbeat();
+});
 chrome.windows.onFocusChanged.addListener(() => watchdogClient.heartbeat());
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-  if (changeInfo.url) watchdogClient.heartbeat();
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url) {
+    watchdogClient.heartbeat().then(() => watchdogClient.checkNavigation(tabId, changeInfo.url)).catch(() => undefined);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

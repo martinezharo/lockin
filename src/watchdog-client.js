@@ -3,7 +3,7 @@
 // only mirrors state and nudges an already-open active tab to re-run policy.
 
 import { Storage, isGroup, serializeGroup } from './shared/storage.js';
-import { domainMatches, normalizeDomainInput } from './shared/domains.js';
+import { siteMatches, normalizeDomainInput } from './shared/domains.js';
 
 const ENDPOINT = 'http://127.0.0.1:8765/api/request';
 const HEARTBEAT_MS = 1000;
@@ -34,18 +34,27 @@ async function focusedPage() {
   if (!(await Storage.getPrivacyConsent())) return { host: '', focused: false };
   const tab = await focusedTab();
   const host = hostOf(tab?.url);
-  return { host, focused: Boolean(tab && host) };
+  const groups = await Storage.getGroups();
+  // Only send a URL when a configured URL rule matches this page.
+  const needsUrl = groups.some(g => g.domains.some(rule => /[/? :]/.test(rule) && siteMatches(tab?.url, rule)));
+  let url = '';
+  if (needsUrl) {
+    const page = new URL(tab.url);
+    page.username = ''; page.password = ''; page.hash = '';
+    url = page.href;
+  }
+  return { host, url, focused: Boolean(tab && host) };
 }
 
 async function reloadTabsForPolicyChange(domains) {
-  const listedDomains = [...new Set(domains.map(normalizeDomainInput).filter(Boolean))];
+  const listedDomains = [...new Set(domains.filter(Boolean))];
   if (!listedDomains.length || typeof chrome.tabs?.query !== 'function' || typeof chrome.tabs?.reload !== 'function') return;
   try {
     if (!(await Storage.getPrivacyConsent())) return;
     const tabs = await chrome.tabs.query({});
     await Promise.all(tabs
       .filter((tab) => typeof tab?.id === 'number' && [tab.url, tab.pendingUrl]
-        .some((url) => listedDomains.some((domain) => domainMatches(hostOf(url), domain))))
+        .some((url) => listedDomains.some((domain) => siteMatches(url, domain))))
       .map((tab) => Promise.resolve(chrome.tabs.reload(tab.id)).catch(() => undefined)));
   } catch {
     // A browser-internal tab or tabs closed during the query are not a
@@ -68,6 +77,7 @@ export class WatchdogClient {
     this.lastObservedBlockedDomains = null;
     this.applyingSnapshot = false;
     this.started = false;
+    this.checkedNavigations = new Map();
   }
 
   async start() {
@@ -162,6 +172,20 @@ export class WatchdogClient {
     return this.connected ? this.heartbeat() : this.connect();
   }
 
+  async checkNavigation(tabId, url) {
+    // History API navigation may not make a document request. Reload a matched
+    // route once so managed-browser policy also applies inside single-page apps.
+    if (!(await Storage.getPrivacyConsent())) return;
+    const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+    const matches = (nativeStatus?.blockedDomains || []).some(rule => siteMatches(url, rule));
+    if (!matches) { this.checkedNavigations.delete(tabId); return; }
+    if (this.checkedNavigations.get(tabId) === url) return;
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab || (tab.pendingUrl || tab.url) !== url) return;
+    this.checkedNavigations.set(tabId, url);
+    await chrome.tabs.reload(tabId).catch(() => this.checkedNavigations.delete(tabId));
+  }
+
   async clearData() {
     const data = await this.request('clearData', {});
     this.configSyncPending = false;
@@ -175,6 +199,11 @@ export class WatchdogClient {
   }
 
   async performRequest(type, payload = {}) {
+    if (['bootstrap', 'updateConfig'].includes(type) && payload.groups?.some(g => g.domains.some(rule => /[/? :]/.test(rule)))) {
+      const health = await fetch('http://127.0.0.1:8765/health', { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: 'no-store' });
+      const status = await health.json();
+      if (!health.ok || status.data?.supportsUrlRules !== true) throw new Error('Update the Windows watchdog before using URL rules.');
+    }
     const requestId = `${Date.now()}-${++this.requestNumber}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -216,6 +245,7 @@ export class WatchdogClient {
         privacyConsent: snapshot.privacyConsent === true,
         nativeStatus: {
           connected: true,
+          supportsUrlRules: snapshot.supportsUrlRules === true,
           configured: snapshot.configured === true,
           enforcementArmed: snapshot.enforcementArmed === true,
           failClosed: snapshot.failClosed === true,

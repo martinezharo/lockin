@@ -2,7 +2,7 @@
 // Markup lives in templates.js, the typing challenge in lock-gate.js.
 
 import { Storage } from '../../shared/storage.js';
-import { uid, normalizeDomainInput, parseDomainList } from '../../shared/domains.js';
+import { uid, normalizeSiteInput, parseSiteList } from '../../shared/domains.js';
 import { timeValueToMinutes } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
@@ -124,9 +124,26 @@ function saveGroupName(id, input) {
   return updateGroup(id, (g) => { g.name = name; });
 }
 
-function addDomain(id, rawDomain) {
-  const domain = normalizeDomainInput(rawDomain);
-  if (!domain) return;
+async function checkUrlSupport(rules, input) {
+  const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+  if (rules.some(rule => /[/? :]/.test(rule)) && nativeStatus?.supportsUrlRules !== true) {
+    input.setCustomValidity('Update the Windows watchdog and reload the extension before adding URL rules.');
+    input.reportValidity();
+    return false;
+  }
+  return true;
+}
+
+async function addDomain(id, input) {
+  const domain = normalizeSiteInput(input.value);
+  if (!domain) {
+    input.setCustomValidity('Enter a valid domain or HTTP(S) URL, without credentials or wildcards.');
+    input.reportValidity();
+    return;
+  }
+  if (!(await checkUrlSupport([domain], input))) return;
+  input.setCustomValidity('');
+  input.value = '';
   return updateGroup(id, (g) => {
     if (!g.domains.includes(domain)) g.domains.push(domain);
   });
@@ -205,7 +222,7 @@ async function refreshServiceStatus() {
   ).filter(Boolean).map((account) => account.split('\\').pop());
   servicePanel.classList.add(blocking ? 'state-blocking' : 'state-ready');
   serviceHeadline.textContent = blocking
-    ? `Windows is containing ${nativeStatus.blockedDomains.length} domain${nativeStatus.blockedDomains.length === 1 ? '' : 's'}`
+    ? `Windows is containing ${nativeStatus.blockedDomains.length} site rule${nativeStatus.blockedDomains.length === 1 ? '' : 's'}`
     : 'Windows enforcement armed · tunnels currently open';
   const accountPrefix = protectedAccounts.length
     ? `Protected Windows users: ${protectedAccounts.join(' + ')}. `
@@ -258,11 +275,18 @@ function resetNewGroupForm() {
   resetRulesControls();
 }
 
+document.getElementById('groupDomains').addEventListener('input', (e) => e.target.setCustomValidity(''));
+
 newGroupForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('groupName').value.trim();
-  const domains = parseDomainList(document.getElementById('groupDomains').value);
+  const sitesInput = document.getElementById('groupDomains');
+  let domains;
+  try { domains = parseSiteList(sitesInput.value); }
+  catch (error) { sitesInput.setCustomValidity(error.message); sitesInput.reportValidity(); return; }
+  sitesInput.setCustomValidity('');
   if (!name || domains.length === 0) return;
+  if (!(await checkUrlSupport(domains, sitesInput))) return;
 
   const rules = readRules(rulesControls);
   if (!rules) return;
@@ -337,8 +361,7 @@ const ZONE_ACTIONS = {
   'remove-domain': (id, btn) => removeDomain(id, btn.dataset.domain),
   'add-domain': (id, btn) => {
     const input = btn.closest('.zone').querySelector('[data-add-domain-input]');
-    addDomain(id, input.value);
-    input.value = '';
+    addDomain(id, input);
   },
   'save-rules': (id, btn) => {
     const editor = btn.closest('.zone').querySelector('[data-rules-editor]');
@@ -354,6 +377,8 @@ groupsListEl.addEventListener('click', (e) => {
   if (handler) handler(btn.dataset.group, btn);
 });
 
+groupsListEl.addEventListener('input', e => e.target.setCustomValidity?.(''));
+
 groupsListEl.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
 
@@ -365,8 +390,7 @@ groupsListEl.addEventListener('keydown', (e) => {
 
   if (!e.target.matches('[data-add-domain-input]')) return;
   e.preventDefault();
-  addDomain(e.target.getAttribute('data-add-domain-input'), e.target.value);
-  e.target.value = '';
+  addDomain(e.target.getAttribute('data-add-domain-input'), e.target);
 });
 
 /* ---------------- Rule controls ----------------

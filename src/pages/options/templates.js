@@ -380,7 +380,7 @@ function chipsHtml(g) {
       const safe = escapeHtml(d);
       return `
       <span class="chip">
-        ${safe}
+        <span class="site-label" title="${safe}">${safe}</span>
         <button type="button" data-action="remove-domain" data-group="${g.id}" data-domain="${safe}"
           title="Release ${safe}" aria-label="Release ${safe} from containment">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -416,9 +416,10 @@ function zoneBodyHtml(g, now, usage, session) {
       <div class="zone-columns">
         <div class="zone-col">
           <div class="col-label">Forbidden tunnels</div>
+          <p class="site-help">Domains cover subdomains. URL paths match by prefix (case-sensitive); /shorts/ covers that section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters and #fragments are ignored. HTTP and HTTPS are both covered.</p>
           <div class="domain-chips">${chipsHtml(g)}</div>
           <div class="add-domain-row">
-            <input type="text" placeholder="add a forbidden tunnel..." data-add-domain-input="${g.id}"
+            <input type="text" placeholder="domain.com or domain.com/path" data-add-domain-input="${g.id}"
               aria-label="Add a forbidden tunnel to ${escapeHtml(g.name)}" />
             <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add</button>
           </div>

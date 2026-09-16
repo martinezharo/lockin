@@ -14,20 +14,20 @@ Lock In helps you avoid distracting websites using schedules and daily allowance
 
 Main features:
 
-- Group user-selected domains into containment zones.
+- Group user-selected domains or URLs into containment zones.
 - Schedule blocking windows by weekday, including overnight windows.
-- Set daily allowances measured only while a configured hostname is active in the focused browser window.
+- Set daily allowances measured only while a configured domain or URL is active in the focused browser window.
 - Keep enforcement active outside the extension through a protected Windows watchdog task.
-- Fail closed for configured domains if the extension sensor disappears after setup.
+- Fail closed for configured domains or URLs if the extension sensor disappears after setup.
 - Require a manual typing challenge before weakening existing rules.
 - Display authoritative remaining time, current policy state and watchdog health.
 - Keep all configuration and usage information on the device, with no account, analytics, ads or server.
 
-Lock In requires its Windows watchdog package. It reads only the hostname of the active tab and never reads page content. The hostname is sent only to `127.0.0.1` and is never transmitted over the internet.
+Lock In requires its Windows watchdog package. It reads the hostname of the active tab and, when it matches a configured URL rule, its path and query and never reads page content. This data is sent only to `127.0.0.1` and is never transmitted over the internet.
 
 ## Single purpose
 
-Lock In's single purpose is to help the user avoid distracting websites by measuring user-selected domains and managing local schedule and allowance enforcement, with deliberate friction before restrictions can be weakened.
+Lock In's single purpose is to help the user avoid distracting websites by measuring user-selected domains or URLs and managing local schedule and allowance enforcement, with deliberate friction before restrictions can be weakened.
 
 ## Store fields
 

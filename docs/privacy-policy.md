@@ -6,8 +6,8 @@ Lock In is a local-first site-blocking system composed of a Chrome extension and
 
 ## Data handled
 
-- Zone names, user-selected domains, schedules, daily limits, and edit-lock preference.
-- The hostname of the active tab and whether its browser window is focused.
+- Zone names, user-selected domains or URLs, schedules, daily limits, and edit-lock preference.
+- The hostname of the active tab, plus its path and query when it matches a configured URL rule, and whether its browser window is focused.
 - Local time totals per zone and the current enforcement state.
 - The user's privacy-consent choice and the health of the local watchdog connection.
 - The selected Windows account names and SIDs, used locally to authenticate each protected sensor independently.
@@ -16,7 +16,7 @@ Lock In does not read page content, form values, messages, passwords, full brows
 
 ## How the data is used
 
-The active hostname is compared only with domains configured by the user. The watchdog calculates elapsed time, evaluates schedules and allowances, and applies local managed-browser URL policies. If the extension sensor disappears after enforcement has been armed, the watchdog applies configured-domain policies and an emergency outbound firewall block to the supported browser executable.
+The active hostname and matching URL are compared only with site rules configured by the user. The watchdog calculates elapsed time, evaluates schedules and allowances, and applies local managed-browser URL policies. If the extension sensor disappears after enforcement has been armed, the watchdog applies configured-domain policies and an emergency outbound firewall block to the supported browser executable.
 
 ## Local storage and loopback communication
 
