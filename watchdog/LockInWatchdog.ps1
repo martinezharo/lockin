@@ -19,12 +19,19 @@ $policyPaths = [ordered]@{
   chrome32 = 'HKLM:\SOFTWARE\WOW6432Node\Policies\Google\Chrome\URLBlocklist'
   brave32  = 'HKLM:\SOFTWARE\WOW6432Node\Policies\BraveSoftware\Brave\URLBlocklist'
 }
+$allowPolicyPaths = [ordered]@{
+  chrome   = 'HKLM:\SOFTWARE\Policies\Google\Chrome\URLAllowlist'
+  brave    = 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\URLAllowlist'
+  chrome32 = 'HKLM:\SOFTWARE\WOW6432Node\Policies\Google\Chrome\URLAllowlist'
+  brave32  = 'HKLM:\SOFTWARE\WOW6432Node\Policies\BraveSoftware\Brave\URLAllowlist'
+}
 $firewallGroup = 'LockInWatchdog'
 $script:ConsecutiveHeartbeatsBySid = @{}
 $script:BrowserSeenAtMsBySid = @{}
 $script:SensorHeartbeatMsBySid = @{}
 $script:LastUrl = ''
 $script:BlockedDomains = @()
+$script:AllowedDomains = @()
 $script:EnforcementReason = 'not armed'
 $script:FailClosedActive = $false
 $script:FirewallBlocked = $null
@@ -73,6 +80,7 @@ function New-DefaultState {
     lastHost = ''
     lastFocused = $false
     ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
+    ownedAllowPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
   }
 }
 
@@ -90,9 +98,15 @@ function Ensure-StateShape($Value) {
   if ($null -eq $Value.ownedPolicyValues) {
     $Value.ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
   }
+  if ($null -eq $Value.ownedAllowPolicyValues) {
+    $Value.ownedAllowPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
+  }
   foreach ($browser in $policyPaths.Keys) {
     if ($null -eq $Value.ownedPolicyValues.PSObject.Properties[$browser]) {
       $Value.ownedPolicyValues | Add-Member -NotePropertyName $browser -NotePropertyValue @()
+    }
+    if ($null -eq $Value.ownedAllowPolicyValues.PSObject.Properties[$browser]) {
+      $Value.ownedAllowPolicyValues | Add-Member -NotePropertyName $browser -NotePropertyValue @()
     }
   }
   return $Value
@@ -180,6 +194,18 @@ function Normalize-Groups($Groups) {
     if ($null -eq $group -or [string]::IsNullOrWhiteSpace([string]$group.id)) { continue }
     $domains = @($group.domains | ForEach-Object { Normalize-Site ([string]$_) } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
     $group.domains = $domains
+    $exceptions = @($group.exceptions | ForEach-Object { Normalize-Site ([string]$_) } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
+    $validExceptions = @()
+    foreach ($exception in $exceptions) {
+      $candidate = [Uri]("https://$exception")
+      $fits = @($domains | Where-Object { Test-SiteMatches ("https://$exception") ([string]$_) }).Count -gt 0
+      if (-not $candidate.Fragment -and ($candidate.AbsolutePath -ne '/' -or $candidate.Query) -and $fits) { $validExceptions += $exception }
+    }
+    if ($null -eq $group.PSObject.Properties['exceptions']) {
+      $group | Add-Member -NotePropertyName exceptions -NotePropertyValue @($validExceptions)
+    } else {
+      $group.exceptions = @($validExceptions)
+    }
     if ([string]::IsNullOrWhiteSpace([string]$group.name)) { $group.name = 'Unnamed zone' }
     $result += $group
   }
@@ -214,6 +240,9 @@ function Test-WithinSchedule($Schedule, [long]$Now) {
 }
 
 function Test-GroupMatchesHost($Group, [string]$HostName) {
+  foreach ($exception in @($Group.exceptions)) {
+    if (Test-SiteMatches ([string]$script:LastUrl) ([string]$exception)) { return $false }
+  }
   foreach ($domain in @($Group.domains)) {
     if ($domain -match '[/?:]') {
       if (Test-SiteMatches ([string]$script:LastUrl) ([string]$domain)) { return $true }
@@ -481,6 +510,34 @@ function Apply-BrowserPolicy([string]$Browser, [string[]]$Domains) {
   $script:Dirty = $true
 }
 
+function Apply-BrowserAllowPolicy([string]$Browser, [string[]]$Domains) {
+  if ($TestMode) { return }
+  $path = $allowPolicyPaths[$Browser]
+  if (-not (Test-Path -LiteralPath $path)) { New-Item -Path $path -Force | Out-Null }
+  $key = Get-Item -LiteralPath $path
+  $previous = @($script:State.ownedAllowPolicyValues.$Browser)
+  foreach ($entry in $previous) {
+    $current = $key.GetValue([string]$entry.name, $null)
+    if ($current -is [string] -and $current -eq [string]$entry.value) {
+      Remove-ItemProperty -LiteralPath $path -Name ([string]$entry.name) -ErrorAction SilentlyContinue
+    }
+  }
+  $occupied = @((Get-Item -LiteralPath $path).GetValueNames())
+  $owned = @()
+  $candidate = 1
+  foreach ($domain in $Domains) {
+    while ($candidate -le 1000 -and $occupied -contains [string]$candidate) { $candidate++ }
+    if ($candidate -gt 1000) { throw 'Chrome URLAllowlist has no free policy slots.' }
+    $name = [string]$candidate
+    New-ItemProperty -LiteralPath $path -Name $name -Value $domain -PropertyType String -Force | Out-Null
+    $occupied += $name
+    $owned += [pscustomobject]@{ name = $name; value = $domain }
+    $candidate++
+  }
+  $script:State.ownedAllowPolicyValues.$Browser = @($owned)
+  $script:Dirty = $true
+}
+
 function Test-OwnedPoliciesCurrent([string[]]$Domains) {
   if ($TestMode) { return $true }
   foreach ($browser in $policyPaths.Keys) {
@@ -498,10 +555,30 @@ function Test-OwnedPoliciesCurrent([string[]]$Domains) {
   return $true
 }
 
-function Apply-Policies([string[]]$Domains) {
-  $fingerprint = ($Domains -join "`n")
-  if ($script:LastPolicyFingerprint -ceq $fingerprint -and (Test-OwnedPoliciesCurrent $Domains)) { return }
-  foreach ($browser in $policyPaths.Keys) { Apply-BrowserPolicy $browser $Domains }
+function Test-OwnedAllowPoliciesCurrent([string[]]$Domains) {
+  if ($TestMode) { return $true }
+  foreach ($browser in $allowPolicyPaths.Keys) {
+    $path = $allowPolicyPaths[$browser]
+    $owned = @($script:State.ownedAllowPolicyValues.$browser)
+    if ($owned.Count -ne $Domains.Count) { return $false }
+    if ($owned.Count -eq 0) { continue }
+    if (-not (Test-Path -LiteralPath $path)) { return $false }
+    $key = Get-Item -LiteralPath $path
+    foreach ($entry in $owned) {
+      $current = $key.GetValue([string]$entry.name, $null)
+      if ($current -isnot [string] -or $current -ne [string]$entry.value) { return $false }
+    }
+  }
+  return $true
+}
+
+function Apply-Policies([string[]]$Domains, [string[]]$AllowedDomains) {
+  $fingerprint = ($Domains -join "`n") + "`n---ALLOW---`n" + ($AllowedDomains -join "`n")
+  if ($script:LastPolicyFingerprint -ceq $fingerprint -and (Test-OwnedPoliciesCurrent $Domains) -and (Test-OwnedAllowPoliciesCurrent $AllowedDomains)) { return }
+  foreach ($browser in $policyPaths.Keys) {
+    Apply-BrowserPolicy $browser $Domains
+    Apply-BrowserAllowPolicy $browser $AllowedDomains
+  }
   $script:LastPolicyFingerprint = $fingerprint
 }
 
@@ -510,13 +587,16 @@ function Evaluate-Enforcement([long]$Now) {
   $reasons = New-Object 'System.Collections.Generic.List[string]'
   $script:FailClosedActive = $false
   $enabledGroups = @($script:State.groups | Where-Object { $_.enabled -eq $true })
+  $blockingGroups = @()
 
   if ($script:State.enforcementArmed -eq $true) {
     foreach ($group in $enabledGroups) {
       if (Test-WithinSchedule $group.schedule $Now) {
+        $blockingGroups += $group
         foreach ($domain in @($group.domains)) { [void]$domains.Add([string]$domain) }
         if (-not $reasons.Contains('schedule')) { $reasons.Add('schedule') }
       } elseif ($null -ne $group.limit -and (Get-RemainingMs $group $Now) -le 0) {
+        $blockingGroups += $group
         foreach ($domain in @($group.domains)) { [void]$domains.Add([string]$domain) }
         if (-not $reasons.Contains('allowance spent')) { $reasons.Add('allowance spent') }
       }
@@ -554,10 +634,27 @@ function Evaluate-Enforcement([long]$Now) {
   }
 
   $script:BlockedDomains = @($domains | Sort-Object)
+  $allowed = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+  if (-not $script:FailClosedActive) {
+    foreach ($group in $blockingGroups) {
+      foreach ($exception in @($group.exceptions)) {
+        $conflict = $false
+        foreach ($otherGroup in $blockingGroups) {
+          if ($otherGroup.id -eq $group.id) { continue }
+          foreach ($otherRule in @($otherGroup.domains)) {
+            if (Test-SiteMatches ("https://$exception") ([string]$otherRule)) { $conflict = $true; break }
+          }
+          if ($conflict) { break }
+        }
+        if (-not $conflict) { [void]$allowed.Add([string]$exception) }
+      }
+    }
+  }
+  $script:AllowedDomains = @($allowed | Sort-Object)
   if ($script:State.enforcementArmed -ne $true) { $script:EnforcementReason = 'not armed' }
   elseif ($reasons.Count -eq 0) { $script:EnforcementReason = 'open' }
   else { $script:EnforcementReason = $reasons -join ', ' }
-  Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ })
+  Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ }) @($script:AllowedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ })
   Set-FirewallBlocked $script:FailClosedActive
 }
 
@@ -583,7 +680,9 @@ function Get-Snapshot([long]$Now) {
     lockMode = $script:State.lockMode -eq $true
     privacyConsent = $script:State.privacyConsent -eq $true
     supportsUrlRules = $true
+    supportsExceptions = $true
     blockedDomains = @($script:BlockedDomains)
+    allowedDomains = @($script:AllowedDomains)
     enforcementReason = $script:EnforcementReason
     protectedWindowsAccount = (@($script:ProtectedAccounts.Values) -join ', ')
     protectedWindowsAccounts = @($script:ProtectedAccounts.Values)

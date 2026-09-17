@@ -270,6 +270,10 @@ test('heartbeats send URL details only for a matching configured URL rule', asyn
   tabState.tabs = [{ id: 1, url: 'https://chatgpt.com/#settings/Personalization' }];
   await client.heartbeat();
   assert.equal(payload.url, 'https://chatgpt.com/#settings/Personalization');
+  state.groups = [{ id: 'exception', domains: ['chatgpt.com'], exceptions: ['chatgpt.com/codex/cloud/settings/analytics'] }];
+  tabState.tabs = [{ id: 1, url: 'https://chatgpt.com/codex/cloud/settings/analytics/team' }];
+  await client.heartbeat();
+  assert.equal(payload.url, 'https://chatgpt.com/codex/cloud/settings/analytics/team');
   state.privacyConsent = false;
   await client.heartbeat();
   assert.deepEqual(payload, { host: '', focused: false });
@@ -280,12 +284,13 @@ test('old watchdogs never receive URL configuration that they would broaden', as
   const requests = [];
   globalThis.fetch = async (url, options) => {
     requests.push({ url, options });
-    return { ok: true, json: async () => ({ data: { configured: true } }) };
+    return { ok: true, json: async () => ({ data: requests.length === 1 ? { configured: true } : { configured: true, supportsUrlRules: true } }) };
   };
   try {
     const client = new WatchdogClient();
     await assert.rejects(client.performRequest('updateConfig', { groups: [{ domains: ['example.com/path'] }] }), /Update the Windows watchdog/);
-    assert.equal(requests.length, 1);
+    await assert.rejects(client.performRequest('updateConfig', { groups: [{ domains: ['example.com'], exceptions: ['example.com/free'] }] }), /always-allowed pages/);
+    assert.equal(requests.length, 2);
     assert.match(requests[0].url, /health$/);
   } finally { globalThis.fetch = oldFetch; }
 });

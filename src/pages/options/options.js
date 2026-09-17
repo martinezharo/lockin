@@ -2,7 +2,7 @@
 // Markup lives in templates.js, the typing challenge in lock-gate.js.
 
 import { Storage } from '../../shared/storage.js';
-import { uid, normalizeSiteInput, parseSiteList } from '../../shared/domains.js';
+import { uid, normalizeSiteInput, parseSiteList, exceptionFitsDomains, siteMatches } from '../../shared/domains.js';
 import { timeValueToMinutes } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
@@ -99,6 +99,9 @@ const disableGroup = (id) => withLockCheck(() => updateGroup(id, (g) => { g.enab
 const removeDomain = (id, domain) =>
   withLockCheck(() => updateGroup(id, (g) => { g.domains = g.domains.filter((d) => d !== domain); }));
 
+const removeException = (id, exception) =>
+  updateGroup(id, (g) => { g.exceptions = (g.exceptions || []).filter((item) => item !== exception); });
+
 // Changing the rules can loosen an existing block — later gate hours, a bigger
 // allowance, a rule switched off entirely — so the whole save gets the same
 // typing-challenge friction as disarming a zone.
@@ -147,6 +150,36 @@ async function addDomain(id, input) {
   return updateGroup(id, (g) => {
     if (!g.domains.includes(domain)) g.domains.push(domain);
   });
+}
+
+async function addException(id, input) {
+  const exception = normalizeSiteInput(input.value);
+  const groups = await Storage.getGroups();
+  const group = groups.find((item) => item.id === id);
+  let message = '';
+  if (!exception) message = 'Enter a valid HTTP(S) URL, without credentials or wildcards.';
+  else if (!exceptionFitsDomains(exception, group?.domains)) message = 'Use a path inside one of this zone\'s forbidden tunnels; a whole domain cannot be exempted.';
+  else if (groups.some((other) => other.id !== id && other.enabled && other.domains.some(rule => siteMatches('https://' + exception, rule)))) {
+    message = 'Another armed zone also contains this page. Move or remove that overlapping rule before allowing it here.';
+  }
+  if (message) {
+    input.setCustomValidity(message);
+    input.reportValidity();
+    return;
+  }
+  const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+  if (nativeStatus?.supportsExceptions !== true) {
+    input.setCustomValidity('Update the Windows watchdog and reload the extension before adding always-allowed pages.');
+    input.reportValidity();
+    return;
+  }
+  if (!(await checkUrlSupport([exception], input))) return;
+  input.setCustomValidity('');
+  return withLockCheck(() => updateGroup(id, (g) => {
+    input.value = '';
+    g.exceptions ||= [];
+    if (!g.exceptions.includes(exception)) g.exceptions.push(exception);
+  }));
 }
 
 /* ---------------- Lock switch and dev banner ---------------- */
@@ -292,7 +325,7 @@ newGroupForm.addEventListener('submit', async (e) => {
   if (!rules) return;
 
   await updateGroups((groups) => {
-    groups.push({ id: uid(), name, domains, enabled: true, ...rules, createdAt: Date.now() });
+    groups.push({ id: uid(), name, domains, exceptions: [], enabled: true, ...rules, createdAt: Date.now() });
   });
 
   resetNewGroupForm();
@@ -359,9 +392,14 @@ const ZONE_ACTIONS = {
     saveGroupName(id, input);
   },
   'remove-domain': (id, btn) => removeDomain(id, btn.dataset.domain),
+  'remove-exception': (id, btn) => removeException(id, btn.dataset.exception),
   'add-domain': (id, btn) => {
     const input = btn.closest('.zone').querySelector('[data-add-domain-input]');
     addDomain(id, input);
+  },
+  'add-exception': (id, btn) => {
+    const input = btn.closest('.zone').querySelector('[data-add-exception-input]');
+    addException(id, input);
   },
   'save-rules': (id, btn) => {
     const editor = btn.closest('.zone').querySelector('[data-rules-editor]');
@@ -388,9 +426,10 @@ groupsListEl.addEventListener('keydown', (e) => {
     return;
   }
 
-  if (!e.target.matches('[data-add-domain-input]')) return;
+  if (!e.target.matches('[data-add-domain-input], [data-add-exception-input]')) return;
   e.preventDefault();
-  addDomain(e.target.getAttribute('data-add-domain-input'), e.target);
+  if (e.target.matches('[data-add-domain-input]')) addDomain(e.target.getAttribute('data-add-domain-input'), e.target);
+  else addException(e.target.getAttribute('data-add-exception-input'), e.target);
 });
 
 /* ---------------- Rule controls ----------------
@@ -467,6 +506,7 @@ document.addEventListener('change', (e) => {
 
 document.addEventListener('input', (e) => {
   if (e.target.matches('[data-zone-name-input]')) e.target.setCustomValidity('');
+  if (e.target.matches('[data-add-domain-input], [data-add-exception-input]')) e.target.setCustomValidity('');
   if (e.target.matches('[data-limit-minutes]')) markPresets(e.target.closest('[data-rule-body]'));
   if (e.target.matches('[data-sched-start], [data-sched-end]')) paintWindowBand(e.target.closest('[data-rule-body]'));
 });

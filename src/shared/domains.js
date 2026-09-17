@@ -67,3 +67,16 @@ export function siteMatches(page, rule) {
     return !listed.hash || url.hash.startsWith(listed.hash);
   } catch { return false; }
 }
+
+export function isPathException(rule) {
+  try {
+    const url = new URL('https://' + rule);
+    return !url.hash && (url.pathname !== '/' || Boolean(url.search));
+  } catch { return false; }
+}
+
+export function exceptionFitsDomains(exception, domains) {
+  if (!isPathException(exception)) return false;
+  const page = 'https://' + exception;
+  return (domains || []).some(rule => siteMatches(page, rule));
+}

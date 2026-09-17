@@ -1,6 +1,6 @@
 # Lock In — Site Blocker 👹
 
-Lock In is a Manifest V3 extension plus a protected PowerShell watchdog for Windows. The extension is the dashboard and active-tab sensor. The watchdog owns elapsed time, applies Chrome/Brave `URLBlocklist` policy, and closes the disable-extension escape hatch with Windows Firewall.
+Lock In is a Manifest V3 extension plus a protected PowerShell watchdog for Windows. The extension is the dashboard and active-tab sensor. The watchdog owns elapsed time, applies Chrome/Brave `URLBlocklist` and `URLAllowlist` policy, and closes the disable-extension escape hatch with Windows Firewall.
 
 ## How it works
 
@@ -15,6 +15,7 @@ LockInWatchdog.ps1 (scheduled task running as SYSTEM)
   ├─ authoritative groups and daily usage
   ├─ schedules and allowance decisions
   ├─ owned Chrome/Brave URLBlocklist entries
+  ├─ owned Chrome/Brave URLAllowlist exceptions
   └─ emergency browser firewall rules when the sensor disappears
 ```
 
@@ -25,7 +26,8 @@ No custom executable, certificate, cloud account or external server is required.
 The watchdog starts disarmed and imports the extension's current groups. It arms only after three consecutive valid heartbeats. After it is armed:
 
 - scheduled zones are written to managed browser URL policy;
-- zones whose daily allowance is spent are written to the same policy; and
+- zones whose daily allowance is spent are written to the same policy;
+- zone-specific always-allowed paths stay open and do not consume allowance;
 - policy decisions are reevaluated every 250 ms; when a newly blocked domain is
   already the active tab, Lock In reloads that tab once so the browser applies
   the policy without a manual refresh; and
@@ -78,8 +80,11 @@ sensor. Connected sessions still require their own sensor; reconnecting starts
 a fresh grace period. Scheduled blocks continue to apply machine-wide.
 
 To update an existing watchdog without resetting its rules, usage, or armed
-state, run `scripts/update-windows-watchdog.ps1` from an administrator PowerShell.
-The updater backs up the installed script and restores it if startup fails.
+state, run `pnpm watchdog:update` and accept the single UAC prompt. The updater
+elevates only the protected copy step, backs up the installed script, restarts
+the SYSTEM task, verifies its health, and restores the backup if startup fails.
+UAC cannot be removed safely without allowing user-writable code to replace a
+SYSTEM process.
 Reload the unpacked extension in the current browser to activate client changes.
 
 ```powershell

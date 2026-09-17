@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeSiteInput, parseSiteList, siteMatches } from '../src/shared/domains.js';
+import { normalizeSiteInput, parseSiteList, siteMatches, isPathException, exceptionFitsDomains } from '../src/shared/domains.js';
 
 test('site inputs preserve path, identifiers and fragments while removing tracking', () => {
   assert.equal(normalizeSiteInput('https://WWW.YouTube.com/watch?v=AbC&utm_source=test#details'), 'youtube.com/watch?v=AbC#details');
@@ -14,6 +14,14 @@ test('invalid rules cannot silently turn into broader domain blocks', () => {
     assert.equal(normalizeSiteInput(input), '', input);
     assert.throws(() => parseSiteList('example.com\n' + input));
   }
+});
+
+test('exceptions must be specific pages inside a contained rule', () => {
+  assert.equal(isPathException('chatgpt.com/codex/cloud/settings/analytics'), true);
+  assert.equal(isPathException('chatgpt.com'), false);
+  assert.equal(isPathException('chatgpt.com/#settings'), false);
+  assert.equal(exceptionFitsDomains('chatgpt.com/codex/cloud/settings/analytics', ['chatgpt.com']), true);
+  assert.equal(exceptionFitsDomains('other.example/path', ['chatgpt.com']), false);
 });
 
 test('URL matching follows path prefixes, case, subdomains and query token subsets', () => {

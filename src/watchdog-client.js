@@ -40,7 +40,7 @@ async function focusedPage() {
   const host = hostOf(tab?.url);
   const groups = await Storage.getGroups();
   // Only send a URL when a configured URL rule matches this page.
-  const matchingUrlRules = groups.flatMap(g => g.domains)
+  const matchingUrlRules = groups.flatMap(g => [...g.domains, ...(g.exceptions || [])])
     .filter(rule => /[/?# :]/.test(rule) && siteMatches(tab?.url, rule));
   let url = '';
   if (matchingUrlRules.length) {
@@ -81,6 +81,7 @@ export class WatchdogClient {
     this.configRevision = 0;
     this.configSyncPending = false;
     this.lastObservedBlockedDomains = null;
+    this.lastObservedAllowedDomains = null;
     this.applyingSnapshot = false;
     this.started = false;
     this.checkedNavigations = new Map();
@@ -209,10 +210,14 @@ export class WatchdogClient {
   }
 
   async performRequest(type, payload = {}) {
-    if (['bootstrap', 'updateConfig'].includes(type) && payload.groups?.some(g => g.domains.some(rule => /[/?# :]/.test(rule)))) {
+    const configRequest = ['bootstrap', 'updateConfig'].includes(type);
+    const needsUrlRules = payload.groups?.some(g => g.domains.some(rule => /[/?# :]/.test(rule)));
+    const needsExceptions = payload.groups?.some(g => (g.exceptions || []).length > 0);
+    if (configRequest && (needsUrlRules || needsExceptions)) {
       const health = await fetch('http://127.0.0.1:8765/health', { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: 'no-store' });
       const status = await health.json();
       if (!health.ok || status.data?.supportsUrlRules !== true) throw new Error('Update the Windows watchdog before using URL rules.');
+      if (needsExceptions && status.data?.supportsExceptions !== true) throw new Error('Update the Windows watchdog before using always-allowed pages.');
     }
     const requestId = `${Date.now()}-${++this.requestNumber}`;
     const controller = new AbortController();
@@ -256,6 +261,7 @@ export class WatchdogClient {
         nativeStatus: {
           connected: true,
           supportsUrlRules: snapshot.supportsUrlRules === true,
+          supportsExceptions: snapshot.supportsExceptions === true,
           configured: snapshot.configured === true,
           enforcementArmed: snapshot.enforcementArmed === true,
           failClosed: snapshot.failClosed === true,
@@ -265,6 +271,7 @@ export class WatchdogClient {
           protectedWindowsAccount: snapshot.protectedWindowsAccount || '',
           protectedWindowsAccounts: snapshot.protectedWindowsAccounts || [],
           blockedDomains: snapshot.blockedDomains || [],
+          allowedDomains: snapshot.allowedDomains || [],
           enforcementReason: snapshot.enforcementReason || 'open',
           updatedAt: Date.now()
         }
@@ -281,8 +288,15 @@ export class WatchdogClient {
         this.lastObservedBlockedDomains ?? current.nativeStatus?.blockedDomains ?? []
       );
       const nextBlockedDomains = new Set(next.nativeStatus.blockedDomains);
+      const previousAllowedDomains = new Set(
+        this.lastObservedAllowedDomains ?? current.nativeStatus?.allowedDomains ?? []
+      );
+      const nextAllowedDomains = new Set(next.nativeStatus.allowedDomains);
       const changedPolicyDomains = [...new Set([...previousBlockedDomains, ...nextBlockedDomains])]
         .filter((domain) => previousBlockedDomains.has(domain) !== nextBlockedDomains.has(domain));
+      for (const domain of new Set([...previousAllowedDomains, ...nextAllowedDomains])) {
+        if (previousAllowedDomains.has(domain) !== nextAllowedDomains.has(domain)) changedPolicyDomains.push(domain);
+      }
       const changed = Object.fromEntries(
         Object.entries(next).filter(([key, value]) =>
           (!preserveConfig || !CONFIG_KEYS.has(key)) && JSON.stringify(current[key]) !== JSON.stringify(value)
@@ -290,6 +304,7 @@ export class WatchdogClient {
       );
       if (Object.keys(changed).length) await chrome.storage.local.set(changed);
       this.lastObservedBlockedDomains = [...next.nativeStatus.blockedDomains];
+      this.lastObservedAllowedDomains = [...next.nativeStatus.allowedDomains];
       if (reloadActiveTab) await reloadTabsForPolicyChange(changedPolicyDomains);
     } finally {
       this.applyingSnapshot = false;

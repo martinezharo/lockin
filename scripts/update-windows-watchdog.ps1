@@ -1,10 +1,23 @@
 [CmdletBinding()]
-param()
+param([switch]$Elevated)
 
 $ErrorActionPreference = 'Stop'
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-  throw 'Run this updater from an elevated PowerShell window.'
+  if ($Elevated) { throw 'The watchdog updater could not obtain administrator privileges.' }
+  $powerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Elevated')
+  try {
+    $process = Start-Process -FilePath $powerShellExe -Verb RunAs -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
+  } catch {
+    throw 'The watchdog update was cancelled or could not be elevated.'
+  }
+  if ($process.ExitCode -ne 0) { throw "The elevated watchdog updater failed with exit code $($process.ExitCode)." }
+  $health = Invoke-RestMethod http://127.0.0.1:8765/health -TimeoutSec 10
+  if (-not $health.ok) { throw 'The updated watchdog did not pass its health check.' }
+  Write-Output 'Watchdog updated and verified.'
+  $health.data | Select-Object supportsUrlRules, supportsExceptions, enforcementArmed, failClosedActive, firewallBlocked, enforcementReason
+  return
 }
 
 $source = Join-Path (Split-Path -Parent $PSScriptRoot) 'watchdog\LockInWatchdog.ps1'

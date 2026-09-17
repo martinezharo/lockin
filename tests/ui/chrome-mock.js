@@ -9,6 +9,7 @@
         id: 'social',
         name: 'Scroll pit',
         domains: ['x.com', 'instagram.com', 'reddit.com'],
+        exceptions: ['x.com/i/account_analytics'],
         enabled: true,
         schedule: null,
         limit: { minutes: 45 },
@@ -31,6 +32,7 @@
     nativeStatus: {
       connected: true,
       supportsUrlRules: true,
+      supportsExceptions: true,
       configured: true,
       enforcementArmed: true,
       failClosed: true,

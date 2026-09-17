@@ -28,11 +28,14 @@ $cases = @(
 foreach ($case in $cases) {
   if ((Test-SiteMatches $case[0] $case[1]) -ne $case[2]) { throw "URL mismatch: $($case[0]) against $($case[1])" }
 }
-$group = [pscustomobject]@{ id='url'; name='URL'; domains=@('example.com/Path', 'example.com/path') }
+$group = [pscustomobject]@{ id='url'; name='URL'; domains=@('example.com/Path', 'example.com/path'); exceptions=@('example.com/Path/free', 'other.example/free', 'example.com') }
 $normalized = @(Normalize-Groups @($group))
 if ($normalized[0].domains.Count -ne 2) { throw 'Case-sensitive paths collapsed' }
+if ($normalized[0].exceptions.Count -ne 1 -or $normalized[0].exceptions[0] -cne 'example.com/Path/free') { throw 'Invalid exceptions were not removed' }
 $script:LastUrl = 'https://example.com/elsewhere'
 if (Test-GroupMatchesHost $group 'example.com') { throw 'Unrelated page consumes URL allowance' }
 $script:LastUrl = 'https://example.com/Path'
 if (-not (Test-GroupMatchesHost $group 'example.com')) { throw 'Matching page does not consume allowance' }
+$script:LastUrl = 'https://example.com/Path/free/report'
+if (Test-GroupMatchesHost $normalized[0] 'example.com') { throw 'Always-allowed page consumes allowance' }
 Write-Output 'Watchdog URL rule tests passed.'

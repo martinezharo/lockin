@@ -391,6 +391,24 @@ function chipsHtml(g) {
     .join('');
 }
 
+function exceptionChipsHtml(g) {
+  const exceptions = g.exceptions || [];
+  if (exceptions.length === 0) return '<span class="muted">no secret passages yet</span>';
+  return exceptions.map((exception) => {
+    const safe = escapeHtml(exception);
+    return `
+      <span class="chip exception-chip">
+        <span class="exception-mark" aria-hidden="true">↳</span>
+        <span class="site-label" title="${safe}">${safe}</span>
+        <button type="button" data-action="remove-exception" data-group="${g.id}" data-exception="${safe}"
+          title="Contain ${safe} again" aria-label="Remove the always-allowed exception for ${safe}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </span>`;
+  }).join('');
+}
+
 function meterHtml(g, now, usage, session) {
   if (!g.limit) return '';
   const { percent, label, spent } = meterState(g, now, usage, session);
@@ -423,6 +441,19 @@ function zoneBodyHtml(g, now, usage, session) {
               aria-label="Add a forbidden tunnel to ${escapeHtml(g.name)}" />
             <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add</button>
           </div>
+          <div class="exception-box">
+            <div class="exception-heading">
+              <span class="col-label">Always allowed</span>
+              <span class="free-pass">free pass 🐭</span>
+            </div>
+            <p class="site-help">Specific pages here stay open and never use this zone's daily allowance. Paths work as prefixes, so everything below them is included.</p>
+            <div class="domain-chips exception-chips">${exceptionChipsHtml(g)}</div>
+            <div class="add-domain-row">
+              <input type="text" placeholder="domain.com/path to keep free" data-add-exception-input="${g.id}"
+                aria-label="Add an always-allowed page to ${escapeHtml(g.name)}" />
+              <button type="button" class="ghost exception-add" data-action="add-exception" data-group="${g.id}">Allow</button>
+            </div>
+          </div>
         </div>
 
         <div class="zone-col rules-col">
@@ -453,7 +484,8 @@ function zoneBodyHtml(g, now, usage, session) {
 export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
   const open = openIds.has(g.id);
   const state = zoneStateClass(g, now, usage, session);
-  const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}`;
+  const exceptionCount = (g.exceptions || []).length;
+  const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}${exceptionCount ? ` · ${exceptionCount} free pass${exceptionCount === 1 ? '' : 'es'}` : ''}`;
 
   // Arming is free and strengthens containment, so a disarmed row gets the
   // shortcut right there. It sits outside the toggle: a button inside a button

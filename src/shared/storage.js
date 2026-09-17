@@ -39,6 +39,7 @@ export function normalizeGroup(g) {
   const { mode, expiresAt, ...rest } = g;
   return {
     ...rest,
+    exceptions: Array.isArray(g.exceptions) ? g.exceptions : [],
     schedule: normalizeSchedule((legacy ? mode === 'schedule' && g.schedule : g.schedule) || null),
     limit: g.limit || null
   };

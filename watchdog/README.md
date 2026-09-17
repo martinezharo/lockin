@@ -45,10 +45,17 @@ so `chatgpt.com/#settings/Personalization` covers that client-side section
 without blocking the rest of ChatGPT. Common tracking parameters are removed
 from configured rules. Encode literal commas as %2C in the list.
 
-Update the watchdog with `scripts/update-windows-watchdog.ps1` from an elevated
-PowerShell in the repository, then reload the extension. The updater backs up
-the installed script. Older watchdogs cannot accept URL rules; the dashboard
-and bridge reject those writes until the watchdog advertises support.
+A zone may also contain always-allowed paths. They must be specific paths or
+query-based pages inside one of that zone's contained rules. They stay open
+during scheduled containment and after an allowance is spent, and time on them
+is not counted. Whole-domain and fragment exceptions are rejected. If another
+active zone contains the same page, its explicit block wins.
+
+Update the watchdog with `pnpm watchdog:update` from the repository and accept
+the UAC prompt, then reload the extension. The updater backs up the installed
+script, restarts the task, and verifies its health. Older watchdogs cannot
+accept URL rules; the dashboard and bridge reject those writes until the
+watchdog advertises support.
 
 Only pages matching configured URL rules send their path, query, and fragment over
 loopback. The active URL is held in memory, not written to the state file.

@@ -63,6 +63,7 @@ try {
       id: 'permanent-test',
       name: 'Permanent test',
       domains: ['example.com'],
+      exceptions: ['example.com/always-open'],
       enabled: true,
       schedule: null,
       limit: { minutes: 0 },
@@ -79,6 +80,8 @@ try {
   assert.equal(armed.enforcementArmed, true);
   assert.equal(armed.firewallBlocked, false);
   assert.deepEqual(armed.blockedDomains, ['example.com']);
+  assert.deepEqual(armed.allowedDomains, ['example.com/always-open']);
+  assert.equal(armed.supportsExceptions, true);
 
   await new Promise((resolveWait) => setTimeout(resolveWait, 3000));
   const missing = await send('heartbeat', { host: 'example.com', focused: true });
@@ -95,6 +98,12 @@ try {
   const inside = await send('heartbeat', { host: 'example.com', url: 'https://example.com/Path?extra=1&v=ABC', focused: true });
   assert.ok(inside.usageSession?.groupIds?.includes('url'));
   assert.deepEqual(inside.groups[0].domains, ['example.com/Path?v=ABC']);
+  await send('updateConfig', {
+    groups: [{ id: 'excepted', name: 'Excepted allowance', domains: ['example.com'], exceptions: ['example.com/free'], enabled: true, schedule: null, limit: { minutes: 1 } }],
+    privacyConsent: true, lockMode: false
+  });
+  const excepted = await send('heartbeat', { host: 'example.com', url: 'https://example.com/free/report', focused: true });
+  assert.ok(!excepted.usageSession?.groupIds?.includes('excepted'));
   const caseSensitive = await send('updateConfig', {
     groups: [{ id: 'case', name: 'Distinct paths', domains: ['example.com/Path', 'example.com/path'], enabled: true, limit: { minutes: 0 } }],
     privacyConsent: true, lockMode: false
