@@ -44,7 +44,18 @@ html, body {
 .service-copy { display: flex; flex-direction: column; min-width: 0; }
 .service-copy strong { font-size: 12.5px; }
 .service-copy span { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
-.service-reason { margin-left: auto; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; }
+.service-reason {
+  flex: none;
+  margin-left: auto;
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.service-panel.state-disconnected .service-reason { border-color: var(--rust-line); color: var(--rust); }
 .service-panel.state-ready .service-dot { background: var(--c-mint); }
 .service-panel.state-blocking .service-dot { background: var(--c-rose); }
 .service-panel.state-warning .service-dot,
@@ -111,7 +122,15 @@ html, body {
   transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
 }
 
-.lock-switch-icon { font-size: 15px; line-height: 1; }
+/* A drawn padlock, so it takes the theme's ink on paper and paper on violet
+   the way every other mark on the switch does. */
+.lock-switch-icon {
+  display: inline-flex;
+  line-height: 0;
+  color: var(--ink-soft);
+}
+
+.lock-switch[aria-pressed="true"] .lock-switch-icon { color: var(--accent-on); }
 
 .lock-switch-text {
   display: flex;
@@ -309,6 +328,44 @@ html, body {
   color: var(--muted);
 }
 
+/* The key names the three shapes the strip is drawn from, in the order you
+   meet them across a row, so the strip needs no sentence underneath it. */
+.strip-key {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.strip-key li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key-swatch {
+  display: block;
+  width: 16px;
+  height: 11px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 3px;
+}
+
+.key-shut { background: repeating-linear-gradient(115deg, var(--flag) 0 5px, var(--flag-deep) 5px 10px); }
+.key-open { background: var(--track); }
+
+.key-now {
+  width: 4px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--c-rose);
+}
+
 .strip-scale {
   padding-left: 144px;
   padding-right: 108px;
@@ -356,15 +413,7 @@ html, body {
 
 .strip-row.state-spent .strip-note { color: var(--rust); }
 
-.strip-legend {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin: 2px 0 0;
-  padding-left: 144px;
-}
+.strip-row:last-child { margin-bottom: 0; }
 
 /* ---------- 3. Zone rows ---------- */
 
@@ -634,10 +683,14 @@ html, body {
   margin-bottom: 10px;
 }
 
+/* A rule can be a long URL, so a chip is allowed to wrap its label and shrink
+   to the column rather than pushing the column wider. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  max-width: 100%;
+  min-width: 0;
   background: var(--bg);
   border: var(--stroke-w-thin) solid var(--stroke);
   border-radius: var(--radius-pill);
@@ -655,8 +708,14 @@ html, body {
   border-color: var(--rust);
 }
 
+.site-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .chip button {
   display: inline-flex;
+  flex-shrink: 0;
   border: none;
   background: transparent;
   color: var(--ink);
@@ -690,15 +749,15 @@ html, body {
 .meter-fill {
   display: block;
   height: 100%;
-  background: repeating-linear-gradient(115deg, var(--c-rose) 0 8px, var(--c-rose-deep) 8px 16px);
+  background: var(--accent);
   transition: width 0.6s linear;
 }
 
+/* A reading, not a label: "28m of 45m left today" is a sentence, and small
+   tracked capitals are the wrong way to say one. */
 .meter-label {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 11px;
   color: var(--ink-soft);
   margin-top: 6px;
 }
@@ -739,18 +798,6 @@ html, body {
   margin-bottom: 2px;
 }
 
-.free-pass {
-  padding: 3px 8px;
-  border: var(--stroke-w-thin) solid var(--stroke);
-  border-radius: var(--radius-pill);
-  background: var(--c-amber-bright);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
 .exception-chips { margin-top: 10px; }
 
 .exception-chip {
@@ -762,6 +809,15 @@ html, body {
 .exception-add { background: var(--c-amber-bright); }
 
 /* ---------- Fields ---------- */
+
+/* The paragraph beside a field. help.js lifts these into its info dialog when
+   it runs; this is how they read on a page that renders without it. */
+.site-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 8px 0 12px;
+}
 
 .field {
   display: flex;
@@ -777,6 +833,12 @@ html, body {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--muted);
 }
 
@@ -1165,9 +1227,13 @@ select:focus {
 
 /* ---------- Privacy and local data ---------- */
 
+/* Same column as .container, so the footer rule starts where the content does
+   instead of running out to the window edges. */
 .privacy-footer {
-  width: min(1180px, calc(100% - 48px));
+  max-width: 920px;
   margin: 0 auto 34px;
+  padding-left: 28px;
+  padding-right: 28px;
   padding-top: 18px;
   border-top: var(--stroke-w-thin) dashed var(--line-soft);
   display: flex;
@@ -1354,12 +1420,16 @@ select:focus {
   margin-top: 14px;
 }
 
+/* A whisper, not a third button: sharing the action row with two full labels
+   left it wrapping down the side of them. */
 .modal-nudge {
-  flex: 1;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--c-ink-soft);
+  margin: 12px 0 0;
 }
+
+.modal-nudge + .modal-actions { margin-top: 8px; }
 
 .modal-actions .ghost { background: var(--c-paper-bright); }
 
@@ -1385,9 +1455,27 @@ select:focus {
 @media (max-width: 760px) {
   .now-panel { flex-direction: column; align-items: flex-start; }
   .now-headline { font-size: 32px; }
-  .zone-toggle { flex-wrap: wrap; gap: 8px 12px; }
-  .zone-name { width: auto; }
-  .zone-status { flex-basis: 100%; }
+  /* Wrapped as a flex row, the count and the chevron ended up wherever the
+     status line left them, so no two rows agreed on where to click. As a grid
+     the chevron is pinned to the right edge of every row. */
+  .zone-toggle {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: center;
+  }
+
+  .zone-dot { grid-row: 1; }
+  .zone-name { grid-row: 1; width: auto; }
+  .zone-chevron { grid-row: 1; grid-column: 3; }
+  .zone-status { grid-column: 2 / 4; }
+  .zone-count { grid-column: 2 / 4; }
+
+  /* The new-permit row is the same grid without a chevron, so its plus keeps
+     the dot's column and its name takes the rest of the line. */
+  .new-zone-plus { grid-row: 1; grid-column: 1; }
+  .new-zone-toggle .zone-name { grid-column: 2 / 4; }
   .strip-name { width: 92px; }
   .strip-note { display: none; }
   .strip-scale { padding-right: 0; padding-left: 104px; }
@@ -1401,8 +1489,3 @@ select:focus {
   .schedule-window .window-arrow { display: none; }
   .schedule-window .remove-window { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 }
-
-.site-help { font-size: 12px; line-height: 1.6; color: var(--muted, #666); margin: 8px 0 12px; }
-.chip { max-width: 100%; min-width: 0; }
-.site-label { overflow-wrap: anywhere; min-width: 0; }
-.chip button { flex-shrink: 0; }

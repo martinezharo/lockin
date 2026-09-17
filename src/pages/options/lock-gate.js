@@ -89,6 +89,15 @@ modal.addEventListener('click', (e) => {
   if (e.target === modal) close();
 });
 
+// Escape leaves containment as it was, which is the safe direction and the
+// same thing clicking outside the card already did.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+    e.preventDefault();
+    close();
+  }
+});
+
 // Run `action` now if edit lock is off, or behind the typing challenge if not.
 export async function withLockCheck(action) {
   if (await Storage.getLockMode()) open(action);

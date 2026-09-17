@@ -29,8 +29,14 @@ function siteHelp(hint) {
     title.className = oldTitle.className;
     title.htmlFor = textarea.id;
     title.textContent = oldTitle.textContent;
+    // Anything else the field carries — a format hint, for one — is moved with
+    // it in the order it was written; only the old title and the hint that
+    // became this dialog are left behind.
+    const rest = Array.from(fieldLabel.children).filter(
+      (el) => el !== oldTitle && el !== textarea && el !== hint
+    );
     fieldLabel.replaceWith(field);
-    field.append(title, textarea);
+    field.append(title, textarea, ...rest);
     beside(title, button);
     return;
   }

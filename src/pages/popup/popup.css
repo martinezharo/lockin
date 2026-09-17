@@ -18,7 +18,13 @@ body { width: 268px; }
   letter-spacing: -0.02em;
 }
 
-.brand-lock { margin-left: auto; font-size: 14px; line-height: 1; }
+.brand-lock {
+  margin-left: auto;
+  line-height: 0;
+  color: var(--muted);
+}
+
+.brand-lock.on { color: var(--c-amber); }
 
 /* ---------- The next gate ---------- */
 
@@ -41,11 +47,19 @@ body { width: 268px; }
 
 .next-label {
   font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--c-mute);
   margin-top: 5px;
+  text-wrap: pretty;
+}
+
+.next-clock {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-ink);
+  margin-top: 2px;
 }
 
 /* ---------- One line per zone ---------- */
@@ -105,27 +119,30 @@ body { width: 268px; }
   margin: 0 0 13px;
 }
 
+/* The lock line and the watchdog line sit in the same left-aligned column as
+   the zone rows: three alignments inside 268px read as three unrelated
+   widgets rather than one panel. */
 .lock-row {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 13px;
-  text-align: center;
+  padding-top: 11px;
+  margin-bottom: 9px;
+  border-top: 1px solid rgba(253, 242, 224, 0.22);
 }
 
 .lock-row.on { color: var(--c-amber); }
 
 .service-row {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--muted);
   border: var(--stroke-w-thin) solid var(--c-mute-soft);
   border-radius: var(--radius-sm);
-  padding: 7px 8px;
-  margin: -5px 0 13px;
-  text-align: center;
+  padding: 7px 9px;
+  margin-bottom: 13px;
+  text-wrap: pretty;
 }
 
 .service-row.ready { color: var(--c-mint); border-color: var(--c-mint); }

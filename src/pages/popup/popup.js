@@ -2,6 +2,8 @@ import { Storage } from '../../shared/storage.js';
 import { isGroupActive, isInWindow } from '../../shared/schedule.js';
 import { isAllowanceSpent, isPermanentLimit, remainingMs, formatDuration } from '../../shared/usage.js';
 import { formatClock, nextEvent } from '../../shared/timeline.js';
+import { enforcementReasonText } from '../../shared/enforcement.js';
+import { lockIconHtml } from '../../shared/lock-icon.js';
 
 function escapeHtml(str) {
   return String(str)
@@ -19,7 +21,7 @@ function zoneLine(g, now, usage, session) {
   if (isPermanentLimit(g.limit)) return { state: 'spent', note: 'permanent' };
   if (isAllowanceSpent(g, usage, session, now)) return { state: 'spent', note: 'spent' };
   if (isInWindow(g, now)) return { state: 'shut', note: 'shut' };
-  if (g.limit) return { state: 'open', note: formatDuration(remainingMs(g, usage, session, now)) };
+  if (g.limit) return { state: 'open', note: `${formatDuration(remainingMs(g, usage, session, now))} left` };
   return { state: isGroupActive(g, now, usage, session) ? 'shut' : 'open', note: 'open' };
 }
 
@@ -49,7 +51,8 @@ async function init() {
     document.getElementById('nextPanel').hidden = false;
     document.getElementById('nextValue').textContent = formatDuration(event.at - now);
     document.getElementById('nextLabel').textContent =
-      `until ${event.group.name} ${event.kind === 'shuts' ? 'shuts' : 'reopens'} · ${formatClock(event.at)}`;
+      `until ${event.group.name} ${event.kind === 'shuts' ? 'shuts' : 'reopens'}`;
+    document.getElementById('nextClock').textContent = formatClock(event.at);
   }
 
   document.getElementById('emptyState').hidden = groups.length > 0;
@@ -66,20 +69,22 @@ async function init() {
     .join('');
 
   const lockRow = document.getElementById('lockRow');
-  lockRow.textContent = lockMode ? '🔒 edit lock sealed' : '🔓 tiny mammal has admin privileges';
+  lockRow.textContent = lockMode ? 'edit lock sealed' : 'tiny mammal has admin privileges';
   lockRow.classList.toggle('on', lockMode);
-  document.getElementById('brandLock').textContent = lockMode ? '🔒' : '🔓';
+  const brandLock = document.getElementById('brandLock');
+  brandLock.innerHTML = lockIconHtml(lockMode, 15);
+  brandLock.classList.toggle('on', lockMode);
 
   const serviceRow = document.getElementById('serviceRow');
   const nativeStatus = localState.nativeStatus;
   if (!nativeStatus?.connected) {
-    serviceRow.textContent = '⚠ local enforcement watchdog offline';
+    serviceRow.textContent = 'local enforcement watchdog offline';
     serviceRow.classList.add('offline');
   } else if (!nativeStatus.enforcementArmed) {
-    serviceRow.textContent = '⚠ watchdog connected · waiting to arm';
+    serviceRow.textContent = 'watchdog connected · waiting to arm';
     serviceRow.classList.add('blocking');
   } else if ((nativeStatus.blockedDomains || []).length > 0) {
-    serviceRow.textContent = `● ${nativeStatus.enforcementReason} · Windows policy active`;
+    serviceRow.textContent = `Windows is blocking · ${enforcementReasonText(nativeStatus.enforcementReason)}`;
     serviceRow.classList.add('blocking');
   } else {
     const protectedAccounts = (nativeStatus.protectedWindowsAccounts?.length
@@ -87,8 +92,8 @@ async function init() {
       : [nativeStatus.protectedWindowsAccount]
     ).filter(Boolean).map((account) => account.split('\\').pop());
     serviceRow.textContent = protectedAccounts.length
-      ? `● Windows enforcement armed · ${protectedAccounts.join(' + ')}`
-      : '● Windows enforcement armed';
+      ? `Windows enforcement armed · ${protectedAccounts.join(' + ')}`
+      : 'Windows enforcement armed';
     serviceRow.classList.add('ready');
   }
 }

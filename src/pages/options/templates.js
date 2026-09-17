@@ -45,7 +45,7 @@ const pct = (minutes) => `${((minutes / MINUTES_PER_DAY) * 100).toFixed(3)}%`;
 // because it is the choice you make on purpose, not the one you nudge towards.
 const LIMIT_PRESETS = [15, 30, 60, 120, 0];
 
-const presetLabel = (minutes) => (minutes === 0 ? 'Permanent 👹' : formatDuration(minutes * 60000));
+const presetLabel = (minutes) => (minutes === 0 ? 'Permanent' : formatDuration(minutes * 60000));
 
 // The window drawn as a band over the same 24 hours the day strip uses, so
 // "09:00 to 17:00" is the same shape in the editor as it is on the board.
@@ -108,14 +108,19 @@ function scheduleControlsHtml({ days = [], windows, start = 9 * 60, end = 17 * 6
     <div class="schedule-windows" data-schedule-windows>
       ${ranges.map((window, index) => scheduleWindowRowHtml(window, index, ranges.length)).join('')}
     </div>
-    <button type="button" class="add-window" data-add-window><span aria-hidden="true">＋</span> Add another window</button>
+    <button type="button" class="add-window" data-add-window><svg width="11" height="11" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Add another window</button>
     <p class="rule-error" data-sched-error role="alert" hidden></p>
   `;
 }
 
-function limitControlsHtml({ minutes = 30 } = {}) {
+// `active` is whether the rule is switched on, not whether it has a value:
+// an off allowance still shows 30 in its box as the number it would use, but
+// highlighting a preset there would claim a choice nobody has made yet.
+function limitControlsHtml({ minutes = 30, active = false } = {}) {
   const presets = LIMIT_PRESETS.map(
-    (m) => `<button type="button" class="preset ${m === 0 ? 'preset-permanent' : ''} ${m === minutes ? 'checked' : ''}"
+    (m) => `<button type="button" class="preset ${m === 0 ? 'preset-permanent' : ''} ${active && m === minutes ? 'checked' : ''}"
       data-limit-preset="${m}">${presetLabel(m)}</button>`
   ).join('');
 
@@ -125,8 +130,8 @@ function limitControlsHtml({ minutes = 30 } = {}) {
       <span class="field-label">Minutes per day</span>
       <input type="number" min="0" max="1440" step="1" data-limit-minutes value="${minutes}" />
     </label>
-    <p class="rule-note" data-limit-permanent ${minutes === 0 ? '' : 'hidden'}>
-      🔒 Permanent: zero minutes a day, so these gates never open — not at midnight, not ever, until you change this rule.
+    <p class="rule-note" data-limit-permanent ${active && minutes === 0 ? '' : 'hidden'}>
+      Permanent: zero minutes a day, so these gates never open — not at midnight, not ever, until you change this rule.
     </p>
     <p class="rule-error" data-limit-error role="alert" hidden></p>
   `;
@@ -160,20 +165,20 @@ export function rulesControlsHtml({ schedule = null, limit = null, showNoRulesHi
   return `
     ${section(
       'schedule',
-      'Scheduled hours ⏰',
+      'Scheduled hours',
       'Add as many shut windows as you need. They share the selected days, and overnight containment (e.g. 22:00 &rarr; 06:00) works too.',
       Boolean(schedule),
       scheduleControlsHtml(schedule || {})
     )}
     ${section(
       'limit',
-      'Daily allowance ⏳',
+      'Daily allowance',
       'Time spent on these sites while the gates are open. When it runs out they shut until midnight — or pick <strong>Permanent</strong> for an allowance of nothing at all.',
       Boolean(limit),
-      limitControlsHtml(limit || {}) + limitExtra
+      limitControlsHtml({ ...(limit || {}), active: Boolean(limit) }) + limitExtra
     )}
     <p class="no-rules-hint" data-no-rules-hint ${showNoRulesHint && !schedule && !limit ? '' : 'hidden'}>
-      ⚠ No rules set — this zone stays contained 24/7.
+      No rules set — this zone stays contained 24/7.
     </p>
   `;
 }
@@ -278,11 +283,11 @@ export function meterState(g, now = Date.now(), usage = null, session = null) {
   const permanent = isPermanentLimit(g.limit);
   return {
     spent,
-    percent: total > 0 ? Math.min(100, ((total - left) / total) * 100) : 100,
+    percent: total > 0 ? Math.max(0, Math.min(100, (left / total) * 100)) : 0,
     label: permanent
       ? 'permanent · no allowance, today or any other day'
       : spent
-        ? `allowance spent · ${formatDuration(total)} used today`
+        ? `allowance spent — ${formatDuration(total)} used today`
         : `${formatDuration(left)} of ${formatDuration(total)} left today`
   };
 }
@@ -313,7 +318,9 @@ export function nowPanelState(groups, now = Date.now(), usage = null, session = 
   const shuts = event.kind === 'shuts';
   return {
     headline,
-    detail: `Next thing that happens: <strong>${escapeHtml(event.group.name)} ${shuts ? 'shuts' : 'reopens'} at ${formatClock(event.at)}</strong> — in ${formatDuration(event.at - now)}. 👹`,
+    // The stamp beside this sentence is the countdown, so the sentence spends
+    // its words on what the stamp cannot say: which zone, and at what time.
+    detail: `Next thing that happens: <strong>${escapeHtml(event.group.name)} ${shuts ? 'shuts' : 'reopens'} at ${formatClock(event.at)}</strong>.`,
     countdown: formatDuration(event.at - now),
     // The zone is the subject in the sentence above and the gates are the
     // subject here, so the verb has to agree with the gates, not with it.
@@ -393,7 +400,7 @@ function chipsHtml(g) {
 
 function exceptionChipsHtml(g) {
   const exceptions = g.exceptions || [];
-  if (exceptions.length === 0) return '<span class="muted">no secret passages yet</span>';
+  if (exceptions.length === 0) return '<span class="muted">no always-allowed pages yet</span>';
   return exceptions.map((exception) => {
     const safe = escapeHtml(exception);
     return `
@@ -444,7 +451,6 @@ function zoneBodyHtml(g, now, usage, session) {
           <div class="exception-box">
             <div class="exception-heading">
               <span class="col-label">Always allowed</span>
-              <span class="free-pass">free pass 🐭</span>
             </div>
             <p class="site-help">Specific pages here stay open and never use this zone's daily allowance. Paths work as prefixes, so everything below them is included.</p>
             <div class="domain-chips exception-chips">${exceptionChipsHtml(g)}</div>
@@ -459,7 +465,7 @@ function zoneBodyHtml(g, now, usage, session) {
         <div class="zone-col rules-col">
           <div class="col-head">
             <span class="col-label">Containment rules</span>
-            <span class="paperwork-flag">🔒 needs paperwork</span>
+            <span class="paperwork-flag">needs paperwork</span>
           </div>
           <div class="rules-editor" data-rules-editor="${g.id}">
             ${rulesControlsHtml({ ...g, limitExtra: meterHtml(g, now, usage, session) })}
@@ -468,13 +474,13 @@ function zoneBodyHtml(g, now, usage, session) {
       </div>
 
       <div class="zone-actions">
-        <button type="button" class="primary" data-action="save-rules" data-group="${g.id}">Save rules 🔒</button>
+        <button type="button" class="primary" data-action="save-rules" data-group="${g.id}">Save rules</button>
         <button type="button" class="ghost" data-action="toggle" data-group="${g.id}">Cancel</button>
         <span class="spacer"></span>
         ${
           g.enabled
-            ? `<button type="button" class="ghost" data-action="disable" data-group="${g.id}">Disarm 🔓</button>`
-            : `<button type="button" class="ghost" data-action="enable" data-group="${g.id}">Arm containment 🔒</button>`
+            ? `<button type="button" class="ghost" data-action="disable" data-group="${g.id}">Disarm</button>`
+            : `<button type="button" class="ghost" data-action="enable" data-group="${g.id}">Arm containment</button>`
         }
         <button type="button" class="btn-danger" data-action="delete" data-group="${g.id}">Delete zone</button>
       </div>
@@ -492,7 +498,7 @@ export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
   // is not markup, it is a dare.
   const armShortcut =
     !g.enabled && !open
-      ? `<button type="button" class="arm-shortcut" data-action="enable" data-group="${g.id}">Arm 🔒</button>`
+      ? `<button type="button" class="arm-shortcut" data-action="enable" data-group="${g.id}">Arm</button>`
       : '';
 
   return `
