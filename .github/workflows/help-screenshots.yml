@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   screenshots:
@@ -21,6 +21,8 @@ jobs:
           node-version: 22
       - run: npm install --no-save playwright
       - run: npx playwright install --with-deps chromium
+      - name: Check existing unit tests
+        run: node --test tests/*.test.mjs
       - name: Start the existing mocked UI server
         run: node scripts/serve-ui-test.mjs > /tmp/lockin-ui.log 2>&1 &
       - name: Verify dialogs and capture screenshots
@@ -32,3 +34,18 @@ jobs:
           name: help-dialog-screenshots
           path: screenshots/*.png
           if-no-files-found: warn
+      - name: Include screenshots directly in PR branch
+        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          PR_HEAD: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$PR_HEAD"
+          git switch -C "$PR_HEAD" "origin/$PR_HEAD"
+          git add screenshots/*.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: add real UI screenshots [skip ci]"
+            git push origin "HEAD:$PR_HEAD"
+          fi
