@@ -14,7 +14,9 @@ try {
   let loaded = false;
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
-      await page.goto('http://127.0.0.1:4178/', { waitUntil: 'networkidle' });
+      // Use its actual URL, not /: relative module and stylesheet URLs need
+      // the options directory even though the test server maps / to this HTML.
+      await page.goto('http://127.0.0.1:4178/src/pages/options/options.html', { waitUntil: 'networkidle' });
       loaded = true;
       break;
     } catch {
