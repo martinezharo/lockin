@@ -1,4 +1,4 @@
-// Browser smoke test and real screenshots of the options UI using its built-in mock.
+// Browser smoke test and screenshots using Lock In's built-in mock.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -7,6 +7,9 @@ const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] }
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
+page.on('response', response => {
+  if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${response.url()}`);
+});
 try {
   let loaded = false;
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -19,7 +22,14 @@ try {
     }
   }
   assert.ok(loaded, 'UI test server must be available');
-  await page.locator('#groupsList .zone-toggle').first().waitFor();
+  try {
+    await page.locator('#groupsList .zone-toggle').first().waitFor({ timeout: 8000 });
+  } catch (error) {
+    console.error('Browser errors:', errors);
+    console.error('Document:', (await page.locator('body').innerText()).slice(0, 1500));
+    console.error('Mock loaded:', await page.evaluate(() => typeof chrome !== 'undefined' && Boolean(chrome.storage?.local)));
+    throw error;
+  }
   await page.locator('#groupsList .zone-toggle').first().click();
   const zone = page.locator('.zone.is-open');
   await zone.locator('.info-button').first().waitFor();
