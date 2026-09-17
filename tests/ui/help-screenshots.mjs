@@ -58,8 +58,27 @@ try {
   assert.equal(await page.locator('#groupDomains').inputValue(), 'example.com');
   assert.equal(await page.locator('#newGroupForm .info-button').count(), 3);
   await page.locator('#newZone').screenshot({ path: 'screenshots/new-zone-compact.png' });
+  await page.locator('#newZoneCancel').click();
+  // Away from the row it just closed, so the board is photographed at rest
+  // rather than mid-hover and mid-transition.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(300);
+
+  // The whole board, and the same board in a half-width window: the two views
+  // where alignment problems show up and a cropped panel cannot.
+  await page.screenshot({ path: 'screenshots/dashboard.png', fullPage: true });
+  await page.setViewportSize({ width: 760, height: 900 });
+  await page.waitForTimeout(200);
+  await page.locator('.zones-section').screenshot({ path: 'screenshots/zones-narrow.png' });
+
+  const popup = await browser.newPage({ viewport: { width: 268, height: 420 } });
+  popup.on('pageerror', (error) => errors.push(`popup: ${error.message}`));
+  await popup.goto('http://127.0.0.1:4178/src/pages/popup/popup.html', { waitUntil: 'networkidle' });
+  await popup.locator('.zone-row').first().waitFor({ timeout: 8000 });
+  await popup.locator('.wrap').screenshot({ path: 'screenshots/popup.png' });
+
   assert.deepEqual(errors, [], 'No uncaught page errors');
-  console.log('Help UI checks passed; 3 actual browser screenshots captured.');
+  console.log('Help UI checks passed; 6 actual browser screenshots captured.');
 } finally {
   await browser.close();
 }
