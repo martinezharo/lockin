@@ -1,0 +1,69 @@
+/* Compact, keyboard-accessible information controls beside their headings. */
+.help-title-row,
+.help-rule-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+.help-title-row { margin-bottom: 9px; }
+.field .help-title-row { margin-bottom: 0; }
+.help-title-row .col-label { margin-bottom: 0; }
+.exception-heading .help-title-row { margin-bottom: 0; }
+.help-rule-heading { margin-bottom: 0; }
+.info-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  cursor: pointer;
+}
+.info-button:hover { border-color: var(--stroke); background: var(--flag); color: var(--ink); }
+.info-button:focus-visible,
+.info-modal-close:focus-visible {
+  outline: var(--stroke-w-thin) solid var(--accent);
+  outline-offset: 3px;
+}
+.info-modal-card {
+  max-width: 480px;
+  max-height: min(80vh, 680px);
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--ink);
+}
+.info-modal-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.info-modal-heading h3 { font-size: 20px; line-height: 1.2; }
+.info-modal-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.info-modal-close:hover { background: var(--hover-wash); }
+.info-modal-body { margin-top: 15px; color: var(--ink-soft); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.info-modal-body strong { color: var(--ink); }
+.info-modal-card .modal-actions { margin-top: 20px; }
+@media (max-width: 480px) {
+  .info-modal-card { padding: 18px; }
+  .info-modal-heading h3 { font-size: 17px; }
+}
