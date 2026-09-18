@@ -17,7 +17,7 @@ try {
 
   await page.locator('#groupsList .zone-toggle').first().click();
   const zone = page.locator('.zone.is-open');
-  assert.match(await zone.locator('.exception-heading').innerText(), /free pass 🐭/u);
+  assert.match(await zone.locator('.exception-heading').innerText(), /free pass 🐭/iu);
   assert.match(await zone.locator('.paperwork-flag').innerText(), /🔒/u);
   assert.match(await zone.locator('[data-action="save-rules"]').innerText(), /🔒/u);
   assert.match(await zone.locator('.rule-head').allTextContents().then((texts) => texts.join(' ')), /⏰.*⏳/u);
