@@ -7,7 +7,8 @@ if (!repo || !token || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+  const suffix = path ? `/${path}` : '';
+  const response = await fetch(`https://api.github.com/repos/${repo}${suffix}`, {
     ...options,
     headers: {
       Accept: 'application/vnd.github+json',
