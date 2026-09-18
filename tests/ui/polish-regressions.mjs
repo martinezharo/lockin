@@ -20,7 +20,9 @@ try {
   assert.match(await zone.locator('.exception-heading').innerText(), /free pass 🐭/iu);
   assert.match(await zone.locator('.paperwork-flag').innerText(), /🔒/u);
   assert.match(await zone.locator('[data-action="save-rules"]').innerText(), /🔒/u);
-  assert.match(await zone.locator('.rule-head').allTextContents().then((texts) => texts.join(' ')), /⏰.*⏳/u);
+  const ruleHeadings = await zone.locator('.rule-head').allTextContents();
+  assert.ok(ruleHeadings.some((text) => text.includes('⏰')), 'Scheduled hours keeps its emoji');
+  assert.ok(ruleHeadings.some((text) => text.includes('⏳')), 'Daily allowance keeps its emoji');
   assert.match(await zone.locator('.preset-permanent').innerText(), /👹/u);
 
   // A status badge must stay inside the panel even when multiple reasons are
