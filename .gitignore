@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.zip
 dist/
+
+# Browser snapshots are temporary CI artifacts, not repository assets.
+/screenshots/
