@@ -5,7 +5,9 @@ import { Storage } from '../../shared/storage.js';
 import { uid, normalizeSiteInput, parseSiteList, exceptionFitsDomains, siteMatches } from '../../shared/domains.js';
 import { timeValueToMinutes } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
+import { enforcementReasonText } from '../../shared/enforcement.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
+import { lockIconHtml } from '../../shared/lock-icon.js';
 import {
   zoneRowHtml,
   dayStripHtml,
@@ -188,7 +190,7 @@ async function refreshLockSwitch() {
   const lockMode = await Storage.getLockMode();
   lockSwitch.setAttribute('aria-pressed', String(lockMode));
   lockSwitchState.textContent = lockMode ? 'sealed' : 'open';
-  lockSwitchIcon.textContent = lockMode ? '🔒' : '🔓';
+  lockSwitchIcon.innerHTML = lockIconHtml(lockMode, 16);
   lockNote.textContent = lockMode
     ? 'weakening containment needs paperwork'
     : 'anything can be undone right now 🐭';
@@ -244,7 +246,7 @@ async function refreshServiceStatus() {
     servicePanel.classList.add('state-warning');
     serviceHeadline.textContent = 'Watchdog connected · safe rollout not armed yet';
     serviceDetail.textContent = 'Three valid sensor heartbeats are required before Windows policies can activate.';
-    serviceReason.textContent = nativeStatus.enforcementReason || 'not armed';
+    serviceReason.textContent = enforcementReasonText(nativeStatus.enforcementReason, 'not armed yet');
     return;
   }
 
@@ -263,7 +265,7 @@ async function refreshServiceStatus() {
   serviceDetail.textContent = accountPrefix + (nativeStatus.failClosedActive
     ? 'Lock In sensor disappeared, so the watchdog blocked browser networking.'
     : 'Usage and schedules are owned by the protected local watchdog.');
-  serviceReason.textContent = nativeStatus.enforcementReason || 'open';
+  serviceReason.textContent = enforcementReasonText(nativeStatus.enforcementReason);
 }
 
 /* ---------------- The new-permit row ----------------
@@ -338,7 +340,7 @@ function paintNowPanel(groups, now, usage, session) {
   const { headline, detail, countdown, countdownLabel } = nowPanelState(groups, now, usage, session);
   const when = new Date(now);
 
-  nowClockEl.textContent = `right now · ${formatClock(now)} · ${when.toLocaleDateString(undefined, { weekday: 'long' }).toLowerCase()}`;
+  nowClockEl.textContent = `${formatClock(now)} · ${when.toLocaleDateString(undefined, { weekday: 'long' }).toLowerCase()}`;
   nowHeadlineEl.textContent = headline;
   // nowPanelState escapes the zone name it interpolates; the rest is ours.
   nowDetailEl.innerHTML = detail;
@@ -450,6 +452,14 @@ function markPresets(root) {
   if (note) note.hidden = raw === '' || minutes !== 0;
 }
 
+// An off allowance claims nothing: no preset is picked and the permanent
+// promise is not on screen, whatever number its box is holding.
+function clearPresets(root) {
+  root.querySelectorAll('[data-limit-preset]').forEach((btn) => btn.classList.remove('checked'));
+  const note = root.querySelector('[data-limit-permanent]');
+  if (note) note.hidden = true;
+}
+
 // The band above the time fields is the same picture as a row of the day
 // strip, so editing the hours redraws it immediately rather than leaving the
 // preview lying until the next save.
@@ -498,8 +508,13 @@ document.addEventListener('change', (e) => {
 
   if (e.target.matches('[data-rule-toggle]')) {
     const block = e.target.closest('[data-rule-block]');
+    const body = block.querySelector('[data-rule-body]');
     block.classList.toggle('on', e.target.checked);
-    block.querySelector('[data-rule-body]').disabled = !e.target.checked;
+    body.disabled = !e.target.checked;
+    if (block.dataset.ruleBlock === 'limit') {
+      if (e.target.checked) markPresets(body);
+      else clearPresets(body);
+    }
     refreshNoRulesHint(block.parentElement);
   }
 });

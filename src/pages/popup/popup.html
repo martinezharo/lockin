@@ -5,6 +5,7 @@
   <title>Lock In</title>
   <link rel="stylesheet" href="../../styles/fonts.css" />
   <link rel="stylesheet" href="../../styles/tokens.css" />
+  <link rel="stylesheet" href="../../styles/emoji-fallback.css" />
   <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
@@ -13,7 +14,7 @@
     <div class="brand">
       <img src="../../../icons/icon48.png" alt="" width="22" height="22" />
       <span class="brand-title">Lock In</span>
-      <span class="brand-lock" id="brandLock" aria-hidden="true">🔓</span>
+      <span class="brand-lock" id="brandLock" aria-hidden="true"></span>
     </div>
 
     <!-- The next gate, not a count of things. A number of "zones active" is
@@ -22,6 +23,7 @@
     <div id="nextPanel" class="next-panel" hidden>
       <div class="next-value" id="nextValue"></div>
       <div class="next-label" id="nextLabel"></div>
+      <div class="next-clock" id="nextClock"></div>
     </div>
 
     <div id="zoneList" class="zone-list"></div>

@@ -1,0 +1,50 @@
+/* Allow the watchdog reason to move below its headline instead of squeezing
+   text or overflowing when multiple enforcement reasons are reported. */
+.service-panel { flex-wrap: wrap; }
+.service-reason { min-width: 0; max-width: 100%; flex: 0 1 auto; overflow-wrap: anywhere; }
+
+/* The footer text was aligned, but its border still extended into the 28px
+   outer gutters. Put the rule on the same inset as the page content. */
+.privacy-footer { position: relative; border-top: 0; }
+.privacy-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  right: 28px;
+  border-top: var(--stroke-w-thin) dashed var(--line-soft);
+}
+
+/* This playful badge identifies exceptions without replacing their clear name. */
+.free-pass {
+  padding: 3px 8px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  background: var(--c-amber-bright);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* Expose a short legend explanation to assistive technology without placing
+   another competing line of microcopy under the timeline. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 760px) {
+  .service-copy { flex: 1 1 calc(100% - 24px); }
+  .service-reason { margin-left: 22px; margin-right: auto; }
+  .day-panel .panel-head { flex-wrap: wrap; }
+  .strip-key { flex-wrap: wrap; }
+}

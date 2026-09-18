@@ -5,8 +5,10 @@
   <title>Lock In — Tiny Mammal Containment</title>
   <link rel="stylesheet" href="../../styles/fonts.css" />
   <link rel="stylesheet" href="../../styles/tokens.css" />
+  <link rel="stylesheet" href="../../styles/emoji-fallback.css" />
   <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="options.css" />
+  <link rel="stylesheet" href="polish-fixes.css" />
 </head>
 <body>
   <!-- The top bar carries the seal and nothing else. What edit lock does is
@@ -21,7 +23,7 @@
     <div class="lock-area">
       <span class="lock-note" id="lockNote">weakening containment needs paperwork</span>
       <button id="lockSwitch" class="lock-switch" type="button" aria-pressed="false">
-        <span class="lock-switch-icon" aria-hidden="true">🔓</span>
+        <span class="lock-switch-icon" aria-hidden="true"></span>
         <span class="lock-switch-text">
           <span class="lock-switch-label">Edit lock</span>
           <span class="lock-switch-state" id="lockSwitchState">open</span>
@@ -54,16 +56,20 @@
     </section>
 
     <!-- 2. The same rules, drawn -->
-    <section class="day-panel" id="dayPanel" aria-labelledby="dayPanelTitle">
+    <section class="day-panel" id="dayPanel" aria-labelledby="dayPanelTitle" aria-describedby="stripDescription">
       <div class="panel-head">
         <h2 id="dayPanelTitle">Your <span id="dayName">day</span>, contained</h2>
-        <span class="panel-note">shut hours in colour · free hours in paper</span>
+        <ul class="strip-key" aria-label="Timeline key">
+          <li><span class="key-swatch key-shut" aria-hidden="true"></span>shut</li>
+          <li><span class="key-swatch key-open" aria-hidden="true"></span>open</li>
+          <li><span class="key-swatch key-now" aria-hidden="true"></span>now</li>
+        </ul>
       </div>
+      <p class="visually-hidden" id="stripDescription">Colored bands show shut hours, paper shows open hours, and the rose line marks now. Hours to the right of now have not happened yet.</p>
       <div class="strip-scale" aria-hidden="true">
         <span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span>
       </div>
       <div id="dayStrip" class="strip"></div>
-      <p class="strip-legend">▲ the rose line is now — everything right of it is still negotiable</p>
     </section>
 
     <!-- 3. The zones themselves -->
@@ -105,8 +111,9 @@
                 </label>
 
                 <label class="field">
-                  <span class="field-label">Domains or URLs (one per line, or comma separated)</span>
+                  <span class="field-label">Forbidden tunnels</span>
                   <textarea id="groupDomains" rows="4" placeholder="x.com&#10;youtube.com/shorts/&#10;youtube.com/watch?v=ABC" required></textarea>
+                  <span class="field-hint">One per line, or separated by commas.</span>
                   <span class="site-help">Domains cover subdomains. URL paths and #fragments match by prefix (case-sensitive); /shorts/ or #settings/Personalization can cover one section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters are ignored. HTTP and HTTPS are both covered.</span>
                 </label>
               </div>
@@ -167,10 +174,10 @@
 
   <!-- Challenge modal -->
   <div id="challengeModal" class="modal-overlay hidden">
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
       <div class="modal-header">
-        <span id="modalEmoji" class="modal-emoji">👹</span>
-        <h3>prove you mean it, tiny mammal</h3>
+        <span id="modalEmoji" class="modal-emoji" aria-hidden="true">👹</span>
+        <h3 id="challengeTitle">prove you mean it, tiny mammal</h3>
       </div>
       <p class="modal-instructions">
         Typing this by hand is the whole point. No copy, no paste.
@@ -191,8 +198,8 @@
         spellcheck="false"
       ></textarea>
       <div id="challengeError" class="challenge-error"></div>
+      <p class="modal-nudge">still time to change your mind 🐭</p>
       <div class="modal-actions">
-        <span class="modal-nudge">still time to change your mind 🐭</span>
         <button id="challengeCancel" class="ghost" type="button">Return to the mines</button>
         <button id="challengeSubmit" class="primary" type="button">Approve terrible decision</button>
       </div>
