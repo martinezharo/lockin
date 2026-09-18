@@ -69,7 +69,7 @@ async function init() {
     .join('');
 
   const lockRow = document.getElementById('lockRow');
-  lockRow.textContent = lockMode ? 'edit lock sealed' : 'tiny mammal has admin privileges';
+  lockRow.textContent = lockMode ? '🔒 edit lock sealed' : '🔓 tiny mammal has admin privileges';
   lockRow.classList.toggle('on', lockMode);
   const brandLock = document.getElementById('brandLock');
   brandLock.innerHTML = lockIconHtml(lockMode, 15);
@@ -78,13 +78,13 @@ async function init() {
   const serviceRow = document.getElementById('serviceRow');
   const nativeStatus = localState.nativeStatus;
   if (!nativeStatus?.connected) {
-    serviceRow.textContent = 'local enforcement watchdog offline';
+    serviceRow.textContent = '⚠️ local enforcement watchdog offline';
     serviceRow.classList.add('offline');
   } else if (!nativeStatus.enforcementArmed) {
-    serviceRow.textContent = 'watchdog connected · waiting to arm';
+    serviceRow.textContent = '⚠️ watchdog connected · waiting to arm';
     serviceRow.classList.add('blocking');
   } else if ((nativeStatus.blockedDomains || []).length > 0) {
-    serviceRow.textContent = `Windows is blocking · ${enforcementReasonText(nativeStatus.enforcementReason)}`;
+    serviceRow.textContent = `● Windows is blocking · ${enforcementReasonText(nativeStatus.enforcementReason)}`;
     serviceRow.classList.add('blocking');
   } else {
     const protectedAccounts = (nativeStatus.protectedWindowsAccounts?.length
@@ -92,8 +92,8 @@ async function init() {
       : [nativeStatus.protectedWindowsAccount]
     ).filter(Boolean).map((account) => account.split('\\').pop());
     serviceRow.textContent = protectedAccounts.length
-      ? `Windows enforcement armed · ${protectedAccounts.join(' + ')}`
-      : 'Windows enforcement armed';
+      ? `● Windows enforcement armed · ${protectedAccounts.join(' + ')}`
+      : '● Windows enforcement armed';
     serviceRow.classList.add('ready');
   }
 }

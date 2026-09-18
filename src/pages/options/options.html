@@ -5,8 +5,10 @@
   <title>Lock In — Tiny Mammal Containment</title>
   <link rel="stylesheet" href="../../styles/fonts.css" />
   <link rel="stylesheet" href="../../styles/tokens.css" />
+  <link rel="stylesheet" href="../../styles/emoji-fallback.css" />
   <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="options.css" />
+  <link rel="stylesheet" href="polish-fixes.css" />
 </head>
 <body>
   <!-- The top bar carries the seal and nothing else. What edit lock does is
@@ -54,15 +56,16 @@
     </section>
 
     <!-- 2. The same rules, drawn -->
-    <section class="day-panel" id="dayPanel" aria-labelledby="dayPanelTitle">
+    <section class="day-panel" id="dayPanel" aria-labelledby="dayPanelTitle" aria-describedby="stripDescription">
       <div class="panel-head">
         <h2 id="dayPanelTitle">Your <span id="dayName">day</span>, contained</h2>
-        <ul class="strip-key" aria-hidden="true">
-          <li><span class="key-swatch key-shut"></span>shut</li>
-          <li><span class="key-swatch key-open"></span>open</li>
-          <li><span class="key-swatch key-now"></span>now</li>
+        <ul class="strip-key" aria-label="Timeline key">
+          <li><span class="key-swatch key-shut" aria-hidden="true"></span>shut</li>
+          <li><span class="key-swatch key-open" aria-hidden="true"></span>open</li>
+          <li><span class="key-swatch key-now" aria-hidden="true"></span>now</li>
         </ul>
       </div>
+      <p class="visually-hidden" id="stripDescription">Colored bands show shut hours, paper shows open hours, and the rose line marks now. Hours to the right of now have not happened yet.</p>
       <div class="strip-scale" aria-hidden="true">
         <span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span>
       </div>
@@ -94,7 +97,7 @@
                 stroke-width="3.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </span>
             <span class="zone-name">Open a new containment permit</span>
-            <span class="zone-status">always free · no paperwork</span>
+            <span class="zone-status">always free · no paperwork 🐭</span>
           </button>
         </div>
 
@@ -128,7 +131,7 @@
             </div>
 
             <div class="zone-actions">
-              <button type="submit" class="primary">Lock it down</button>
+              <button type="submit" class="primary">Lock it down 👹</button>
               <button type="button" class="ghost" id="newZoneCancel">Cancel</button>
             </div>
           </form>

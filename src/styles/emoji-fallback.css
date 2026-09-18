@@ -1,0 +1,7 @@
+/* Local text fonts deliberately contain only Latin glyphs. Keep the product's
+   emoji in the copy and let an installed colour-emoji font draw those glyphs. */
+:root {
+  --font-display: 'Bricolage Grotesque', 'Space Grotesk', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Space Grotesk', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'SFMono-Regular', Consolas, monospace;
+}
