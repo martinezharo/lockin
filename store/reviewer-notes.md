@@ -2,7 +2,13 @@
 
 Lock In is a local-only site blocker for Windows. It has no account or external service, but version `1.4.1` requires the reproducible PowerShell watchdog bundle.
 
-> Submission blocker: replace this paragraph with a reviewer-accessible HTTPS download and SHA-256 for `lock-in-1.4.1-windows-watchdog.zip` before submitting the update.
+Download that bundle without repository access from
+<https://github.com/martinezharo/lockin/releases/download/v1.4.1/lock-in-1.4.1-windows-watchdog.zip>.
+Its SHA-256 is published beside it as `lock-in-1.4.1-windows-watchdog.zip.sha256` and repeated in the release
+notes. The archive is built from this repository by a tagged GitHub Actions run, not by hand.
+
+> Before submitting: paste the literal SHA-256 from that release here so the reviewer does not have to follow
+> a second link.
 
 ## Companion setup
 

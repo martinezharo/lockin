@@ -2,18 +2,21 @@
 
 ## Developer account
 
-- [ ] Sign in with the intended publisher Google account.
-- [ ] Enable 2-Step Verification.
-- [ ] Accept the Chrome Web Store developer agreement.
-- [ ] Pay the one-time developer registration fee.
-- [ ] Verify the publisher contact email.
+Completed: version `1.3.0` is already published as unlisted, which Google only allows once the account is
+signed in, protected by 2-Step Verification, bound to the developer agreement, paid up and contact-verified.
+
+- [x] Sign in with the intended publisher Google account.
+- [x] Enable 2-Step Verification.
+- [x] Accept the Chrome Web Store developer agreement.
+- [x] Pay the one-time developer registration fee.
+- [x] Verify the publisher contact email.
 
 ## Package
 
-- [ ] Install and test `dist/lock-in-1.4.1-windows-watchdog.zip` first.
-- [ ] Publish a reviewer-accessible HTTPS download for that exact watchdog archive and record its SHA-256.
-- [ ] Replace the submission-blocker paragraph in `store/reviewer-notes.md` with that URL and checksum.
-- [ ] Upload `dist/lock-in-1.4.1-chrome-web-store.zip`.
+- [ ] Push tag `v1.4.1` so the Release workflow publishes both archives with their checksums.
+- [ ] Install and test the released `lock-in-1.4.1-windows-watchdog.zip` first.
+- [ ] Paste that release's literal SHA-256 into `store/reviewer-notes.md`.
+- [ ] Approve the `chrome-web-store` environment so the tagged run uploads `lock-in-1.4.1-chrome-web-store.zip`.
 - [ ] Confirm the dashboard detects Manifest V3 and version 1.4.1.
 - [ ] Do not upload the repository or a manually created ZIP.
 

@@ -2,6 +2,7 @@
   "name": "lock-in-site-blocker",
   "version": "1.4.1",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
@@ -10,6 +11,7 @@
     "watchdog:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-windows-watchdog.ps1",
     "watchdog:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-watchdog-bundle.ps1",
     "release": "bash scripts/build-release.sh",
-    "verify": "pnpm check && pnpm test && pnpm watchdog:test"
+    "verify": "pnpm check && pnpm test && pnpm watchdog:test",
+    "store:token": "node scripts/get-store-refresh-token.mjs"
   }
 }
