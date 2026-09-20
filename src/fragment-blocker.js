@@ -49,21 +49,86 @@
     shadow.innerHTML = `
       <style>
         :host { all: initial; }
-        .screen { box-sizing:border-box;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 15%,rgba(213,255,83,.12),transparent 32rem),radial-gradient(circle at 90% 85%,rgba(117,96,255,.12),transparent 34rem),#090b0f;color:#f6f3ea;font-family:system-ui,sans-serif; }
-        .card { box-sizing:border-box;width:min(560px,100%);padding:clamp(32px,7vw,64px);border:1px solid rgba(255,255,255,.12);border-radius:28px;background:rgba(18,21,27,.96);box-shadow:0 28px 80px rgba(0,0,0,.42);text-align:center; }
-        .lock { width:64px;height:64px;margin:0 auto 24px;display:grid;place-items:center;border-radius:20px;background:#d5ff53;color:#10130a;font-size:30px;box-shadow:0 12px 32px rgba(213,255,83,.18); }
-        .eyebrow { margin:0 0 10px;color:#d5ff53;font:600 12px/1 ui-monospace,monospace;letter-spacing:.18em; }
-        h1 { margin:0;font-size:clamp(34px,7vw,54px);line-height:1;letter-spacing:-.045em; }
-        p:last-child { margin:22px auto 0;max-width:440px;color:#b7bac4;font-size:16px;line-height:1.65; }
+        * { box-sizing: border-box; }
+        .screen {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: auto;
+          padding: 24px;
+          background: #6b12b8;
+          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.06) 0 12px, transparent 12px 24px);
+          color: #fdf2e0;
+          font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .card { width: min(560px,100%);padding: 40px 32px;text-align: center; }
+        .goblin { margin-bottom: 12px;font-size: 58px;line-height: 1; }
+        h1 {
+          margin: 0 0 8px;
+          color: #fff;
+          font-family: 'Bricolage Grotesque', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-size: 38px;
+          font-weight: 800;
+          letter-spacing: -.03em;
+          line-height: 1.05;
+          text-wrap: balance;
+        }
+        .status-line {
+          margin: 0 0 20px;
+          color: #d9b8f5;
+          font: 600 11.5px/1.4 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        .explanation {
+          margin: 0 0 22px;
+          padding: 16px 18px;
+          border: 2.5px solid #24102f;
+          border-radius: 14px;
+          background: #fffaf0;
+          color: #24102f;
+          font-size: 14.5px;
+          line-height: 1.6;
+          text-align: left;
+        }
+        .actions { display: flex;gap: 12px;justify-content: center;flex-wrap: wrap; }
+        button {
+          min-height: 44px;
+          padding: 11px 20px;
+          border: 2.5px solid #24102f;
+          border-radius: 999px;
+          font: 700 14px/1 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          cursor: pointer;
+          transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+        }
+        button:hover { transform: translate(-1px,-1px); }
+        button:active { transform: translate(2px,2px);box-shadow: none; }
+        button:focus-visible { outline: 3px solid #ffed6c;outline-offset: 3px; }
+        .primary { background: #fdf2e0;color: #24102f;box-shadow: 4px 4px 0 #f9b32d; }
+        .primary:hover { background: #fffaf0;box-shadow: 5px 5px 0 #f9b32d; }
+        @media (max-width: 520px) {
+          .screen { padding: 16px; }
+          .card { padding: 32px 4px; }
+          h1 { font-size: 30px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          button { transition: background .12s ease; }
+          button:hover, button:active { transform: none; }
+        }
       </style>
       <main class="screen" role="dialog" aria-modal="true" aria-labelledby="lockin-title">
         <section class="card">
-          <div class="lock" aria-hidden="true">&#128274;</div>
-          <p class="eyebrow">LOCK IN</p>
-          <h1 id="lockin-title">This section is blocked.</h1>
-          <p>Another part of this site may still be available. Use the browser's Back button to leave this section.</p>
+          <div class="goblin" aria-hidden="true">&#128121;</div>
+          <h1 id="lockin-title">this section</h1>
+          <p class="status-line">is contained</p>
+          <p class="explanation">Only this part of the site is blocked. Another section may still be available, tiny mammal. Go back and keep your attention on your side of the fence. &#128065;&#65039; &#128068; &#128065;&#65039;</p>
+          <div class="actions">
+            <button id="dashboard-btn" class="primary" type="button">File an appeal</button>
+          </div>
         </section>
       </main>`;
+    shadow.getElementById('dashboard-btn').addEventListener('click', () => chrome.runtime.openOptionsPage());
     previousOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = 'hidden';
     document.documentElement.append(host);
