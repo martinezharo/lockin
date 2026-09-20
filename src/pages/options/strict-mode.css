@@ -1,0 +1,386 @@
+/* Lock In — the super-strict invitation and its guide.
+   Same stamped paper as the rest of the board: hard ink strokes, offset
+   shadows with no blur, stickers. The banner is the loudest thing on the page
+   until enforcement is armed, and then it stops shouting. */
+
+/* ---------- The invitation ---------- */
+
+.strict-banner {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: var(--flag);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-lg);
+  padding: 13px 15px;
+  margin-bottom: 16px;
+  box-shadow: 4px 4px 0 var(--stroke);
+}
+
+.strict-banner-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 12px;
+  background: var(--c-paper-bright);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.strict-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.strict-banner-copy strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
+}
+
+.strict-banner-copy span {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--c-ink-soft);
+}
+
+.strict-banner-action {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Armed, it is a receipt rather than a call to action: mint, quiet, and its
+   button steps back to a ghost. */
+.strict-banner[data-strict-state="armed"] {
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--c-mint);
+}
+
+.strict-banner[data-strict-state="armed"] .strict-banner-mark {
+  background: var(--c-mint);
+}
+
+.strict-banner[data-strict-state="warming"] {
+  box-shadow: 4px 4px 0 var(--c-violet-pale);
+}
+
+/* ---------- The guide ---------- */
+
+.strict-card {
+  max-width: 720px;
+  max-height: min(88vh, 900px);
+  overflow: hidden;
+  background: var(--panel);
+  padding: 0;
+}
+
+/* Keep the native scrollbar inside the paper surface. Putting it on the
+   bordered card itself lets Windows paint its end buttons over the rounded
+   corner, which makes the ink frame look as though it runs underneath it. */
+.strict-card-scroll {
+  max-height: calc(min(88vh, 900px) - (2 * var(--stroke-w)));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 24px 26px 22px;
+}
+
+.strict-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.strict-heading .modal-header { margin-bottom: 0; }
+.strict-card .modal-instructions { font-size: 13px; line-height: 1.6; }
+
+.strict-card code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--c-violet-deep);
+  overflow-wrap: anywhere;
+}
+
+/* What it actually adds, in the same dashed sticker the privacy notice uses
+   for the facts it cannot leave to a paragraph. */
+.strict-points {
+  margin: 0 0 14px;
+  padding: 14px 16px 14px 34px;
+  background: var(--c-paper-bright);
+  border: var(--stroke-w) dashed var(--stroke);
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--c-ink-soft);
+}
+
+.strict-points li + li { margin-top: 7px; }
+
+.strict-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.strict-facts li {
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 3px 11px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--c-ink-soft);
+}
+
+/* ---------- The three steps ---------- */
+
+.strict-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.strict-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: var(--stroke-w-thin) dashed var(--line-soft);
+}
+
+/* The guide ends with its escape hatches, which bring their own frame. */
+.strict-step:last-child {
+  padding-bottom: 0;
+  margin-bottom: 22px;
+  border-bottom: 0;
+}
+
+.strict-step-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: 50%;
+  background: var(--c-paper-bright);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--c-ink);
+}
+
+/* A step the watchdog has already reported turns mint and swaps its number
+   for the tick, so the guide reads as a checklist of what is left. */
+.strict-step.is-done .strict-step-mark {
+  background: var(--c-mint);
+  font-size: 0;
+}
+
+.strict-step.is-done .strict-step-mark::after {
+  content: "\2713";
+  font-size: 17px;
+}
+
+.strict-step-body p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--c-ink-soft);
+}
+
+.strict-step-body p:last-child { margin-bottom: 0; }
+
+.strict-step-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 6px 0 8px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
+}
+
+.strict-step-state {
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  color: var(--c-mute);
+}
+
+.strict-step.is-done .strict-step-state {
+  border-color: var(--c-mint);
+  color: var(--c-ink);
+}
+
+/* A command block is the one place on the board that looks like a terminal,
+   drawn with the same ink-and-amber strip the zone rows use for their status
+   readout. */
+.strict-command {
+  position: relative;
+  margin: 0 0 12px;
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-md);
+  background: var(--lcd-bg);
+  box-shadow: 3px 3px 0 var(--c-violet-pale);
+}
+
+.strict-command pre {
+  margin: 0;
+  padding: 13px 15px;
+  overflow-x: auto;
+}
+
+.strict-command code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: var(--lcd-text);
+  white-space: pre;
+}
+
+.strict-copy {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  border: var(--stroke-w-thin) solid var(--c-mute-soft);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  background: var(--lcd-bg);
+  color: var(--c-paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.strict-copy:hover {
+  background: rgba(253, 242, 224, 0.16);
+  border-color: var(--c-paper);
+}
+
+.strict-copy.is-copied { border-color: var(--c-mint); color: var(--c-mint); }
+
+.strict-copy:focus-visible {
+  outline: var(--stroke-w-thin) solid var(--c-amber);
+  outline-offset: 2px;
+}
+
+.strict-substeps {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-ink-soft);
+}
+
+.strict-step-body .strict-aside {
+  font-size: 11.5px;
+  color: var(--c-mute);
+}
+
+/* The one line in the guide that is about this machine at this moment. */
+.strict-step-body .strict-live {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  border: var(--stroke-w-thin) solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 6px 13px;
+  background: var(--c-paper-bright);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.strict-live-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: var(--stroke-w-thin) solid var(--stroke);
+  border-radius: 50%;
+  background: var(--c-amber);
+}
+
+.strict-live[data-strict-state="armed"] .strict-live-dot { background: var(--c-mint); }
+.strict-live[data-strict-state="off"] .strict-live-dot { background: var(--c-rose); }
+
+/* ---------- Ways back out ---------- */
+
+.strict-exits {
+  border: var(--stroke-w) solid var(--rust-line);
+  border-radius: var(--radius-lg);
+  background: var(--rust-wash);
+  padding: 15px 17px;
+  margin-bottom: 14px;
+}
+
+.strict-exits-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--rust);
+}
+
+.strict-exits p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--c-ink-soft);
+}
+
+.strict-exits dl { margin: 0; }
+.strict-exits dt { margin-top: 9px; }
+.strict-exits dt:first-of-type { margin-top: 0; }
+.strict-exits dt code { color: var(--rust); font-size: 11.5px; }
+
+.strict-exits dd {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--c-ink-soft);
+}
+
+.strict-footnote {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--c-mute);
+}
+
+/* ---------- Narrow windows ---------- */
+
+@media (max-width: 760px) {
+  .strict-banner { flex-wrap: wrap; }
+  /* The mark keeps the copy company on the first line; only the button drops
+     to a row of its own. */
+  .strict-banner-copy { flex: 1 1 60%; }
+  .strict-banner-action { margin-left: 0; width: 100%; }
+}
+
+@media (max-width: 540px) {
+  .strict-card-scroll { padding: 18px 17px 16px; }
+  .strict-step { grid-template-columns: 28px minmax(0, 1fr); gap: 11px; }
+  .strict-step-mark { width: 28px; height: 28px; font-size: 13px; }
+  .strict-step.is-done .strict-step-mark::after { font-size: 15px; }
+  /* The copy button can no longer share the first line with the command. */
+  .strict-command pre { padding-top: 34px; }
+}

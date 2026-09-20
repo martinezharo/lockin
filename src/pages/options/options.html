@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../../styles/emoji-fallback.css" />
   <link rel="stylesheet" href="../../styles/base.css" />
   <link rel="stylesheet" href="options.css" />
+  <link rel="stylesheet" href="strict-mode.css" />
   <link rel="stylesheet" href="polish-fixes.css" />
 </head>
 <body>
@@ -40,6 +41,21 @@
         <span id="serviceDetail">The dashboard is waiting for the local enforcement engine.</span>
       </div>
       <span id="serviceReason" class="service-reason"></span>
+    </section>
+
+    <!-- Everything needed to reach full enforcement lives in the dashboard
+         rather than in the repository's README, so the steps always describe
+         the build that is actually running. Hidden for the Chrome Web Store
+         copy, which has no watchdog to attach to. -->
+    <section id="strictBanner" class="strict-banner" hidden aria-labelledby="strictBannerTitle">
+      <span class="strict-banner-mark" aria-hidden="true">👹</span>
+      <div class="strict-banner-copy">
+        <strong id="strictBannerTitle">Super-strict mode is off</strong>
+        <span id="strictBannerDetail">This build can hand enforcement to Windows. Three steps and the browser stops being the one deciding.</span>
+      </div>
+      <button id="strictBannerOpen" class="primary strict-banner-action" type="button" aria-haspopup="dialog">
+        Show me the three steps
+      </button>
     </section>
 
     <!-- 1. What is true right now -->
@@ -168,6 +184,137 @@
       </p>
       <div class="modal-actions">
         <button id="privacyConsentAccept" class="primary" type="button">Accept and continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The super-strict setup guide. It used to be three sections of the
+       repository README; it lives here so it always matches the running
+       build, and so it can show which of its own steps are already done. -->
+  <div id="strictModal" class="modal-overlay hidden">
+    <div class="modal-card strict-card" role="dialog" aria-modal="true"
+      aria-labelledby="strictTitle" aria-describedby="strictIntro">
+      <div class="strict-card-scroll">
+      <div class="strict-heading">
+        <div class="modal-header">
+          <span class="modal-emoji" aria-hidden="true">👹</span>
+          <h3 id="strictTitle">super-strict mode, start to finish</h3>
+        </div>
+        <button type="button" id="strictClose" class="info-modal-close"
+          aria-label="Close the super-strict mode guide">×</button>
+      </div>
+
+      <p class="modal-instructions" id="strictIntro">
+        Loaded from the repository, Lock In is a dashboard and a sensor: it draws your day and
+        watches the active tab, but nothing outside the browser is stopping you. These three
+        steps move every decision to a Windows task the browser cannot switch off.
+      </p>
+
+      <ul class="strict-points">
+        <li>Scheduled zones and spent allowances become Brave/Chrome <code>URLBlocklist</code> policy, applied by Windows rather than by the extension.</li>
+        <li>Always-allowed pages stay open through the matching <code>URLAllowlist</code> and never spend allowance.</li>
+        <li>If the browser is running and the sensor disappears for 30 seconds, every enabled zone is blocked and the browser loses outbound network access until Lock In reports back.</li>
+        <li>Zones, usage and enforcement state move to <code>C:\ProgramData\LockIn</code>, owned by SYSTEM. Only the Windows accounts you name can configure them.</li>
+      </ul>
+
+      <ul class="strict-facts" aria-label="What super-strict mode needs">
+        <li>Windows 10 or 11</li>
+        <li>Brave or Chrome</li>
+        <li>one UAC prompt</li>
+        <li>no Node, account, certificate or server</li>
+      </ul>
+
+      <ol class="strict-steps">
+        <li class="strict-step">
+          <span class="strict-step-mark" aria-hidden="true">1</span>
+          <div class="strict-step-body">
+            <h4 class="strict-step-title">Give this build a permanent home</h4>
+            <p>
+              Brave and Chrome reload an unpacked extension from the exact folder it was loaded
+              from on every start, so a temporary download breaks the first time you tidy up.
+              Keep the clone — or the extracted <code id="strictExtensionArchive">chrome-web-store.zip</code> —
+              somewhere you intend to keep, then load it from <code>brave://extensions</code> or
+              <code>chrome://extensions</code> with <strong>Developer mode</strong> on.
+            </p>
+          </div>
+        </li>
+
+        <li class="strict-step" id="strictStepInstall">
+          <span class="strict-step-mark" aria-hidden="true">2</span>
+          <div class="strict-step-body">
+            <h4 class="strict-step-title">
+              Install the protected watchdog
+              <span class="strict-step-state" id="strictStepInstallState">not yet</span>
+            </h4>
+            <p>
+              Open PowerShell as administrator in that same folder and run it once.
+              <code>whoami</code> prints the account to protect; separate several with commas to
+              cover more than one Windows user.
+            </p>
+            <div class="strict-command">
+              <button type="button" class="strict-copy" data-copy>copy</button>
+              <pre><code>Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\install-windows-watchdog.ps1 -ProtectedWindowsUser 'you'</code></pre>
+            </div>
+            <ul class="strict-substeps">
+              <li>copies the watchdog to <code>C:\Program Files\Lock In</code>;</li>
+              <li>registers <code>Lock In Watchdog</code> as an automatic SYSTEM task that restarts itself;</li>
+              <li>creates disabled outbound firewall rules for the installed Brave and Chrome executables; and</li>
+              <li>starts safely disarmed, importing the zones you already have.</li>
+            </ul>
+            <p class="strict-aside">
+              From the release bundle <code id="strictWatchdogArchive">windows-watchdog.zip</code>
+              the same script sits at the root, as <code>.\install-windows-watchdog.ps1</code>.
+            </p>
+          </div>
+        </li>
+
+        <li class="strict-step" id="strictStepArm">
+          <span class="strict-step-mark" aria-hidden="true">3</span>
+          <div class="strict-step-body">
+            <h4 class="strict-step-title">
+              Let it arm itself
+              <span class="strict-step-state" id="strictStepArmState">not yet</span>
+            </h4>
+            <p>
+              Reload the extension. The panel at the top of this page moves from
+              <em>disconnected</em>, to <em>connected · waiting to arm</em>, to
+              <em>Windows enforcement armed</em> after three valid heartbeats. Each protected
+              account's sensor is tracked on its own, so one Windows user cannot cover for a
+              missing sensor in another.
+            </p>
+            <p class="strict-live" id="strictLive">
+              <span class="strict-live-dot" aria-hidden="true"></span>
+              <span id="strictLiveText">checking the watchdog…</span>
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="strict-exits">
+        <h4 class="strict-exits-title">Ways back out 🐭</h4>
+        <p>From an elevated PowerShell window in the same folder:</p>
+        <dl>
+          <dt><code>.\scripts\disarm-windows-watchdog.ps1</code></dt>
+          <dd>stops enforcing now and leaves everything installed.</dd>
+          <dt><code>.\scripts\uninstall-windows-watchdog.ps1</code></dt>
+          <dd>removes the task, the rules and the installed copy. Add <code>-PurgeData</code> to erase configuration and usage as well.</dd>
+          <dt><code>.\scripts\update-windows-watchdog.ps1</code></dt>
+          <dd>replaces the watchdog in place, keeping its rules, usage and armed state.</dd>
+        </dl>
+      </div>
+
+      <p class="strict-footnote">
+        Lock In removes only registry values it recorded as its own, and all of its firewall rules
+        carry the group name <code>LockInWatchdog</code>. This is still a self-control tool rather
+        than protection from a determined administrator: anyone who can approve a UAC prompt can
+        unregister the task. Browsing from an account that is not the administrator is what makes
+        that boundary real.
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" id="strictDone" class="primary">Got it</button>
+      </div>
       </div>
     </div>
   </div>

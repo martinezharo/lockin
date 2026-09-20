@@ -7,6 +7,7 @@ import { timeValueToMinutes } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { enforcementReasonText } from '../../shared/enforcement.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
+import { initStrictMode, paintStrictMode } from './strict-mode.js';
 import { lockIconHtml } from '../../shared/lock-icon.js';
 import {
   zoneRowHtml,
@@ -233,6 +234,9 @@ document.getElementById('deleteLocalData').addEventListener('click', () => {
 async function refreshServiceStatus() {
   const { nativeStatus = null } = await chrome.storage.local.get('nativeStatus');
   servicePanel.className = 'service-panel';
+  // The super-strict guide answers the question this panel raises, so it is
+  // repainted from the same reading rather than polling for its own copy.
+  paintStrictMode(nativeStatus);
 
   if (!nativeStatus?.connected) {
     servicePanel.classList.add('state-disconnected');
@@ -595,4 +599,5 @@ setInterval(refreshServiceStatus, 2000);
 refreshPrivacyConsent().then((accepted) => {
   if (accepted) render();
 });
+initStrictMode();
 refreshServiceStatus();
