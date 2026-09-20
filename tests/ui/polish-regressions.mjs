@@ -40,13 +40,53 @@ try {
   assert.ok(geometry.reasonRight <= geometry.panelRight + 1, 'Watchdog reason stays within its panel');
   assert.ok(geometry.copyRight <= geometry.panelRight + 1, 'Watchdog headline stays within its panel');
 
+  // Super-strict mode: the guide only exists for a build loaded from this
+  // repository, it reports how far the watchdog has actually got, and it can
+  // be left the same way every other dialog can.
+  const strict = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await strict.goto('http://127.0.0.1:4178/src/pages/options/options.html?watchdog=off', { waitUntil: 'networkidle' });
+  const banner = strict.locator('#strictBanner');
+  await banner.waitFor();
+  assert.match(await banner.innerText(), /Super-strict mode is off/);
+
+  await strict.locator('#strictBannerOpen').click();
+  const guide = strict.getByRole('dialog', { name: 'super-strict mode, start to finish' });
+  const guideScroll = guide.locator('.strict-card-scroll');
+  await guide.waitFor();
+  assert.equal(await guide.evaluate((element) => getComputedStyle(element).overflowY), 'hidden');
+  assert.equal(await guideScroll.evaluate((element) => getComputedStyle(element).overflowY), 'auto');
+  assert.ok(await guideScroll.evaluate((element) => element.scrollHeight > element.clientHeight));
+  assert.match(await guide.innerText(), /install-windows-watchdog\.ps1/);
+  assert.match(await guide.innerText(), /disarm-windows-watchdog\.ps1/);
+  assert.match(await strict.locator('#strictLive').innerText(), /no watchdog is answering/);
+  assert.equal(await strict.locator('.strict-step.is-done').count(), 0);
+  await strict.keyboard.press('Escape');
+  assert.equal(await guide.isVisible(), false);
+  assert.equal(await strict.locator('#strictBannerOpen').evaluate((el) => el === document.activeElement), true);
+  await strict.locator('#strictBannerOpen').click();
+  await guideScroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await strict.keyboard.press('Escape');
+  await strict.locator('#strictBannerOpen').click();
+  assert.equal(await guideScroll.evaluate((element) => element.scrollTop), 0);
+
+  // Armed, both observable steps carry their tick and the row stops shouting.
+  await strict.goto('http://127.0.0.1:4178/src/pages/options/options.html', { waitUntil: 'networkidle' });
+  await strict.locator('#strictBanner[data-strict-state="armed"]').waitFor();
+  await strict.locator('#strictBannerOpen').click();
+  assert.equal(await strict.locator('.strict-step.is-done').count(), 2);
+
+  // And the Chrome Web Store copy is never invited to install a watchdog.
+  await strict.goto('http://127.0.0.1:4178/src/pages/options/options.html?build=store', { waitUntil: 'networkidle' });
+  await strict.locator('#groupsList .zone-toggle').first().waitFor();
+  assert.equal(await strict.locator('#strictBanner').isVisible(), false);
+
   const popup = await browser.newPage({ viewport: { width: 268, height: 420 } });
   await popup.goto('http://127.0.0.1:4178/src/pages/popup/popup.html', { waitUntil: 'networkidle' });
   await popup.locator('.zone-row').first().waitFor();
   assert.match(await popup.locator('#openDash').innerText(), /👹/u);
   assert.match(await popup.locator('#lockRow').innerText(), /🔒|🔓/u);
   assert.match(await popup.locator('#serviceRow').innerText(), /⚠|●/u);
-  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, and popup indicators.');
+  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, super-strict guide, and popup indicators.');
 } finally {
   await browser.close();
 }

@@ -1,5 +1,12 @@
 (() => {
   const now = new Date();
+  // The dashboard shows different things for a repository build and a Chrome
+  // Web Store one, and for each stage of the watchdog handshake. Both are
+  // selectable so screenshots and assertions can reach every state:
+  //   ?build=store            pretend this copy came from the Web Store
+  //   ?watchdog=off|warming   stop short of armed enforcement
+  const params = new URLSearchParams(location.search);
+  const watchdog = params.get('watchdog') || 'armed';
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const state = {
     privacyConsent: true,
@@ -30,15 +37,15 @@
     usage: { social: { date: today, ms: 17 * 60 * 1000 } },
     usageSession: { groupIds: ['social'], startedAt: Date.now() },
     nativeStatus: {
-      connected: true,
+      connected: watchdog !== 'off',
       supportsUrlRules: true,
       supportsExceptions: true,
       configured: true,
-      enforcementArmed: true,
+      enforcementArmed: watchdog === 'armed',
       failClosed: true,
       failClosedActive: false,
-      blockedDomains: ['youtube.com', 'twitch.tv'],
-      enforcementReason: 'schedule',
+      blockedDomains: watchdog === 'armed' ? ['youtube.com', 'twitch.tv'] : [],
+      enforcementReason: watchdog === 'armed' ? 'schedule' : 'not armed',
       lastHeartbeatMs: Date.now(),
       updatedAt: Date.now()
     }
@@ -60,6 +67,13 @@
       }
     },
     runtime: {
+      getManifest() {
+        // Chrome adds update_url to the manifest of anything installed from
+        // the Web Store, and to nothing that was loaded unpacked.
+        return params.get('build') === 'store'
+          ? { version: '1.4.1', update_url: 'https://clients2.google.com/service/update2/crx' }
+          : { version: '1.4.1' };
+      },
       async sendMessage() { return { ok: true }; },
       openOptionsPage() {},
       getURL(path) { return path; }

@@ -46,10 +46,14 @@ Lock In removes only registry values it recorded as its own. Its firewall rules 
 
 ## Install
 
-Download both archives from the [latest release](https://github.com/martinezharo/lockin/releases/latest) and
-check each one against the `.sha256` file published beside it.
+Only the first two steps live here. Everything after them — installing the watchdog, watching it arm,
+updating it and getting back out again — is a guide inside the extension, so it always describes the build
+that is actually running rather than whatever this file said when it was last edited.
 
 ### 1. Load the extension
+
+Download both archives from the [latest release](https://github.com/martinezharo/lockin/releases/latest) and
+check each one against the `.sha256` file published beside it.
 
 Extract `lock-in-<version>-chrome-web-store.zip` into a folder you intend to keep. Brave and Chrome reload an
 unpacked extension from its original path on every start, so a temporary folder breaks it.
@@ -59,37 +63,17 @@ unpacked extension from its original path on every start, so a temporary folder 
 3. Choose **Load unpacked** and select the extracted folder.
 4. Accept the first-run local-data disclosure.
 
-The dashboard now reports **Local enforcement watchdog disconnected** and enforces nothing. That is expected
-until the next step.
+The dashboard now reports **Local enforcement watchdog disconnected** and enforces nothing. That is expected.
 
-### 2. Install the watchdog
+### 2. Follow the super-strict guide in the dashboard
 
-Extract `lock-in-<version>-windows-watchdog.zip` and run once from an elevated PowerShell window opened in
-that folder:
+Because it was loaded unpacked rather than from the store, the dashboard shows a **Super-strict mode** banner
+above the day strip. Open it. The guide holds the elevated install command and what it does, the arming
+handshake, the updater, and the disarm and uninstall commands — and it ticks off the steps the watchdog has
+already reported, so it doubles as a status page. Its commands assume this repository's layout; from the
+release bundle `lock-in-<version>-windows-watchdog.zip` the same scripts sit at the archive root.
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\install-windows-watchdog.ps1 -ProtectedWindowsUser 'user1,user2'
-```
-
-`-ProtectedWindowsUser` takes the Windows account names allowed to configure Lock In; `whoami` prints yours.
-From a clone of this repository the same script lives at `.\scripts\install-windows-watchdog.ps1`.
-
-The installer:
-
-- copies the watchdog to `C:\Program Files\Lock In`;
-- stores protected state under `C:\ProgramData\LockIn`;
-- creates disabled outbound firewall rules for installed Brave/Chrome executables;
-- registers `Lock In Watchdog` as an automatic `SYSTEM` scheduled task;
-- configures automatic restart; and
-- starts safely disarmed.
-
-### 3. Confirm enforcement
-
-Reload the extension. The dashboard must progress from **connected · waiting to arm** to **Windows
-enforcement armed** after three heartbeats. Only the selected Windows accounts can configure the watchdog.
-Their heartbeats are tracked independently, so one account cannot hide a missing sensor in another active
-account.
+That banner is hidden for the Chrome Web Store copy, which has no watchdog to attach to.
 
 ### About the Chrome Web Store listing
 
@@ -97,22 +81,6 @@ The unlisted store listing still serves version `1.3.0`, which predates the watc
 `declarativeNetRequest` from inside the browser. It installs in one click and needs no PowerShell, but it can
 be removed from the extensions page like any other extension. Install from a release above for the enforced
 build.
-
-## Emergency recovery and uninstall
-
-From an elevated PowerShell window:
-
-```powershell
-.\scripts\disarm-windows-watchdog.ps1
-```
-
-Uninstall while preserving configuration:
-
-```powershell
-.\scripts\uninstall-windows-watchdog.ps1
-```
-
-Add `-PurgeData` only to permanently remove protected configuration and usage.
 
 ## Build and test
 
@@ -179,6 +147,8 @@ Tagging publishes the extension and the watchdog bundle from one commit. That is
 manifest.json                              extension entry points and permissions
 src/background.js                         heartbeat and state-mirror orchestration
 src/watchdog-client.js                    loopback HTTP client
+src/pages/options/strict-mode.js          the in-app super-strict setup guide
+src/shared/install-source.js              repository build or Chrome Web Store copy
 watchdog/LockInWatchdog.ps1               protected enforcement engine
 scripts/install-windows-watchdog.ps1      elevated one-time installation
 scripts/disarm-windows-watchdog.ps1       emergency recovery
