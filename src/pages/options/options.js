@@ -444,15 +444,16 @@ function paintDisarmPanel(panel, now = Date.now()) {
   panel.querySelector('[data-disarm-confirm]').textContent = usable ? disarmConfirmLabel(minutes) : 'Disarm 🔓';
 }
 
-function openDisarmPanel(btn) {
+async function openDisarmPanel(btn) {
   const zone = btn.closest('.zone');
   const panel = zone.querySelector('[data-disarm-panel]');
   const open = panel.hidden;
   panel.hidden = !open;
   btn.setAttribute('aria-expanded', String(open));
   if (!open) return;
+  await gateTimedReleases(panel);
   paintDisarmPanel(panel);
-  panel.querySelector('[data-disarm-minutes]').focus();
+  panel.querySelector(panel.dataset.disarmMode === 'forever' ? '[data-disarm-confirm]' : '[data-disarm-minutes]').focus();
 }
 
 function closeDisarmPanel(btn) {
@@ -464,25 +465,47 @@ function closeDisarmPanel(btn) {
   toggle.focus();
 }
 
-/* A timed release only expires because the watchdog says so, so the dashboard
-   asks whether this watchdog is new enough before offering one. The open-ended
-   release is the behaviour every build has always had, and stays available. */
-async function timedReleaseSupported(panel) {
+/* A timed release only expires because the watchdog says so, so a watchdog that
+   cannot keep one is never offered it: the lengths are switched off as the
+   panel opens rather than after the answer has been given. The open-ended
+   release is what every build has always done, and stays available. */
+async function timedReleaseRefusal() {
   const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
-  if (nativeStatus?.connected && nativeStatus.supportsTimedDisarm === true) return true;
-  const errorEl = panel.querySelector('[data-disarm-error]');
-  errorEl.textContent = nativeStatus?.connected
-    ? 'Update the Windows watchdog and reload the extension before using timed releases. Until then, only a release with no end is available. 🔒'
-    : 'The Windows watchdog is offline, so nothing can promise to arm this zone again. Only a release with no end is available while it is away. 🔒';
-  errorEl.hidden = false;
-  return false;
+  if (nativeStatus?.connected && nativeStatus.supportsTimedDisarm === true) return '';
+  return nativeStatus?.connected
+    ? '🔒 This Windows watchdog is too old to end a release by itself. Update it and reload the extension; until then a release has no end.'
+    : '🔒 The Windows watchdog is offline, so nothing can promise to arm this zone again. Until it is back, a release has no end.';
+}
+
+async function gateTimedReleases(panel) {
+  const refusal = await timedReleaseRefusal();
+  const note = panel.querySelector('[data-disarm-note]');
+  note.textContent = refusal;
+  note.hidden = !refusal;
+  panel.querySelector('[data-disarm-error]').hidden = true;
+
+  // The open-ended chip is the only answer left, so it is also the answer.
+  if (refusal) panel.dataset.disarmMode = 'forever';
+  panel.querySelector('[data-disarm-minutes]').disabled = Boolean(refusal);
+  for (const chip of panel.querySelectorAll('[data-disarm-preset]')) {
+    chip.disabled = Boolean(refusal) && chip.dataset.disarmPreset !== '0';
+  }
 }
 
 async function confirmDisarm(id, btn) {
   const panel = btn.closest('[data-disarm-panel]');
   const release = readDisarm(panel);
   if (!release) return;
-  if (release.minutes !== null && !(await timedReleaseSupported(panel))) return;
+  // Checked again on the way out: the watchdog can go away while the panel
+  // sits open, and a release nobody can end must not be sold as one.
+  if (release.minutes !== null) {
+    const refusal = await timedReleaseRefusal();
+    if (refusal) {
+      await gateTimedReleases(panel);
+      paintDisarmPanel(panel);
+      return;
+    }
+  }
   disarmGroup(id, release.minutes);
 }
 

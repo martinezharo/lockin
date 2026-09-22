@@ -72,7 +72,9 @@ export const Storage = {
   },
   async getGroups() {
     const { groups = [] } = await chrome.storage.local.get('groups');
-    return groups.filter(isGroup).map(normalizeGroup);
+    // Called through an arrow: normalizeGroup takes a clock second, and map
+    // would hand it the array index.
+    return groups.filter(isGroup).map((group) => normalizeGroup(group));
   },
   async saveGroups(groups) {
     await chrome.storage.local.set({ groups: groups.map(serializeGroup) });

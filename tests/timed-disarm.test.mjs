@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { isArmed, rearmAt, isGroupActive } from '../src/shared/schedule.js';
-import { normalizeGroup, serializeGroup } from '../src/shared/storage.js';
+import { Storage, normalizeGroup, serializeGroup } from '../src/shared/storage.js';
 import { nextEventFor, todayShutSegments, eventVerb } from '../src/shared/timeline.js';
 import { zoneStatusText, zoneStateClass, readDisarm } from '../src/pages/options/templates.js';
 
@@ -63,6 +63,19 @@ test('storage expires a release that ran out while nothing was looking', () => {
   // real clock, so this half of the check uses a deadline that is in the past
   // wherever and whenever the suite runs.
   assert.equal(serializeGroup(zone({ enabled: false, disarmedUntil: Date.now() - MINUTE })).enabled, true);
+});
+
+test('reading groups expires a release wherever it sits in the list', async (t) => {
+  // Array.map hands its callback an index, and normalizeGroup's second
+  // argument is the clock: a release in any position but the first must not be
+  // measured against "now = 1".
+  const stored = [zone(), { ...zone({ id: 'news' }), enabled: false, disarmedUntil: Date.now() - MINUTE }];
+  globalThis.chrome = { storage: { local: { async get() { return { groups: stored }; } } } };
+  t.after(() => { delete globalThis.chrome; });
+
+  const groups = await Storage.getGroups();
+  assert.equal(groups[1].enabled, true);
+  assert.equal(groups[1].disarmedUntil, null);
 });
 
 test('storage keeps a release that is still running', () => {

@@ -779,7 +779,21 @@ html, body {
 
 .disarm-actions button { font-size: 12.5px; padding: 8px 15px; }
 
-.disarm-panel .rule-error { margin-top: 10px; }
+.disarm-panel .rule-error,
+.disarm-panel .rule-note { margin-top: 10px; }
+
+/* A watchdog that cannot end a release is never offered one, so the lengths go
+   inert rather than disappearing: the panel still shows what it would ask for
+   once the watchdog can keep the promise. */
+.disarm-presets .preset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--panel);
+}
+
+.disarm-presets .preset:disabled:hover { background: var(--panel); }
+
+.disarm-row input:disabled { cursor: not-allowed; }
 
 /* ---------- Chips, meter, add row ---------- */
 

@@ -51,6 +51,21 @@ try {
   // Backing out of the paperwork leaves containment exactly as it was.
   assert.doesNotMatch(await zone.locator('.zone-status').innerText(), /released/);
 
+  /* A watchdog that cannot end a release must not be offered one: the lengths
+     go inert as the panel opens, not after the answer is given. */
+  await page.evaluate(async () => {
+    const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+    delete nativeStatus.supportsTimedDisarm;
+    await chrome.storage.local.set({ nativeStatus });
+  });
+  await zone.locator('[data-action="disarm"]').click();
+  await zone.locator('[data-action="disarm"]').click();
+  assert.equal(await panel.getAttribute('data-disarm-mode'), 'forever');
+  assert.match(await panel.locator('[data-disarm-note]').innerText(), /too old to end a release/);
+  assert.equal(await panel.locator('[data-disarm-minutes]').isDisabled(), true);
+  assert.equal(await panel.locator('[data-disarm-preset="15"]').isDisabled(), true);
+  assert.equal(await panel.locator('[data-disarm-preset="0"]').isDisabled(), false);
+
   const releasedRow = page.locator('.zone[data-zone="news"]');
   assert.match(await releasedRow.locator('.zone-status').innerText(), /released · containment returns in \d+m/);
   assert.match(await releasedRow.locator('.arm-shortcut').innerText(), /Arm now 🔒/u);

@@ -249,6 +249,7 @@ function disarmPanelHtml(g, now = Date.now()) {
         </label>
         <p class="disarm-outcome" data-disarm-outcome>${escapeHtml(disarmOutcomeText(DEFAULT_DISARM_MINUTES, now))}</p>
       </div>
+      <p class="rule-note" data-disarm-note hidden></p>
       <p class="rule-error" data-disarm-error role="alert" hidden></p>
       <div class="disarm-actions">
         <button type="button" class="primary" data-action="confirm-disarm" data-group="${g.id}"
