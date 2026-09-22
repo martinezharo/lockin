@@ -21,6 +21,23 @@ LockInWatchdog.ps1 (scheduled task running as SYSTEM)
 
 No custom executable, certificate, cloud account or external server is required.
 
+## Timed releases
+
+Disarming a zone asks how long containment should stay down: a preset (5m, 15m,
+30m, 1h, the rest of the day), any number of minutes up to a full day, or a
+release with no end — the open-ended disarm the dashboard has always had.
+Weakening containment still requires the typing challenge while edit lock is on.
+
+The deadline travels with the zone as `disarmedUntil`, and the watchdog is the
+side that enforces it: when the moment passes it arms the zone again in its own
+protected state, so closing the browser does not extend a release. The extension
+reaches the same conclusion from the same number, and the dashboard counts the
+release down in the zone row, on the day strip and in the popup. Arming a zone by
+hand ends a running release early.
+
+Older watchdogs cannot expire a release, so the dashboard offers only the
+open-ended one until the watchdog advertises `supportsTimedDisarm`.
+
 ## Safe rollout and fail-closed behavior
 
 The watchdog starts disarmed and imports the extension's current groups. It arms only after three consecutive valid heartbeats. After it is armed:

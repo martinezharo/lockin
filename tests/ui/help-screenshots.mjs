@@ -53,6 +53,14 @@ try {
   await zone.getByRole('button', { name: 'About daily allowances' }).click();
   assert.match(await page.getByRole('dialog', { name: 'About daily allowances' }).innerText(), /Permanent/);
   await page.getByRole('button', { name: 'Got it' }).click();
+  // The release picker, open on its default answer: the one new decision this
+  // dashboard asks for.
+  await zone.locator('[data-action="disarm"]').click();
+  await zone.locator('[data-disarm-panel]').waitFor();
+  await page.mouse.move(0, 0);
+  await zone.locator('[data-disarm-panel]').screenshot({ path: 'screenshots/release-picker.png' });
+  await zone.locator('[data-action="cancel-disarm"]').click();
+
   await page.locator('#newZoneToggle').click();
   await page.locator('#groupDomains').fill('example.com');
   assert.equal(await page.locator('#groupDomains').inputValue(), 'example.com');

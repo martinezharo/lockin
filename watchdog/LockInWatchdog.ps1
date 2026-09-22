@@ -212,6 +212,28 @@ function Normalize-Groups($Groups) {
   return @($result)
 }
 
+# A timed release carries its own deadline. The watchdog is the side that is
+# always running, so it is the side that has to notice: when the moment passes
+# it arms the zone again here, and a closed browser cannot stretch a
+# fifteen-minute release into a whole evening. The extension reaches the same
+# conclusion from the same number, so both sides agree without negotiating.
+function Update-DisarmExpiry([long]$Now) {
+  foreach ($group in @($script:State.groups)) {
+    if ($null -eq $group -or $group.enabled -eq $true) { continue }
+    $property = $group.PSObject.Properties['disarmedUntil']
+    if ($null -eq $property -or $null -eq $property.Value) { continue }
+    $until = 0L
+    try { $until = [long]$property.Value } catch { $until = 0L }
+    if ($until -le 0 -or $Now -lt $until) { continue }
+    $group | Add-Member -NotePropertyName enabled -NotePropertyValue $true -Force
+    # The property is known to exist here, so it is cleared in place rather
+    # than through Add-Member, which will not bind a null value.
+    $property.Value = $null
+    $script:Dirty = $true
+    Write-WatchdogLog "Timed release expired; re-armed zone $([string]$group.id)."
+  }
+}
+
 function Get-TodayKey([long]$Now) {
   return ([DateTime]'1970-01-01').AddMilliseconds($Now).ToLocalTime().ToString('yyyy-MM-dd')
 }
@@ -583,6 +605,7 @@ function Apply-Policies([string[]]$Domains, [string[]]$AllowedDomains) {
 }
 
 function Evaluate-Enforcement([long]$Now) {
+  Update-DisarmExpiry $Now
   $domains = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
   $reasons = New-Object 'System.Collections.Generic.List[string]'
   $script:FailClosedActive = $false
@@ -681,6 +704,7 @@ function Get-Snapshot([long]$Now) {
     privacyConsent = $script:State.privacyConsent -eq $true
     supportsUrlRules = $true
     supportsExceptions = $true
+    supportsTimedDisarm = $true
     blockedDomains = @($script:BlockedDomains)
     allowedDomains = @($script:AllowedDomains)
     enforcementReason = $script:EnforcementReason

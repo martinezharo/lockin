@@ -674,6 +674,127 @@ html, body {
 
 .zone-actions button { font-size: 12.5px; padding: 8px 15px; }
 
+/* Cutting a release short is free and strengthens containment, so it is the one
+   coloured sticker in a row of outlines — the same violet the collapsed row's
+   shortcut wears, for the same reason. */
+.arm-action {
+  flex: none;
+  background: var(--accent);
+  color: var(--accent-on);
+  border: var(--stroke-w) solid var(--stroke);
+  border-radius: var(--radius-pill);
+  box-shadow: 2px 2px 0 var(--stroke);
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
+}
+
+.arm-action:hover {
+  background: var(--c-violet-deep);
+  box-shadow: 4px 4px 0 var(--stroke);
+  transform: translate(-2px, -2px);
+}
+
+.arm-action:active { transform: translate(2px, 2px); box-shadow: none; }
+
+.arm-action:focus-visible {
+  outline: var(--stroke-w) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- The release picker ----------
+   Weakening containment is the one thing on this page that gets its own room:
+   a rose-washed card that opens under the actions, so choosing a length is a
+   visible step rather than a side effect of pressing Disarm. */
+
+.disarm-panel {
+  margin-top: 13px;
+  padding: 14px 15px 13px;
+  background: var(--rust-wash);
+  border: var(--stroke-w-thin) solid var(--rust-line);
+  border-radius: var(--radius-md);
+}
+
+.disarm-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 11px;
+}
+
+.disarm-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  color: var(--rust);
+}
+
+.disarm-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.disarm-presets { padding-bottom: 11px; }
+
+.disarm-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+/* .field arrives later in this sheet and claims flex: 1, so the box has to say
+   its size from the row it actually sits in. */
+.disarm-row .disarm-field {
+  flex: none;
+  width: 116px;
+  margin-bottom: 0;
+}
+
+/* The box is still the panel's answer while the open-ended release is picked,
+   so it fades rather than disappearing: one glance says the minutes no longer
+   apply, and typing in it takes the panel straight back to a timed release. */
+.disarm-panel.is-forever .disarm-field { opacity: 0.5; }
+
+.disarm-outcome {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  padding-top: 15px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.disarm-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.disarm-actions button { font-size: 12.5px; padding: 8px 15px; }
+
+.disarm-panel .rule-error,
+.disarm-panel .rule-note { margin-top: 10px; }
+
+/* A watchdog that cannot end a release is never offered one, so the lengths go
+   inert rather than disappearing: the panel still shows what it would ask for
+   once the watchdog can keep the promise. */
+.disarm-presets .preset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--panel);
+}
+
+.disarm-presets .preset:disabled:hover { background: var(--panel); }
+
+.disarm-row input:disabled { cursor: not-allowed; }
+
 /* ---------- Chips, meter, add row ---------- */
 
 .domain-chips {
@@ -1319,6 +1440,7 @@ select:focus {
   .zone-chevron { transition: background 0.12s ease; }
   .lock-switch:hover, .lock-switch:active,
   .arm-shortcut:hover, .arm-shortcut:active { transform: none; }
+  .arm-action:hover, .arm-action:active { transform: none; }
 }
 
 .modal-header {

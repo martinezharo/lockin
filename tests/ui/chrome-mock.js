@@ -32,6 +32,19 @@
         limit: null,
         mode: 'schedule',
         createdAt: Date.now() - 1000
+      },
+      // A zone in the middle of a timed release, so the board, the strip and the
+      // popup are all photographed with a countdown to containment returning.
+      {
+        id: 'news',
+        name: 'News hole',
+        domains: ['news.ycombinator.com'],
+        enabled: false,
+        disarmedUntil: Date.now() + 22 * 60 * 1000,
+        schedule: { days: [1, 2, 3, 4, 5], windows: [{ start: 9 * 60, end: 18 * 60 }] },
+        limit: null,
+        mode: 'schedule',
+        createdAt: Date.now() - 2000
       }
     ],
     usage: { social: { date: today, ms: 17 * 60 * 1000 } },
@@ -40,6 +53,7 @@
       connected: watchdog !== 'off',
       supportsUrlRules: true,
       supportsExceptions: true,
+      supportsTimedDisarm: true,
       configured: true,
       enforcementArmed: watchdog === 'armed',
       failClosed: true,

@@ -23,7 +23,53 @@ try {
   const ruleHeadings = await zone.locator('.rule-head').allTextContents();
   assert.ok(ruleHeadings.some((text) => text.includes('⏰')), 'Scheduled hours keeps its emoji');
   assert.ok(ruleHeadings.some((text) => text.includes('⏳')), 'Daily allowance keeps its emoji');
-  assert.match(await zone.locator('.preset-permanent').innerText(), /👹/u);
+  assert.match(await zone.locator('[data-limit-preset="0"]').innerText(), /👹/u);
+
+  /* Disarming asks how long before it does anything, and it still cannot be
+     done without the paperwork — the two halves of this feature that a
+     screenshot cannot certify. */
+  const panel = zone.locator('[data-disarm-panel]');
+  assert.equal(await panel.isVisible(), false);
+  await zone.locator('[data-action="disarm"]').click();
+  await panel.waitFor();
+  assert.equal(await zone.locator('[data-action="disarm"]').getAttribute('aria-expanded'), 'true');
+  assert.match(await panel.locator('.disarm-title').innerText(), /🔓/u);
+  assert.equal(await panel.locator('[data-disarm-preset]').count(), 6);
+  assert.match(await panel.locator('[data-disarm-confirm]').innerText(), /Disarm for 15m/);
+
+  await panel.getByRole('button', { name: /until I arm it/ }).click();
+  assert.match(await panel.locator('[data-disarm-confirm]').innerText(), /until I say so/);
+  assert.match(await panel.locator('[data-disarm-outcome]').innerText(), /until you arm this zone again/);
+
+  await panel.locator('[data-disarm-minutes]').fill('30');
+  assert.match(await panel.locator('[data-disarm-confirm]').innerText(), /Disarm for 30m/);
+  assert.equal(await panel.locator('.preset.checked').count(), 1);
+
+  await panel.locator('[data-disarm-confirm]').click();
+  await page.locator('#challengeModal:not(.hidden)').waitFor();
+  await page.locator('#challengeCancel').click();
+  // Backing out of the paperwork leaves containment exactly as it was.
+  assert.doesNotMatch(await zone.locator('.zone-status').innerText(), /released/);
+
+  /* A watchdog that cannot end a release must not be offered one: the lengths
+     go inert as the panel opens, not after the answer is given. */
+  await page.evaluate(async () => {
+    const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+    delete nativeStatus.supportsTimedDisarm;
+    await chrome.storage.local.set({ nativeStatus });
+  });
+  await zone.locator('[data-action="disarm"]').click();
+  await zone.locator('[data-action="disarm"]').click();
+  assert.equal(await panel.getAttribute('data-disarm-mode'), 'forever');
+  assert.match(await panel.locator('[data-disarm-note]').innerText(), /too old to end a release/);
+  assert.equal(await panel.locator('[data-disarm-minutes]').isDisabled(), true);
+  assert.equal(await panel.locator('[data-disarm-preset="15"]').isDisabled(), true);
+  assert.equal(await panel.locator('[data-disarm-preset="0"]').isDisabled(), false);
+
+  const releasedRow = page.locator('.zone[data-zone="news"]');
+  assert.match(await releasedRow.locator('.zone-status').innerText(), /released · containment returns in \d+m/);
+  assert.match(await releasedRow.locator('.arm-shortcut').innerText(), /Arm now 🔒/u);
+  assert.match(await page.locator('#nowCountdownLabel').innerText(), /containment returns/i);
 
   // A status badge must stay inside the panel even when multiple reasons are
   // reported at half width, rather than forcing the headline out of view.
@@ -86,7 +132,9 @@ try {
   assert.match(await popup.locator('#openDash').innerText(), /👹/u);
   assert.match(await popup.locator('#lockRow').innerText(), /🔒|🔓/u);
   assert.match(await popup.locator('#serviceRow').innerText(), /⚠|●/u);
-  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, super-strict guide, and popup indicators.');
+  assert.match(await popup.locator('.zone-row').last().innerText(), /\d+m off/);
+  assert.match(await popup.locator('#nextLabel').innerText(), /re-arms/);
+  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, super-strict guide, timed releases, and popup indicators.');
 } finally {
   await browser.close();
 }

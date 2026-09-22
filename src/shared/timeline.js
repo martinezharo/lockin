@@ -8,7 +8,7 @@
 //
 // Like usage.js these are pure functions over whatever the caller just loaded.
 
-import { isWithinSchedule, hasRules, scheduleWindows } from './schedule.js';
+import { isWithinSchedule, hasRules, scheduleWindows, isArmed, rearmAt } from './schedule.js';
 import { isAllowanceSpent, isPermanentLimit } from './usage.js';
 
 export const MINUTES_PER_DAY = 1440;
@@ -47,7 +47,7 @@ export function formatClock(ts) {
 
 export function todayShutSegments(group, now = Date.now(), usage = null, session = null) {
   const segments = [];
-  if (!group.enabled || !hasRules(group)) return segments;
+  if (!isArmed(group, now) || !hasRules(group)) return segments;
 
   const schedule = group.schedule;
   if (schedule && Array.isArray(schedule.days) && schedule.days.length > 0) {
@@ -116,11 +116,18 @@ export function nextScheduleBoundary(schedule, now = Date.now()) {
   return null;
 }
 
-// { at, kind: 'opens' | 'shuts', reason: 'schedule' | 'allowance' } or null when
-// nothing is scheduled to change — a group held open only by an unspent
-// allowance has no clock to watch, just a tiny mammal to watch.
+// { at, kind: 'opens' | 'shuts' | 'rearms', reason: 'schedule' | 'allowance' |
+// 'disarm' } or null when nothing is scheduled to change — a group held open
+// only by an unspent allowance has no clock to watch, just a tiny mammal to
+// watch.
 export function nextEventFor(group, now = Date.now(), usage = null, session = null) {
-  if (!group.enabled || !hasRules(group)) return null;
+  // A timed release outranks everything the rules say: until it runs out the
+  // zone is open whatever its schedule thinks, and the moment it does run out
+  // is the next thing that happens to this zone.
+  const rearm = rearmAt(group, now);
+  if (rearm !== null) return { at: rearm, kind: 'rearms', reason: 'disarm' };
+
+  if (!isArmed(group, now) || !hasRules(group)) return null;
 
   // A spent allowance outranks the schedule: even when the window ends first,
   // the group stays shut until the allowance resets at midnight. A permanent
@@ -140,6 +147,14 @@ export function nextEventFor(group, now = Date.now(), usage = null, session = nu
     kind: isWithinSchedule(group.schedule, new Date(boundary + 1000)) ? 'shuts' : 'opens',
     reason: 'schedule'
   };
+}
+
+// The verb an event takes in a sentence, so the dashboard and the popup name
+// the same moment with the same word.
+const EVENT_VERBS = { shuts: 'shuts', opens: 'reopens', rearms: 're-arms' };
+
+export function eventVerb(kind) {
+  return EVENT_VERBS[kind] || 'changes';
 }
 
 // The soonest event across every group: { group, at, kind, reason } or null.

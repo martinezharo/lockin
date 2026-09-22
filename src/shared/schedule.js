@@ -66,10 +66,42 @@ export function hasRules(g) {
   return Boolean(g.schedule || g.limit);
 }
 
+/* ---------- Armed, disarmed, disarmed until ----------
+   Disarming is the one thing in Lock In that can end by itself. A zone carries
+   `enabled` and, when its release was given a length, `disarmedUntil`:
+
+     enabled: true                        -- contained by its rules
+     enabled: false, disarmedUntil: null  -- open until it is armed by hand
+     enabled: false, disarmedUntil: <ms>  -- open until that moment, then armed
+                                             again by whoever notices first
+
+   The deadline is read, never watched: nothing schedules a timer for it, so
+   the extension, the dashboard's per-second tick and the Windows watchdog all
+   reach the same conclusion from the same number. */
+
+export function disarmDeadline(g) {
+  const until = Number(g.disarmedUntil);
+  return Number.isFinite(until) && until > 0 ? until : null;
+}
+
+// The moment a timed release runs out, or null when nothing is counting down —
+// an armed zone, and an open-ended disarm, both have no moment to name.
+export function rearmAt(g, now = Date.now()) {
+  if (g.enabled) return null;
+  const until = disarmDeadline(g);
+  return until !== null && until > now ? until : null;
+}
+
+export function isArmed(g, now = Date.now()) {
+  if (g.enabled) return true;
+  const until = disarmDeadline(g);
+  return until !== null && now >= until;
+}
+
 // `usage` and `session` are only consulted for groups that carry a limit, so
 // callers with no interest in allowances can keep leaving them out.
 export function isGroupActive(g, now = Date.now(), usage = null, session = null) {
-  if (!g.enabled) return false;
+  if (!isArmed(g, now)) return false;
   if (!hasRules(g)) return false;
   if (isInWindow(g, now)) return true;
   return isAllowanceSpent(g, usage, session, now);

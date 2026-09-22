@@ -3,7 +3,7 @@
 
 import { Storage } from '../../shared/storage.js';
 import { uid, normalizeSiteInput, parseSiteList, exceptionFitsDomains, siteMatches } from '../../shared/domains.js';
-import { timeValueToMinutes } from '../../shared/schedule.js';
+import { timeValueToMinutes, isArmed, rearmAt } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { enforcementReasonText } from '../../shared/enforcement.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
@@ -16,9 +16,13 @@ import {
   rulesControlsHtml,
   scheduleWindowRowHtml,
   readRules,
+  readDisarm,
   zoneStatusText,
   zoneStateClass,
-  meterState
+  meterState,
+  disarmOutcomeText,
+  disarmConfirmLabel,
+  minutesUntilMidnight
 } from './templates.js';
 
 const groupsListEl = document.getElementById('groupsList');
@@ -97,7 +101,17 @@ const deleteGroup = (id) =>
     return updateGroups((gs) => gs.filter((g) => g.id !== id));
   });
 
-const disableGroup = (id) => withLockCheck(() => updateGroup(id, (g) => { g.enabled = false; }));
+/* Disarming is the one release that can be given a length. `minutes` is null
+   for the open-ended one, and the deadline is stamped at the moment the
+   paperwork clears rather than when the picker was opened — a paragraph typed
+   slowly must not eat into the release it was paying for. */
+const disarmGroup = (id, minutes) =>
+  withLockCheck(() =>
+    updateGroup(id, (g) => {
+      g.enabled = false;
+      g.disarmedUntil = minutes === null ? null : Date.now() + minutes * 60000;
+    })
+  );
 
 const removeDomain = (id, domain) =>
   withLockCheck(() => updateGroup(id, (g) => { g.domains = g.domains.filter((d) => d !== domain); }));
@@ -117,7 +131,8 @@ const saveRules = (id, rules) =>
     })
   );
 
-const enableGroup = (id) => updateGroup(id, (g) => { g.enabled = true; });
+// Arming is free, and it ends a running release early rather than pausing it.
+const enableGroup = (id) => updateGroup(id, (g) => { g.enabled = true; g.disarmedUntil = null; });
 
 function saveGroupName(id, input) {
   const name = input.value.trim();
@@ -162,7 +177,11 @@ async function addException(id, input) {
   let message = '';
   if (!exception) message = 'Enter a valid HTTP(S) URL, without credentials or wildcards.';
   else if (!exceptionFitsDomains(exception, group?.domains)) message = 'Use a path inside one of this zone\'s forbidden tunnels; a whole domain cannot be exempted.';
-  else if (groups.some((other) => other.id !== id && other.enabled && other.domains.some(rule => siteMatches('https://' + exception, rule)))) {
+  // A zone whose release is still running counts as armed here: it comes back
+  // on its own, and an exception written underneath it would quietly stop
+  // working the moment it does.
+  else if (groups.some((other) => other.id !== id && (isArmed(other) || rearmAt(other) !== null) &&
+    other.domains.some(rule => siteMatches('https://' + exception, rule)))) {
     message = 'Another armed zone also contains this page. Move or remove that overlapping rule before allowing it here.';
   }
   if (message) {
@@ -383,6 +402,113 @@ async function render() {
   refreshLockSwitch();
 }
 
+/* ---------------- The release picker ----------------
+   The panel lives inside the open zone, so it is repainted rather than re-wired
+   whenever its numbers change: the chips, the outcome sentence and the confirm
+   button all describe the same single answer, which is either a number of
+   minutes in the box or the open-ended release. */
+
+function panelMinutes(panel) {
+  if (panel.dataset.disarmMode === 'forever') return null;
+  const minutes = Math.floor(Number(panel.querySelector('[data-disarm-minutes]').value.trim()));
+  return Number.isFinite(minutes) && minutes >= 1 && minutes <= MINUTES_PER_DAY ? minutes : undefined;
+}
+
+function paintDisarmPanel(panel, now = Date.now()) {
+  const forever = panel.dataset.disarmMode === 'forever';
+  const input = panel.querySelector('[data-disarm-minutes]');
+
+  // "Rest of the day" is a moving target, so while it is the picked answer the
+  // box counts down with the clock instead of freezing at the minute it was
+  // clicked.
+  const untilMidnight = minutesUntilMidnight(now);
+  panel.querySelector('[data-disarm-preset="day"]').dataset.disarmMinutesValue = String(untilMidnight);
+  if (panel.dataset.disarmPicked === 'day' && !forever) input.value = String(untilMidnight);
+
+  const minutes = panelMinutes(panel);
+  const usable = minutes !== undefined;
+  panel.classList.toggle('is-forever', forever);
+
+  for (const chip of panel.querySelectorAll('[data-disarm-preset]')) {
+    const isForeverChip = chip.dataset.disarmPreset === '0';
+    const picked = forever
+      ? isForeverChip
+      : usable && !isForeverChip && Number(chip.dataset.disarmMinutesValue) === minutes;
+    chip.classList.toggle('checked', picked);
+    chip.setAttribute('aria-pressed', String(picked));
+  }
+
+  panel.querySelector('[data-disarm-outcome]').textContent = usable
+    ? disarmOutcomeText(minutes, now)
+    : 'Pick a length between 1 and 1440 minutes, or a release with no end at all. ⏳';
+  panel.querySelector('[data-disarm-confirm]').textContent = usable ? disarmConfirmLabel(minutes) : 'Disarm 🔓';
+}
+
+async function openDisarmPanel(btn) {
+  const zone = btn.closest('.zone');
+  const panel = zone.querySelector('[data-disarm-panel]');
+  const open = panel.hidden;
+  panel.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  await gateTimedReleases(panel);
+  paintDisarmPanel(panel);
+  panel.querySelector(panel.dataset.disarmMode === 'forever' ? '[data-disarm-confirm]' : '[data-disarm-minutes]').focus();
+}
+
+function closeDisarmPanel(btn) {
+  const zone = btn.closest('.zone');
+  const panel = zone.querySelector('[data-disarm-panel]');
+  panel.hidden = true;
+  const toggle = zone.querySelector('[data-action="disarm"]');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.focus();
+}
+
+/* A timed release only expires because the watchdog says so, so a watchdog that
+   cannot keep one is never offered it: the lengths are switched off as the
+   panel opens rather than after the answer has been given. The open-ended
+   release is what every build has always done, and stays available. */
+async function timedReleaseRefusal() {
+  const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+  if (nativeStatus?.connected && nativeStatus.supportsTimedDisarm === true) return '';
+  return nativeStatus?.connected
+    ? '🔒 This Windows watchdog is too old to end a release by itself. Update it and reload the extension; until then a release has no end.'
+    : '🔒 The Windows watchdog is offline, so nothing can promise to arm this zone again. Until it is back, a release has no end.';
+}
+
+async function gateTimedReleases(panel) {
+  const refusal = await timedReleaseRefusal();
+  const note = panel.querySelector('[data-disarm-note]');
+  note.textContent = refusal;
+  note.hidden = !refusal;
+  panel.querySelector('[data-disarm-error]').hidden = true;
+
+  // The open-ended chip is the only answer left, so it is also the answer.
+  if (refusal) panel.dataset.disarmMode = 'forever';
+  panel.querySelector('[data-disarm-minutes]').disabled = Boolean(refusal);
+  for (const chip of panel.querySelectorAll('[data-disarm-preset]')) {
+    chip.disabled = Boolean(refusal) && chip.dataset.disarmPreset !== '0';
+  }
+}
+
+async function confirmDisarm(id, btn) {
+  const panel = btn.closest('[data-disarm-panel]');
+  const release = readDisarm(panel);
+  if (!release) return;
+  // Checked again on the way out: the watchdog can go away while the panel
+  // sits open, and a release nobody can end must not be sold as one.
+  if (release.minutes !== null) {
+    const refusal = await timedReleaseRefusal();
+    if (refusal) {
+      await gateTimedReleases(panel);
+      paintDisarmPanel(panel);
+      return;
+    }
+  }
+  disarmGroup(id, release.minutes);
+}
+
 /* ---------------- Events ---------------- */
 
 const ZONE_ACTIONS = {
@@ -391,7 +517,9 @@ const ZONE_ACTIONS = {
     render();
   },
   delete: (id) => deleteGroup(id),
-  disable: (id) => disableGroup(id),
+  disarm: (id, btn) => openDisarmPanel(btn),
+  'cancel-disarm': (id, btn) => closeDisarmPanel(btn),
+  'confirm-disarm': (id, btn) => confirmDisarm(id, btn),
   enable: (id) => enableGroup(id),
   'save-name': (id, btn) => {
     const input = btn.closest('.zone').querySelector('[data-zone-name-input]');
@@ -527,6 +655,15 @@ document.addEventListener('input', (e) => {
   if (e.target.matches('[data-zone-name-input]')) e.target.setCustomValidity('');
   if (e.target.matches('[data-add-domain-input], [data-add-exception-input]')) e.target.setCustomValidity('');
   if (e.target.matches('[data-limit-minutes]')) markPresets(e.target.closest('[data-rule-body]'));
+  // Typing a length is an answer of its own: it leaves the open-ended mode and
+  // stops the box from being rewritten by the rest-of-the-day countdown.
+  if (e.target.matches('[data-disarm-minutes]')) {
+    const panel = e.target.closest('[data-disarm-panel]');
+    panel.dataset.disarmMode = 'timed';
+    delete panel.dataset.disarmPicked;
+    panel.querySelector('[data-disarm-error]').hidden = true;
+    paintDisarmPanel(panel);
+  }
   if (e.target.matches('[data-sched-start], [data-sched-end]')) paintWindowBand(e.target.closest('[data-rule-body]'));
 });
 
@@ -552,6 +689,22 @@ document.addEventListener('click', (e) => {
     const body = removeWindow.closest('[data-rule-body]');
     if (body.querySelectorAll('[data-sched-window]').length > 1) removeWindow.closest('[data-sched-window]').remove();
     refreshWindowRows(body);
+    return;
+  }
+
+  // A release chip writes its length into the box beside it, so the box stays
+  // the single answer the panel reads back. The open-ended chip has no length
+  // to write, so it switches the whole panel into that mode instead.
+  const disarmPreset = e.target.closest('[data-disarm-preset]');
+  if (disarmPreset) {
+    const panel = disarmPreset.closest('[data-disarm-panel]');
+    const value = disarmPreset.dataset.disarmPreset;
+    panel.dataset.disarmMode = value === '0' ? 'forever' : 'timed';
+    if (value === 'day') panel.dataset.disarmPicked = 'day';
+    else delete panel.dataset.disarmPicked;
+    if (value !== '0') panel.querySelector('[data-disarm-minutes]').value = disarmPreset.dataset.disarmMinutesValue;
+    panel.querySelector('[data-disarm-error]').hidden = true;
+    paintDisarmPanel(panel);
     return;
   }
 
@@ -585,12 +738,24 @@ setInterval(async () => {
     row.className = `zone state-${zoneStateClass(g, now, usage, session)}${openIds.has(g.id) ? ' is-open' : ''}`;
     row.querySelector(`[data-status="${g.id}"]`).textContent = zoneStatusText(g, now, usage, session);
 
+    const panel = row.querySelector('[data-disarm-panel]');
+    if (panel && !panel.hidden) paintDisarmPanel(panel, now);
+
     const meter = row.querySelector('[data-meter]');
     if (!meter) continue;
     const { percent, label, spent } = meterState(g, now, usage, session);
     meter.classList.toggle('spent', spent);
     meter.querySelector('.meter-fill').style.width = `${percent.toFixed(1)}%`;
     meter.querySelector('.meter-label').textContent = label;
+  }
+
+  /* A release that runs out while this page is open is a real state change, and
+     the row's buttons are part of it, so this is the one thing the tick hands
+     back to a full render. Reading the groups through storage is what expires
+     them, and writing them straight back is what tells the watchdog the board
+     and it agree. */
+  if (renderedGroups.some((g) => !g.enabled && g.disarmedUntil && now >= g.disarmedUntil)) {
+    await updateGroups((groups) => groups);
   }
 }, 1000);
 

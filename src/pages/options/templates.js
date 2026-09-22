@@ -6,6 +6,8 @@ import {
   DAYS,
   isGroupActive,
   isInWindow,
+  isArmed,
+  rearmAt,
   hasRules,
   scheduleWindows,
   minutesToTimeValue,
@@ -16,6 +18,9 @@ import {
   MINUTES_PER_DAY,
   minutesIntoDay,
   formatClock,
+  startOfDay,
+  addDays,
+  eventVerb,
   todayShutSegments,
   nextEventFor,
   nextEvent
@@ -183,6 +188,77 @@ export function rulesControlsHtml({ schedule = null, limit = null, showNoRulesHi
   `;
 }
 
+/* ---------- The release picker ----------
+   Disarming is the only thing here that can end by itself, so it asks how long
+   instead of being a single switch. The row is built from the same preset chips
+   the daily allowance uses, for the same reason the allowance has them: the
+   answer is nearly always one of five numbers, and the box underneath is there
+   for the sixth.
+
+   `0` is "until I arm it again" — the open-ended release Lock In has always
+   had. Like the permanent allowance it sits at the end of the row wearing the
+   colour of a bigger promise, because that is what it is. */
+
+const DISARM_PRESETS = [5, 15, 30, 60, 'day', 0];
+
+const DEFAULT_DISARM_MINUTES = 15;
+
+// Rounded up so the chip never promises a minute that has already gone.
+export function minutesUntilMidnight(now = Date.now()) {
+  return Math.max(1, Math.ceil((addDays(startOfDay(now), 1) - now) / 60000));
+}
+
+function disarmPresetLabel(value) {
+  if (value === 'day') return 'rest of the day';
+  if (value === 0) return 'until I arm it 👹';
+  return formatDuration(value * 60000);
+}
+
+// What the chosen release actually promises, in the two shapes it can take.
+// `minutes` is null for the open-ended one.
+export function disarmOutcomeText(minutes, now = Date.now()) {
+  if (minutes === null) {
+    return 'These gates stay open until you arm this zone again by hand. Nothing else will do it for you. 👹';
+  }
+  return `Containment returns at ${formatClock(now + minutes * 60000)}, whether this dashboard is open or not — the watchdog arms this zone again by itself. 🔒`;
+}
+
+export function disarmConfirmLabel(minutes) {
+  return minutes === null ? 'Disarm until I say so 🔓' : `Disarm for ${formatDuration(minutes * 60000)} 🔓`;
+}
+
+function disarmPanelHtml(g, now = Date.now()) {
+  const chips = DISARM_PRESETS.map((value) => {
+    const minutes = value === 'day' ? minutesUntilMidnight(now) : value;
+    const checked = value === DEFAULT_DISARM_MINUTES;
+    return `<button type="button" class="preset ${value === 0 ? 'preset-permanent' : ''} ${checked ? 'checked' : ''}"
+      data-disarm-preset="${value}" data-disarm-minutes-value="${minutes}" aria-pressed="${checked}">${disarmPresetLabel(value)}</button>`;
+  }).join('');
+
+  return `
+    <div class="disarm-panel" id="disarm-${g.id}" data-disarm-panel="${g.id}" data-disarm-mode="timed" hidden>
+      <div class="disarm-head">
+        <span class="disarm-title">Temporary release 🔓</span>
+        <span class="disarm-sub">how long should containment stay down?</span>
+      </div>
+      <div class="preset-row disarm-presets">${chips}</div>
+      <div class="disarm-row">
+        <label class="field disarm-field">
+          <span class="field-label">Minutes</span>
+          <input type="number" min="1" max="1440" step="1" data-disarm-minutes value="${DEFAULT_DISARM_MINUTES}" />
+        </label>
+        <p class="disarm-outcome" data-disarm-outcome>${escapeHtml(disarmOutcomeText(DEFAULT_DISARM_MINUTES, now))}</p>
+      </div>
+      <p class="rule-note" data-disarm-note hidden></p>
+      <p class="rule-error" data-disarm-error role="alert" hidden></p>
+      <div class="disarm-actions">
+        <button type="button" class="primary" data-action="confirm-disarm" data-group="${g.id}"
+          data-disarm-confirm>${escapeHtml(disarmConfirmLabel(DEFAULT_DISARM_MINUTES))}</button>
+        <button type="button" class="ghost" data-action="cancel-disarm" data-group="${g.id}">Never mind</button>
+      </div>
+    </div>`;
+}
+
 /* ---------- Reading rules back ----------
    Each reader returns null when its rule is unusable and leaves an inline
    message in the form saying so, so nothing is ever saved half-configured. */
@@ -238,13 +314,41 @@ export function readRules(root) {
   return { schedule, limit };
 }
 
+// The picked release as { minutes } — null minutes being the open-ended one —
+// or null when the box holds something a release cannot be made of.
+export function readDisarm(root) {
+  const errorEl = root.querySelector('[data-disarm-error]');
+  if (root.dataset.disarmMode === 'forever') {
+    errorEl.hidden = true;
+    return { minutes: null };
+  }
+
+  const raw = root.querySelector('[data-disarm-minutes]').value.trim();
+  const minutes = Math.floor(Number(raw));
+  if (raw === '' || !Number.isFinite(minutes) || minutes < 1) {
+    return showError(errorEl, 'How long, tiny mammal? One minute is the shortest release. ⏳');
+  }
+  if (minutes > MINUTES_PER_DAY) {
+    return showError(errorEl, 'A release cannot outlast a day: 1440 minutes at most. 🐭');
+  }
+
+  errorEl.hidden = true;
+  return { minutes };
+}
+
 /* ---------- Live zone state ----------
    Written once and used twice: on render, and again every second by the tick
    in options.js, which refreshes the text in place instead of rebuilding the
    row (rebuilding would throw away whatever is half-typed inside it). */
 
 export function zoneStatusText(g, now = Date.now(), usage = null, session = null) {
-  if (!g.enabled) return 'disarmed · tiny mammal roaming free 🐭';
+  // A timed release says the two things it is: still down, and no longer for
+  // long. The countdown is the part the per-second tick keeps honest.
+  const rearm = rearmAt(g, now);
+  if (rearm !== null) {
+    return `released · containment returns in ${formatDuration(rearm - now)} · ${formatClock(rearm)} ⏳`;
+  }
+  if (!isArmed(g, now)) return 'disarmed · tiny mammal roaming free 🐭';
   if (!hasRules(g)) return 'contained around the clock · no way out 👹';
 
   const parts = [];
@@ -271,7 +375,7 @@ export function zoneStatusText(g, now = Date.now(), usage = null, session = null
 }
 
 export function zoneStateClass(g, now = Date.now(), usage = null, session = null) {
-  if (!g.enabled) return 'off';
+  if (!isArmed(g, now)) return 'off';
   if (isAllowanceSpent(g, usage, session, now)) return 'spent';
   return isGroupActive(g, now, usage, session) ? 'shut' : 'open';
 }
@@ -315,16 +419,19 @@ export function nowPanelState(groups, now = Date.now(), usage = null, session = 
     };
   }
 
-  const shuts = event.kind === 'shuts';
   return {
     headline,
     // The stamp beside this sentence is the countdown, so the sentence spends
     // its words on what the stamp cannot say: which zone, and at what time.
-    detail: `Next thing that happens: <strong>${escapeHtml(event.group.name)} ${shuts ? 'shuts' : 'reopens'} at ${formatClock(event.at)}</strong>. 👹`,
+    detail: `Next thing that happens: <strong>${escapeHtml(event.group.name)} ${eventVerb(event.kind)} at ${formatClock(event.at)}</strong>. 👹`,
     countdown: formatDuration(event.at - now),
     // The zone is the subject in the sentence above and the gates are the
-    // subject here, so the verb has to agree with the gates, not with it.
-    countdownLabel: `until the gates ${shuts ? 'shut' : 'reopen'}`
+    // subject here, so the verb has to agree with the gates, not with it —
+    // except for a release running out, where the zone is the subject again.
+    countdownLabel:
+      event.kind === 'rearms'
+        ? 'until containment returns'
+        : `until the gates ${event.kind === 'shuts' ? 'shut' : 'reopen'}`
   };
 }
 
@@ -344,8 +451,10 @@ function stripRowHtml(g, now, usage, session) {
 
   // The note explains the track, so an empty track on a scheduled zone has to
   // say "not today" rather than quote hours that are not on this day's strip.
+  const rearm = rearmAt(g, now);
   let note = 'allowance only';
-  if (!g.enabled) note = 'disarmed';
+  if (rearm !== null) note = `back in ${formatDuration(rearm - now)}`;
+  else if (!isArmed(g, now)) note = 'disarmed';
   else if (isPermanentLimit(g.limit)) note = 'permanent';
   else if (segments.some((s) => s.kind === 'spent')) note = 'spent';
   else if (!hasRules(g)) note = 'all day';
@@ -427,6 +536,7 @@ function meterHtml(g, now, usage, session) {
 }
 
 function zoneBodyHtml(g, now, usage, session) {
+  const armed = isArmed(g, now);
   return `
     <div class="zone-body">
       <div class="zone-name-editor">
@@ -474,17 +584,19 @@ function zoneBodyHtml(g, now, usage, session) {
         </div>
       </div>
 
+      <!-- Arming is free and always offered while a zone is down; disarming
+           asks how long first, so its button opens the picker below rather than
+           being the decision itself. -->
       <div class="zone-actions">
         <button type="button" class="primary" data-action="save-rules" data-group="${g.id}">Save rules 🔒</button>
         <button type="button" class="ghost" data-action="toggle" data-group="${g.id}">Cancel</button>
         <span class="spacer"></span>
-        ${
-          g.enabled
-            ? `<button type="button" class="ghost" data-action="disable" data-group="${g.id}">Disarm 🔓</button>`
-            : `<button type="button" class="ghost" data-action="enable" data-group="${g.id}">Arm containment 🔒</button>`
-        }
+        ${armed ? '' : `<button type="button" class="arm-action" data-action="enable" data-group="${g.id}">Arm containment now 🔒</button>`}
+        <button type="button" class="ghost" data-action="disarm" data-group="${g.id}"
+          aria-expanded="false" aria-controls="disarm-${g.id}">${armed ? 'Disarm 🔓' : 'Change release ⏳'}</button>
         <button type="button" class="btn-danger" data-action="delete" data-group="${g.id}">Delete zone</button>
       </div>
+      ${disarmPanelHtml(g, now)}
     </div>`;
 }
 
@@ -495,11 +607,12 @@ export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
   const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}${exceptionCount ? ` · ${exceptionCount} free pass${exceptionCount === 1 ? '' : 'es'}` : ''}`;
 
   // Arming is free and strengthens containment, so a disarmed row gets the
-  // shortcut right there. It sits outside the toggle: a button inside a button
-  // is not markup, it is a dare.
+  // shortcut right there — including a row whose release is still running,
+  // where cutting it short is the same free, stricter move. It sits outside the
+  // toggle: a button inside a button is not markup, it is a dare.
   const armShortcut =
-    !g.enabled && !open
-      ? `<button type="button" class="arm-shortcut" data-action="enable" data-group="${g.id}">Arm 🔒</button>`
+    !isArmed(g, now) && !open
+      ? `<button type="button" class="arm-shortcut" data-action="enable" data-group="${g.id}">Arm now 🔒</button>`
       : '';
 
   return `

@@ -262,6 +262,7 @@ export class WatchdogClient {
           connected: true,
           supportsUrlRules: snapshot.supportsUrlRules === true,
           supportsExceptions: snapshot.supportsExceptions === true,
+          supportsTimedDisarm: snapshot.supportsTimedDisarm === true,
           configured: snapshot.configured === true,
           enforcementArmed: snapshot.enforcementArmed === true,
           failClosed: snapshot.failClosed === true,
