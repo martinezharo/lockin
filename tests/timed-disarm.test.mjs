@@ -59,8 +59,10 @@ test('storage expires a release that ran out while nothing was looking', () => {
   assert.equal(normalized.disarmedUntil, null);
 
   // And the expiry survives the trip back into storage, so the watchdog is
-  // told about it rather than being left to disagree.
-  assert.equal(serializeGroup(stale).enabled, true);
+  // told about it rather than being left to disagree. serializeGroup reads the
+  // real clock, so this half of the check uses a deadline that is in the past
+  // wherever and whenever the suite runs.
+  assert.equal(serializeGroup(zone({ enabled: false, disarmedUntil: Date.now() - MINUTE })).enabled, true);
 });
 
 test('storage keeps a release that is still running', () => {
