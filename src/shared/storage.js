@@ -3,7 +3,7 @@
 // their defaults are defined exactly once.
 
 import { pruneUsage } from './usage.js';
-import { scheduleWindows } from './schedule.js';
+import { disarmDeadline, scheduleWindows } from './schedule.js';
 
 function normalizeSchedule(schedule) {
   if (!schedule) return null;
@@ -34,11 +34,20 @@ export function isGroup(g) {
    Empty rule sets are invalid in the current UI and also use the schedule
    marker when legacy data is rewritten, so an older worker does not interpret
    them as permanent containment. */
-export function normalizeGroup(g) {
+export function normalizeGroup(g, now = Date.now()) {
   const legacy = 'mode' in g;
   const { mode, expiresAt, ...rest } = g;
+  /* A timed disarm expires on the way out of storage. Every page and the
+     service worker read groups through here, so none of them has to remember
+     the deadline, and a release that ran out while the dashboard sat open
+     reads as armed the next time anything looks. The watchdog reaches the same
+     conclusion on its own side, including while the browser is closed. */
+  const deadline = disarmDeadline(g);
+  const expired = deadline !== null && now >= deadline;
   return {
     ...rest,
+    enabled: expired ? true : g.enabled,
+    disarmedUntil: expired ? null : deadline,
     exceptions: Array.isArray(g.exceptions) ? g.exceptions : [],
     schedule: normalizeSchedule((legacy ? mode === 'schedule' && g.schedule : g.schedule) || null),
     limit: g.limit || null

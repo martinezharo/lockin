@@ -1,7 +1,7 @@
 import { Storage } from '../../shared/storage.js';
-import { isGroupActive, isInWindow } from '../../shared/schedule.js';
+import { isGroupActive, isInWindow, isArmed, rearmAt } from '../../shared/schedule.js';
 import { isAllowanceSpent, isPermanentLimit, remainingMs, formatDuration } from '../../shared/usage.js';
-import { formatClock, nextEvent } from '../../shared/timeline.js';
+import { formatClock, eventVerb, nextEvent } from '../../shared/timeline.js';
 import { enforcementReasonText } from '../../shared/enforcement.js';
 import { lockIconHtml } from '../../shared/lock-icon.js';
 
@@ -17,7 +17,11 @@ function escapeHtml(str) {
 // Short enough for a 268px row: state first, then the one number that matters
 // for that state.
 function zoneLine(g, now, usage, session) {
-  if (!g.enabled) return { state: 'off', note: 'off' };
+  // A running release is still off, but the number that matters for it is how
+  // much of the release is left.
+  const rearm = rearmAt(g, now);
+  if (rearm !== null) return { state: 'off', note: `${formatDuration(rearm - now)} off` };
+  if (!isArmed(g, now)) return { state: 'off', note: 'off' };
   if (isPermanentLimit(g.limit)) return { state: 'spent', note: 'permanent' };
   if (isAllowanceSpent(g, usage, session, now)) return { state: 'spent', note: 'spent' };
   if (isInWindow(g, now)) return { state: 'shut', note: 'shut' };
@@ -51,7 +55,7 @@ async function init() {
     document.getElementById('nextPanel').hidden = false;
     document.getElementById('nextValue').textContent = formatDuration(event.at - now);
     document.getElementById('nextLabel').textContent =
-      `until ${event.group.name} ${event.kind === 'shuts' ? 'shuts' : 'reopens'}`;
+      `until ${event.group.name} ${eventVerb(event.kind)}`;
     document.getElementById('nextClock').textContent = formatClock(event.at);
   }
 

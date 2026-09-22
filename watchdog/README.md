@@ -34,6 +34,14 @@ This disarms Lock In and disables only the emergency firewall rules in the `Lock
 
 Add `-PurgeData` only to permanently remove the protected configuration and usage stored under `C:\ProgramData\LockIn`.
 
+## Timed releases
+
+A zone can be disarmed for a chosen length of time instead of indefinitely. The
+extension stores the deadline on the zone as `disarmedUntil`; this watchdog arms
+the zone again as soon as that moment passes, whether or not a browser is
+running, and reports `supportsTimedDisarm` so older installations are never
+offered a release they could not end.
+
 ## Domain and URL rules
 
 Enter a domain, a section such as `youtube.com/shorts/`, or a page such as

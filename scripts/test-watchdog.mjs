@@ -109,6 +109,24 @@ try {
     privacyConsent: true, lockMode: false
   });
   assert.equal(caseSensitive.blockedDomains.length, 2);
+
+  // A timed release is only a promise if the watchdog keeps it: one that has
+  // already run out must come back armed and blocking on the way in, and one
+  // that is still running must be left alone.
+  assert.equal(caseSensitive.supportsTimedDisarm, true);
+  const releases = await send('updateConfig', {
+    groups: [
+      { id: 'expired', name: 'Expired release', domains: ['expired.example'], enabled: false, disarmedUntil: Date.now() - 1000, limit: { minutes: 0 } },
+      { id: 'running', name: 'Running release', domains: ['running.example'], enabled: false, disarmedUntil: Date.now() + 3600000, limit: { minutes: 0 } }
+    ],
+    privacyConsent: true, lockMode: false
+  });
+  const byId = Object.fromEntries(releases.groups.map((group) => [group.id, group]));
+  assert.equal(byId.expired.enabled, true);
+  assert.equal(byId.expired.disarmedUntil, null);
+  assert.equal(byId.running.enabled, false);
+  assert.deepEqual(releases.blockedDomains, ['expired.example']);
+
   console.log('PowerShell watchdog integration test passed.');
 } finally {
   watchdog.kill();
