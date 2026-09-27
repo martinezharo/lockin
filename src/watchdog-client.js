@@ -6,8 +6,10 @@ import { Storage, isGroup, serializeGroup } from './shared/storage.js';
 import { siteMatches, normalizeDomainInput } from './shared/domains.js';
 
 const ENDPOINT = 'http://127.0.0.1:8765/api/request';
-const HEARTBEAT_MS = 1000;
-const REQUEST_TIMEOUT_MS = 4000;
+const HEARTBEAT_MS = 2000;
+const REQUEST_TIMEOUT_MS = 10000;
+// How long requests must keep failing before the dashboard reports a disconnect.
+const OFFLINE_AFTER_MS = 10000;
 const CONFIG_KEYS = new Set(['groups', 'lockMode', 'privacyConsent']);
 
 function isFragmentRule(rule) {
@@ -70,13 +72,18 @@ async function reloadTabsForPolicyChange(domains) {
 
 export class WatchdogClient {
   constructor() {
+    // `connected` is the last request's outcome and gates config sync. The
+    // dashboard only hears about a disconnect once failures have lasted
+    // OFFLINE_AFTER_MS, so a single slow answer never flips it to red.
     this.connected = false;
+    this.bootstrapped = false;
+    this.lastSuccessAt = 0;
+    this.failingSince = 0;
     this.requestNumber = 0;
     this.heartbeatTimer = null;
-    this.reconnectTimer = null;
-    this.connectPromise = null;
     this.configSyncPromise = null;
     this.heartbeatPromise = null;
+    this.heartbeatAgain = false;
     this.requestQueue = Promise.resolve();
     this.configRevision = 0;
     this.configSyncPending = false;
@@ -87,60 +94,79 @@ export class WatchdogClient {
     this.checkedNavigations = new Map();
   }
 
-  async start() {
-    if (this.started) return;
+  // One steady timer drives everything: it bootstraps when needed, replays
+  // queued edits and sends the heartbeat. A failure just means the next tick
+  // tries again from the top; there is no separate reconnect state to get lost.
+  start() {
+    if (this.started) return this.heartbeatPromise || Promise.resolve();
     this.started = true;
-    await this.connect();
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
+    return this.heartbeat();
   }
 
-  async connect() {
-    if (this.connectPromise) return this.connectPromise;
-    clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-    this.connectPromise = this.finishConnect().finally(() => {
-      this.connectPromise = null;
-    });
-    return this.connectPromise;
+  // Bootstrap again on the next tick, e.g. after the watchdog restarted.
+  connect() {
+    this.bootstrapped = false;
+    return this.heartbeat();
   }
 
-  async finishConnect() {
-    try {
-      const state = await chrome.storage.local.get(['usage', 'lockMode', 'privacyConsent']);
-      await this.request('bootstrap', {
-        groups: await Storage.getGroups(),
-        usage: state.usage || {},
-        lockMode: state.lockMode === true,
-        privacyConsent: state.privacyConsent === true
-      });
-      this.connected = true;
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
+  pulse() {
+    return this.heartbeat();
+  }
 
-      // A storage change can arrive while the watchdog is offline. Bootstrap
-      // intentionally does not overwrite an existing authoritative state, so
-      // replay only a queued configuration once the connection is usable again.
-      if (this.configSyncPending) await this.syncConfig();
-      await this.heartbeat();
-    } catch (error) {
-      this.onDisconnect(error?.message || String(error));
+  heartbeat() {
+    if (this.heartbeatPromise) {
+      // Something changed (a tab switch, say) while a tick was in flight.
+      // Coalesce every such call into exactly one follow-up tick.
+      this.heartbeatAgain = true;
+      return this.heartbeatPromise;
     }
-  }
-
-  async heartbeat() {
-    if (this.heartbeatPromise) return this.heartbeatPromise;
-    this.heartbeatPromise = this.finishHeartbeat().finally(() => {
+    this.heartbeatAgain = false;
+    this.heartbeatPromise = this.tick().finally(() => {
       this.heartbeatPromise = null;
+      if (this.heartbeatAgain) void this.heartbeat();
     });
     return this.heartbeatPromise;
   }
 
-  async finishHeartbeat() {
+  async tick() {
     try {
+      if (!this.bootstrapped) {
+        const state = await chrome.storage.local.get(['usage', 'lockMode', 'privacyConsent']);
+        await this.request('bootstrap', {
+          groups: await Storage.getGroups(),
+          usage: state.usage || {},
+          lockMode: state.lockMode === true,
+          privacyConsent: state.privacyConsent === true
+        });
+        this.bootstrapped = true;
+        this.connected = true;
+        // A storage change can arrive while the watchdog is offline. Bootstrap
+        // intentionally does not overwrite an existing authoritative state, so
+        // replay only a queued configuration once the connection is usable.
+        if (this.configSyncPending) await this.syncConfig();
+      }
       await this.request('heartbeat', await focusedPage());
-      this.connected = true;
+      this.onSuccess();
       if (this.configSyncPending && !this.configSyncPromise) await this.syncConfig();
     } catch (error) {
-      this.onDisconnect(error?.message || String(error));
+      this.onFailure(error);
+    }
+  }
+
+  onSuccess() {
+    this.connected = true;
+    this.lastSuccessAt = Date.now();
+    this.failingSince = 0;
+  }
+
+  onFailure(error) {
+    this.connected = false;
+    this.bootstrapped = false;
+    const now = Date.now();
+    if (!this.failingSince) this.failingSince = now;
+    if (now - this.failingSince >= OFFLINE_AFTER_MS) {
+      void this.writeDisconnectedStatus(error?.message || String(error) || 'Lock In watchdog disconnected.');
     }
   }
 
@@ -159,7 +185,7 @@ export class WatchdogClient {
       });
       if (this.configRevision === revision) this.configSyncPending = false;
     })().catch((error) => {
-      this.onDisconnect(error?.message || String(error));
+      this.onFailure(error);
     }).finally(() => {
       this.configSyncPromise = null;
       // If storage changed while the request was in flight, the listener may
@@ -309,19 +335,6 @@ export class WatchdogClient {
       if (reloadActiveTab) await reloadTabsForPolicyChange(changedPolicyDomains);
     } finally {
       this.applyingSnapshot = false;
-    }
-  }
-
-  onDisconnect(reason) {
-    this.connected = false;
-    clearInterval(this.heartbeatTimer);
-    this.heartbeatTimer = null;
-    this.writeDisconnectedStatus(reason || 'Lock In watchdog disconnected.');
-    if (!this.reconnectTimer) {
-      this.reconnectTimer = setTimeout(() => {
-        this.reconnectTimer = null;
-        this.connect();
-      }, 5000);
     }
   }
 

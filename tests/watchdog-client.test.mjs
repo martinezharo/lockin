@@ -34,8 +34,9 @@ globalThis.chrome = {
 
 const { WatchdogClient } = await import('../src/watchdog-client.js');
 
-test('slow heartbeats are coalesced instead of starving configuration updates', async () => {
+test('slow heartbeats are coalesced into one follow-up instead of piling up', async () => {
   const client = new WatchdogClient();
+  client.bootstrapped = true;
   let release;
   let calls = 0;
   const pending = new Promise((resolve) => { release = resolve; });
@@ -45,8 +46,44 @@ test('slow heartbeats are coalesced instead of starving configuration updates', 
   assert.equal(calls, 1);
   release();
   await Promise.all(pulses);
-  await client.heartbeat();
+  while (client.heartbeatPromise) await client.heartbeatPromise;
   assert.equal(calls, 2);
+});
+
+test('a brief outage is not reported as a disconnect, a sustained one is', async () => {
+  const client = new WatchdogClient();
+  const realNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  let failing = true;
+  const requests = [];
+  client.request = async (type) => {
+    requests.push(type);
+    if (failing) throw new Error('watchdog offline');
+    return {};
+  };
+  try {
+    state.nativeStatus = { connected: true };
+    await client.heartbeat();
+    now += 5_000;
+    await client.heartbeat();
+    assert.equal(state.nativeStatus.connected, true);
+    now += 6_000;
+    await client.heartbeat();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(state.nativeStatus.connected, false);
+    assert.equal(state.nativeStatus.error, 'watchdog offline');
+
+    // Recovery bootstraps again, since the watchdog may have restarted.
+    failing = false;
+    requests.length = 0;
+    await client.heartbeat();
+    assert.deepEqual(requests, ['bootstrap', 'heartbeat']);
+    assert.equal(client.connected, true);
+    assert.equal(client.failingSince, 0);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('configuration changed while offline is replayed after reconnect', async () => {
@@ -61,8 +98,7 @@ test('configuration changed while offline is replayed after reconnect', async ()
   assert.equal(client.configSyncPending, true);
   assert.deepEqual(requests, []);
 
-  await client.finishConnect();
-  clearInterval(client.heartbeatTimer);
+  await client.heartbeat();
 
   assert.deepEqual(requests.map(({ type }) => type), ['bootstrap', 'updateConfig', 'heartbeat']);
   assert.equal(requests[1].payload.groups[0].id, 'queued');
@@ -77,8 +113,7 @@ test('a clean reconnect does not overwrite the authoritative configuration', asy
     return { ok: true };
   };
 
-  await client.finishConnect();
-  clearInterval(client.heartbeatTimer);
+  await client.heartbeat();
 
   assert.deepEqual(requests, ['bootstrap', 'heartbeat']);
   assert.equal(client.configSyncPending, false);

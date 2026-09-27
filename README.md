@@ -48,7 +48,7 @@ The watchdog starts disarmed and imports the extension's current groups. It arms
 - policy decisions are reevaluated every 250 ms; when a newly blocked domain is
   already the active tab, Lock In reloads that tab once so the browser applies
   the policy without a manual refresh; and
-- if Brave or Chrome is running and the sensor disappears for more than 30 seconds, all enabled zone domains are blocked and outbound network access for the browser executable is disabled.
+- if Brave or Chrome is running and the sensor disappears for more than 60 seconds, all enabled zone domains are blocked and outbound network access for the browser executable is disabled.
 
 The firewall rule prevents disabling the extension from becoming an escape route while browser policy refreshes. Reconnecting the extension removes the emergency firewall block and returns to ordinary schedule/allowance evaluation. Configuration edits are queued across a temporary watchdog disconnect and replayed after reconnect.
 
@@ -105,10 +105,19 @@ When switching Windows users, disconnected sessions do not require a browser
 sensor. Connected sessions still require their own sensor; reconnecting starts
 a fresh grace period. Scheduled blocks continue to apply machine-wide.
 
+For several Windows accounts, load the extension in each and run the installer
+once from each; every run adds its account to the protected set. Only the
+account in front spends allowance (a browser left behind a user switch keeps
+reporting its last tab and is ignored), time on the same zone from two accounts
+is counted once, and the emergency firewall rules are scoped per account, so a
+missing sensor cuts off only that account's browser. See `watchdog/README.md`.
+
 To update an existing watchdog without resetting its rules, usage, or armed
-state, run `pnpm watchdog:update` and accept the single UAC prompt. The updater
-elevates only the protected copy step, backs up the installed script, restarts
-the SYSTEM task, verifies its health, and restores the backup if startup fails.
+state, run `pnpm watchdog:update` (the installer again) and accept the single
+UAC prompt. It keeps the protected accounts, backs up the installed script,
+restarts the SYSTEM task, verifies its health, and restores the backup if
+startup fails. `pnpm watchdog:status` reports whether the watchdog answers and
+how fast, plus — from an elevated window — its task state and recent log.
 UAC cannot be removed safely without allowing user-writable code to replace a
 SYSTEM process.
 Reload the unpacked extension in the current browser to activate client changes.
@@ -167,7 +176,8 @@ src/watchdog-client.js                    loopback HTTP client
 src/pages/options/strict-mode.js          the in-app super-strict setup guide
 src/shared/install-source.js              repository build or Chrome Web Store copy
 watchdog/LockInWatchdog.ps1               protected enforcement engine
-scripts/install-windows-watchdog.ps1      elevated one-time installation
+scripts/install-windows-watchdog.ps1      self-elevating install and in-place update
+scripts/watchdog-status.ps1               health, latency, task state and log tail
 scripts/disarm-windows-watchdog.ps1       emergency recovery
 scripts/uninstall-windows-watchdog.ps1    selective removal
 scripts/test-watchdog.mjs                 end-to-end safe-mode integration test

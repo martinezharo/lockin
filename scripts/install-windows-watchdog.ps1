@@ -1,152 +1,198 @@
+# Installs or updates the Lock In watchdog. Run it from any PowerShell window:
+# it asks for elevation itself and adds the account that launched it to the
+# protected accounts of any existing install, so running it once from each
+# Windows account you use protects all of them. A failed update puts the
+# previous copy back.
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$ProtectedWindowsUser
+  # Comma-separated Windows accounts to protect, replacing the current set.
+  # Leave empty to keep the current set and add the account running this.
+  [string]$ProtectedWindowsUser = '',
+  # Internal: the account that launched the unelevated half.
+  [string]$LaunchingUser = '',
+  [switch]$Elevated
 )
 
 $ErrorActionPreference = 'Stop'
-$installLog = Join-Path $env:TEMP 'LockIn-watchdog-install.log'
-Start-Transcript -Path $installLog -Force | Out-Null
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = [Security.Principal.WindowsPrincipal]::new($identity)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-  throw 'Run this installer from an elevated PowerShell window (Run as administrator).'
-}
-
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$source = Join-Path $projectRoot 'watchdog\LockInWatchdog.ps1'
-if (-not (Test-Path -LiteralPath $source)) {
-  $source = Join-Path $PSScriptRoot 'LockInWatchdog.ps1'
-}
-if (-not (Test-Path -LiteralPath $source)) { throw 'LockInWatchdog.ps1 was not found.' }
-
-$installRoot = Join-Path $env:ProgramFiles 'Lock In'
-$dataRoot = Join-Path $env:ProgramData 'LockIn'
-$installedScript = Join-Path $installRoot 'LockInWatchdog.ps1'
 $taskName = 'Lock In Watchdog'
-$firewallGroup = 'LockInWatchdog'
+$healthUrl = 'http://127.0.0.1:8765/health'
 
-$protectedAccounts = @()
-foreach ($userName in @($ProtectedWindowsUser -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)) {
+function Test-Administrator {
+  $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Wait-WatchdogHealthy([int]$Seconds) {
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $health = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 3
+      if ($health.ok -eq $true) { return $health }
+    } catch { }
+    Start-Sleep -Milliseconds 500
+  }
+  return $null
+}
+
+if (-not (Test-Administrator)) {
+  if ($Elevated) { throw 'The installer could not obtain administrator privileges.' }
+  # Record who is browsing before elevating: UAC may run the elevated half as a
+  # different administrator account.
+  $powerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"",
+    '-LaunchingUser', "`"$([Security.Principal.WindowsIdentity]::GetCurrent().Name)`"", '-Elevated')
+  if (-not [string]::IsNullOrWhiteSpace($ProtectedWindowsUser)) {
+    $arguments += @('-ProtectedWindowsUser', "`"$ProtectedWindowsUser`"")
+  }
+  Write-Host 'Asking Windows for administrator rights (one UAC prompt)...'
   try {
-    $account = if ($userName -match '\\') {
-      [Security.Principal.NTAccount]::new(($userName -replace '^\.\\', ($env:COMPUTERNAME + '\')))
-    } else {
-      [Security.Principal.NTAccount]::new($env:COMPUTERNAME, $userName)
+    $process = Start-Process -FilePath $powerShellExe -Verb RunAs -ArgumentList $arguments -Wait -PassThru
+  } catch {
+    throw 'The installation was cancelled at the UAC prompt.'
+  }
+  if ($process.ExitCode -ne 0) {
+    throw "The installer failed (exit code $($process.ExitCode)). Details: $(Join-Path $env:ProgramData 'LockIn\install.log')"
+  }
+  $health = Wait-WatchdogHealthy 10
+  if ($null -eq $health) { throw 'The watchdog installed but does not answer on 127.0.0.1:8765.' }
+  Write-Host 'Lock In watchdog is installed and answering.'
+  Write-Host "Protected account(s): $($health.data.protectedWindowsAccount)"
+  Write-Host 'Reload the extension; the dashboard shows "Windows enforcement armed" a few seconds later.'
+  return
+}
+
+$dataRoot = Join-Path $env:ProgramData 'LockIn'
+New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+Start-Transcript -Path (Join-Path $dataRoot 'install.log') -Force | Out-Null
+try {
+  $projectRoot = Split-Path -Parent $PSScriptRoot
+  $source = Join-Path $projectRoot 'watchdog\LockInWatchdog.ps1'
+  if (-not (Test-Path -LiteralPath $source)) { $source = Join-Path $PSScriptRoot 'LockInWatchdog.ps1' }
+  if (-not (Test-Path -LiteralPath $source)) { throw 'LockInWatchdog.ps1 was not found next to the installer.' }
+  $tokens = $null
+  $parseErrors = $null
+  [void][System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$parseErrors)
+  if ($parseErrors.Count) { throw "LockInWatchdog.ps1 does not parse: $($parseErrors[0])" }
+
+  $installRoot = Join-Path $env:ProgramFiles 'Lock In'
+  $installedScript = Join-Path $installRoot 'LockInWatchdog.ps1'
+  $firewallGroup = 'LockInWatchdog'
+  $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+
+  # Protected accounts: an explicit -ProtectedWindowsUser list replaces the
+  # current set. Without one, the account running the installer is added to
+  # whatever an existing install already protects, so running it once from
+  # each Windows account you use covers all of them.
+  $sids = New-Object 'System.Collections.Generic.List[string]'
+  if ([string]::IsNullOrWhiteSpace($ProtectedWindowsUser)) {
+    if ($existingTask) {
+      $previous = [regex]::Match([string]$existingTask.Actions[0].Arguments, '-ProtectedUserSids\s+(\S+)')
+      if ($previous.Success) { foreach ($sid in $previous.Groups[1].Value -split ',') { if ($sid -and -not $sids.Contains($sid)) { $sids.Add($sid) } } }
     }
-    $sidValue = $account.Translate([Security.Principal.SecurityIdentifier]).Value
-    $accountName = ([Security.Principal.SecurityIdentifier]::new($sidValue)).Translate([Security.Principal.NTAccount]).Value
-    $protectedAccounts += [pscustomobject]@{ Name = $accountName; Sid = $sidValue }
-  } catch {
-    throw "Windows account '$userName' was not found on this machine."
+    $ProtectedWindowsUser = if ($LaunchingUser) { $LaunchingUser } else { [Security.Principal.WindowsIdentity]::GetCurrent().Name }
   }
-}
-if ($protectedAccounts.Count -eq 0) { throw 'At least one protected Windows account is required.' }
-$protectedUserSids = @($protectedAccounts.Sid) -join ','
-
-$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-if ($existingTask) {
-  Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 500
-}
-
-New-Item -ItemType Directory -Force -Path $installRoot, $dataRoot | Out-Null
-Copy-Item -LiteralPath $source -Destination $installedScript -Force
-
-# A reinstall or protected-account change must earn three fresh heartbeats from
-# the selected accounts before fail-closed enforcement can activate again.
-$statePath = Join-Path $dataRoot 'state.json'
-if (Test-Path -LiteralPath $statePath) {
-  try {
-    $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-    $state.enforcementArmed = $false
-    $state.lastHeartbeatMs = 0
-    $state.lastSampleMs = 0
-    $state.lastHost = ''
-    $state.lastFocused = $false
-    $state | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $statePath -Encoding utf8
-  } catch {
-    throw "Could not reset the watchdog state for safe re-arming: $($_.Exception.Message)"
+  foreach ($userName in @($ProtectedWindowsUser -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+    try {
+      $account = if ($userName -match '\\') {
+        [Security.Principal.NTAccount]::new(($userName -replace '^\.\\', ($env:COMPUTERNAME + '\')))
+      } else {
+        [Security.Principal.NTAccount]::new($env:COMPUTERNAME, $userName)
+      }
+      $sid = $account.Translate([Security.Principal.SecurityIdentifier]).Value
+    } catch {
+      throw "Windows account '$userName' was not found on this machine."
+    }
+    if (-not $sids.Contains($sid)) { $sids.Add($sid) }
   }
+  if ($sids.Count -eq 0) { throw 'At least one protected Windows account is required.' }
+  $protectedUserSids = $sids -join ','
+
+  $backup = $null
+  if ($existingTask) {
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    # The task may take a moment to let go of the port and the state file.
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
+      Where-Object { $_.CommandLine -like "*$installedScript*" } |
+      ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 500
+    if (Test-Path -LiteralPath $installedScript) {
+      $backup = "$installedScript.previous"
+      Copy-Item -LiteralPath $installedScript -Destination $backup -Force
+    }
+  }
+
+  New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+  Copy-Item -LiteralPath $source -Destination $installedScript -Force
+
+  # A reinstall or protected-account change must earn three fresh heartbeats
+  # before fail-closed enforcement can activate again.
+  $statePath = Join-Path $dataRoot 'state.json'
+  if (Test-Path -LiteralPath $statePath) {
+    try {
+      $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+      foreach ($reset in @{ enforcementArmed = $false; lastHeartbeatMs = 0; lastSampleMs = 0 }.GetEnumerator()) {
+        $state | Add-Member -NotePropertyName $reset.Key -NotePropertyValue $reset.Value -Force
+      }
+      $state | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $statePath -Encoding utf8
+    } catch {
+      Write-Warning "Could not reset the stored state; the watchdog will start from a fresh one. $($_.Exception.Message)"
+      Move-Item -LiteralPath $statePath -Destination "$statePath.unreadable" -Force
+    }
+  }
+
+  & icacls.exe $installRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not protect the Lock In installation directory.' }
+  & icacls.exe $dataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not protect the Lock In data directory.' }
+
+  # The watchdog owns the emergency firewall rules: one per browser executable
+  # and protected account, created as it discovers browsers (including per-user
+  # installs in another account's AppData). Rules from older installs, which
+  # blocked every account at once, are cleared here and rebuilt by it.
+  Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+
+  $powerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installedScript`" -ProtectedUserSids $protectedUserSids"
+  $action = New-ScheduledTaskAction -Execute $powerShellExe -Argument $arguments
+  # Start at boot, and check every minute afterwards. MultipleInstances
+  # IgnoreNew turns that check into a no-op while the watchdog is running and a
+  # restart within a minute if anything ever killed it.
+  $triggers = @(
+    (New-ScheduledTaskTrigger -AtStartup),
+    (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1))
+  )
+  $principalTask = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+  # Priority 4 is normal. The default (7) is below normal and lets a busy
+  # machine starve the watchdog until the browser's sensor times out.
+  $settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -DontStopOnIdleEnd `
+    -StartWhenAvailable `
+    -MultipleInstances IgnoreNew `
+    -Priority 4 `
+    -RestartCount 999 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -ExecutionTimeLimit ([TimeSpan]::Zero)
+  Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers -Principal $principalTask -Settings $settings `
+    -Description 'Lock In usage accounting and fail-closed browser watchdog.' -Force | Out-Null
+
+  Start-ScheduledTask -TaskName $taskName
+  $health = Wait-WatchdogHealthy 30
+  if ($null -eq $health) {
+    if ($backup) {
+      Write-Warning 'The new watchdog did not start; restoring the previous one.'
+      Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+      Copy-Item -LiteralPath $backup -Destination $installedScript -Force
+      Start-ScheduledTask -TaskName $taskName
+    }
+    $info = Get-ScheduledTaskInfo -TaskName $taskName
+    throw "The watchdog did not become healthy. LastTaskResult=$($info.LastTaskResult). See $(Join-Path $dataRoot 'watchdog.log')."
+  }
+
+  Write-Host 'Lock In watchdog installed and running as SYSTEM.'
+  Write-Host "Protected account(s): $($health.data.protectedWindowsAccount)"
+  Write-Host 'Enforcement arms itself after three heartbeats from the extension.'
+} finally {
+  Stop-Transcript | Out-Null
 }
-
-& icacls.exe $installRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Could not protect the Lock In installation directory.' }
-& icacls.exe $dataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Could not protect the Lock In data directory.' }
-
-Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-$browserPaths = @(
-  (Join-Path $env:ProgramFiles 'BraveSoftware\Brave-Browser\Application\brave.exe'),
-  (Join-Path ${env:ProgramFiles(x86)} 'BraveSoftware\Brave-Browser\Application\brave.exe'),
-  (Join-Path $env:LOCALAPPDATA 'BraveSoftware\Brave-Browser\Application\brave.exe'),
-  (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-  (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
-  (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
-) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Sort-Object -Unique
-
-$ruleIndex = 0
-foreach ($browserPath in $browserPaths) {
-  $ruleIndex++
-  $leaf = [IO.Path]::GetFileNameWithoutExtension($browserPath)
-  New-NetFirewallRule `
-    -Name "LockIn-Watchdog-$leaf-$ruleIndex" `
-    -DisplayName "Lock In emergency block ($leaf)" `
-    -Group $firewallGroup `
-    -Direction Outbound `
-    -Action Block `
-    -Program $browserPath `
-    -Profile Any `
-    -Enabled False | Out-Null
-}
-if ($browserPaths.Count -eq 0) { throw 'Neither Brave nor Chrome was found; no emergency firewall rule could be created.' }
-
-$powerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installedScript`" -ProtectedUserSids $protectedUserSids"
-$action = New-ScheduledTaskAction -Execute $powerShellExe -Argument $arguments
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principalTask = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet `
-  -AllowStartIfOnBatteries `
-  -DontStopIfGoingOnBatteries `
-  -StartWhenAvailable `
-  -MultipleInstances IgnoreNew `
-  -RestartCount 999 `
-  -RestartInterval (New-TimeSpan -Minutes 1) `
-  -ExecutionTimeLimit ([TimeSpan]::Zero)
-
-Register-ScheduledTask `
-  -TaskName $taskName `
-  -Action $action `
-  -Trigger $trigger `
-  -Principal $principalTask `
-  -Settings $settings `
-  -Description 'Lock In usage accounting and fail-closed browser watchdog.' `
-  -Force | Out-Null
-
-# Remove registrations from the abandoned Native Messaging prototype.
-Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.lockin.service' -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath 'HKLM:\SOFTWARE\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.lockin.service' -Recurse -Force -ErrorAction SilentlyContinue
-
-Start-ScheduledTask -TaskName $taskName
-$ready = $false
-for ($attempt = 0; $attempt -lt 20; $attempt++) {
-  Start-Sleep -Milliseconds 500
-  try {
-    $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1
-    if ($health.ok -eq $true) { $ready = $true; break }
-  } catch { }
-}
-if (-not $ready) {
-  $info = Get-ScheduledTaskInfo -TaskName $taskName
-  throw "The watchdog task did not become ready. LastTaskResult=$($info.LastTaskResult)"
-}
-
-Write-Host 'Lock In PowerShell watchdog installed and running as SYSTEM.'
-foreach ($protectedAccount in $protectedAccounts) {
-  Write-Host "Protected Windows account: $($protectedAccount.Name) ($($protectedAccount.Sid))"
-}
-Write-Host "Protected script: $installedScript"
-Write-Host "Emergency firewall rules created: $($browserPaths.Count)"
-Write-Host 'Enforcement remains disarmed until the extension sends three heartbeats.'
-Stop-Transcript | Out-Null

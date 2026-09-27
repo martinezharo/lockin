@@ -1,16 +1,27 @@
+# Removes the watchdog task, its firewall rules and the installed copy.
+# -PurgeData also erases the zones and usage kept in ProgramData.
 [CmdletBinding()]
 param(
-  [switch]$PurgeData
+  [switch]$PurgeData,
+  [switch]$Elevated
 )
 
 $ErrorActionPreference = 'Stop'
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = [Security.Principal.WindowsPrincipal]::new($identity)
+$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-  throw 'Run this uninstaller from an elevated PowerShell window.'
+  if ($Elevated) { throw 'Could not obtain administrator privileges.' }
+  $powerShellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Elevated')
+  if ($PurgeData) { $arguments += '-PurgeData' }
+  $process = Start-Process -FilePath $powerShellExe -Verb RunAs -Wait -PassThru -ArgumentList $arguments
+  if ($process.ExitCode -ne 0) { throw "Uninstalling failed (exit code $($process.ExitCode))." }
+  Write-Host 'Lock In watchdog task and firewall rules were removed.'
+  return
 }
 
+# Policy values written by the watchdog are removed by disarming it first.
 & (Join-Path $PSScriptRoot 'disarm-windows-watchdog.ps1')
+Start-Sleep -Seconds 1
 $taskName = 'Lock In Watchdog'
 if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
   Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
