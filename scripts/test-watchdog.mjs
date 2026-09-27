@@ -9,6 +9,8 @@ execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Fi
 
 execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('tests/watchdog-sites.ps1')], { stdio: 'inherit' });
 
+execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('tests/watchdog-accounts.ps1')], { stdio: 'inherit' });
+
 const dataDirectory = await mkdtemp(join(tmpdir(), 'lockin-watchdog-'));
 const port = 18766;
 const endpoint = `http://127.0.0.1:${port}/api/request`;
@@ -83,11 +85,37 @@ try {
   assert.deepEqual(armed.allowedDomains, ['example.com/always-open']);
   assert.equal(armed.supportsExceptions, true);
 
+  // The sensor gives up on a slow answer, so every answer must be quick. The
+  // old loop spent over two seconds per pass and the extension kept timing out.
+  for (let index = 0; index < 10; index += 1) {
+    const started = performance.now();
+    await send('heartbeat', { host: 'example.com', focused: true });
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 750, `heartbeat took ${Math.round(elapsed)} ms`);
+  }
+
+  // A client that hangs up mid-request must not take the watchdog with it.
+  for (let index = 0; index < 5; index += 1) {
+    await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'heartbeat', requestId: `abandoned-${index}`, payload: { host: 'example.com', focused: true } }),
+      signal: AbortSignal.timeout(1)
+    }).catch(() => undefined);
+  }
+  await fetch(endpoint, { method: 'POST', body: 'not json' }).catch(() => undefined);
+  assert.equal((await send('heartbeat', { host: 'example.com', focused: true })).enforcementArmed, true);
+
   await new Promise((resolveWait) => setTimeout(resolveWait, 3000));
   const missing = await send('heartbeat', { host: 'example.com', focused: true });
   assert.equal(missing.failClosedActive, true);
   assert.equal(missing.firewallBlocked, true);
   assert.match(missing.enforcementReason, /sensor missing: SYSTEM/);
+  // Each protected account is reported on its own, so the dashboard can say
+  // which one lost its sensor.
+  const sensors = Object.fromEntries(missing.sensors.map((sensor) => [sensor.account, sensor]));
+  assert.equal(sensors.SYSTEM.lastHeartbeatMs, 0);
+  assert.ok(Object.values(sensors).some((sensor) => sensor.account !== 'SYSTEM' && sensor.lastHeartbeatMs > 0));
   await send('updateConfig', {
     groups: [{ id: 'url', name: 'URL allowance', domains: ['example.com/Path?v=ABC'], enabled: true, schedule: null, limit: { minutes: 1 } }],
     privacyConsent: true, lockMode: false

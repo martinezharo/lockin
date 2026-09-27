@@ -213,7 +213,7 @@
       <ul class="strict-points">
         <li>Scheduled zones and spent allowances become Brave/Chrome <code>URLBlocklist</code> policy, applied by Windows rather than by the extension.</li>
         <li>Always-allowed pages stay open through the matching <code>URLAllowlist</code> and never spend allowance.</li>
-        <li>If the browser is running and the sensor disappears for 30 seconds, every enabled zone is blocked and the browser loses outbound network access until Lock In reports back.</li>
+        <li>If the browser is running and the sensor disappears for a minute, every enabled zone is blocked and that account's browser loses outbound network access until Lock In reports back. Other accounts keep theirs.</li>
         <li>Zones, usage and enforcement state move to <code>C:\ProgramData\LockIn</code>, owned by SYSTEM. Only the Windows accounts you name can configure them.</li>
       </ul>
 
@@ -247,18 +247,21 @@
               <span class="strict-step-state" id="strictStepInstallState">not yet</span>
             </h4>
             <p>
-              Open PowerShell as administrator in that same folder and run it once.
-              <code>whoami</code> prints the account to protect; separate several with commas to
-              cover more than one Windows user.
+              Open PowerShell in that same folder and run it. It asks for administrator rights
+              itself and protects the Windows account you ran it from. Use more than one
+              Windows account? Load the extension in each one and run the installer once from
+              each: every run adds its account and keeps the others. Running it again later
+              updates the watchdog in place.
             </p>
             <div class="strict-command">
               <button type="button" class="strict-copy" data-copy>copy</button>
               <pre><code>Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install-windows-watchdog.ps1 -ProtectedWindowsUser 'you'</code></pre>
+.\scripts\install-windows-watchdog.ps1</code></pre>
             </div>
             <ul class="strict-substeps">
               <li>copies the watchdog to <code>C:\Program Files\Lock In</code>;</li>
               <li>registers <code>Lock In Watchdog</code> as an automatic SYSTEM task that restarts itself;</li>
+              <li>checks every minute that it is still running, and restarts it if not;</li>
               <li>creates disabled outbound firewall rules for the installed Brave and Chrome executables; and</li>
               <li>starts safely disarmed, importing the zones you already have.</li>
             </ul>
@@ -293,14 +296,16 @@
 
       <div class="strict-exits">
         <h4 class="strict-exits-title">Ways back out 🐭</h4>
-        <p>From an elevated PowerShell window in the same folder:</p>
+        <p>From PowerShell in the same folder (each asks for administrator rights itself):</p>
         <dl>
           <dt><code>.\scripts\disarm-windows-watchdog.ps1</code></dt>
           <dd>stops enforcing now and leaves everything installed.</dd>
           <dt><code>.\scripts\uninstall-windows-watchdog.ps1</code></dt>
           <dd>removes the task, the rules and the installed copy. Add <code>-PurgeData</code> to erase configuration and usage as well.</dd>
-          <dt><code>.\scripts\update-windows-watchdog.ps1</code></dt>
-          <dd>replaces the watchdog in place, keeping its rules, usage and armed state.</dd>
+          <dt><code>.\scripts\install-windows-watchdog.ps1</code></dt>
+          <dd>run again to update the watchdog in place, keeping its zones, usage and protected accounts.</dd>
+          <dt><code>.\scripts\watchdog-status.ps1</code></dt>
+          <dd>shows whether the watchdog answers and, from an elevated window, its task state and recent log.</dd>
         </dl>
       </div>
 

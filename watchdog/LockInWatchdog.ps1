@@ -2,7 +2,7 @@
 param(
   [string]$DataDirectory = "$env:ProgramData\LockIn",
   [int]$Port = 8765,
-  [int]$HeartbeatTimeoutSeconds = 30,
+  [int]$HeartbeatTimeoutSeconds = 60,
   [string]$ProtectedUserSids = '',
   [string]$ProtectedUserSid = '',
   [int]$EvaluationIntervalMilliseconds = 250,
@@ -29,29 +29,57 @@ $firewallGroup = 'LockInWatchdog'
 $script:ConsecutiveHeartbeatsBySid = @{}
 $script:BrowserSeenAtMsBySid = @{}
 $script:SensorHeartbeatMsBySid = @{}
-$script:LastUrl = ''
+# What each protected account's sensor last reported, keyed like the maps
+# above: host, url, focused, active (its Windows session is the one in front)
+# and the heartbeat time. Held in memory only; nothing here is worth keeping
+# across a restart, and URLs never touch the disk.
+$script:Sensors = @{}
 $script:BlockedDomains = @()
 $script:AllowedDomains = @()
 $script:EnforcementReason = 'not armed'
 $script:FailClosedActive = $false
 $script:FirewallBlocked = $null
+# The accounts whose browsers are currently cut off, as a sorted key; '*' means
+# every protected account. $null until the first reconcile.
+$script:FirewallKey = $null
+$script:FirewallRulesStale = $true
 $script:LastPolicyFingerprint = $null
+# Dirty means "worth saving soon" (usage ticks); SaveUrgent means "save on
+# this pass" (configuration and owned registry values). Usage alone is written
+# at most every $SaveIntervalMs so the loop never spends its time on disk.
 $script:Dirty = $false
+$script:SaveUrgent = $false
+$script:LastSaveMs = 0L
+$script:SaveIntervalMs = 5000L
 $script:ProtectedAccounts = [ordered]@{}
 $script:CurrentRequestUserSid = ''
+$script:CurrentRequestSessionActive = $true
 $script:RunningProtectedUserSids = @()
 $script:BrowserOwnerLookupFailed = $false
 $script:NextBrowserProbeMs = 0L
-$script:BrowserProbeIntervalMs = 1000L
+$script:BrowserProbeIntervalMs = 2000L
+# Get-NetFirewallRule costs about a second, so the rules are touched only when
+# the desired state changes, and re-verified against tampering on this cadence.
+$script:NextFirewallReconcileMs = 0L
+$script:FirewallReconcileIntervalMs = 60000L
+# Usage accrues only while heartbeats are fresh. This is deliberately much
+# shorter than the fail-closed grace: a sensor that went quiet stops counting
+# time long before its absence is treated as an escape attempt.
+$script:UsageStaleMs = 10000L
+$script:LastLoopMs = 0L
+$script:LogLastWrittenMs = @{}
 
 if ([string]::IsNullOrWhiteSpace($ProtectedUserSids)) { $ProtectedUserSids = $ProtectedUserSid }
 foreach ($protectedSidValue in @($ProtectedUserSids -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)) {
   try {
     $sid = [Security.Principal.SecurityIdentifier]::new($protectedSidValue)
-    $script:ProtectedAccounts[$protectedSidValue] = $sid.Translate([Security.Principal.NTAccount]).Value
   } catch {
-    throw "ProtectedUserSids contains an invalid local Windows account SID: $protectedSidValue"
+    throw "ProtectedUserSids contains an invalid Windows account SID: $protectedSidValue"
   }
+  # A name is only for display. An account that cannot be resolved right now
+  # (a domain controller out of reach, say) is still protected by its SID.
+  try { $script:ProtectedAccounts[$protectedSidValue] = $sid.Translate([Security.Principal.NTAccount]).Value }
+  catch { $script:ProtectedAccounts[$protectedSidValue] = $protectedSidValue }
 }
 
 function Get-NowMs {
@@ -60,8 +88,117 @@ function Get-NowMs {
 
 function Write-WatchdogLog([string]$Message) {
   try {
+    # The same complaint once a second would bury everything else.
+    $now = Get-NowMs
+    if ($script:LogLastWrittenMs.ContainsKey($Message) -and ($now - [long]$script:LogLastWrittenMs[$Message]) -lt 60000) { return }
+    if ($script:LogLastWrittenMs.Count -gt 500) { $script:LogLastWrittenMs.Clear() }
+    $script:LogLastWrittenMs[$Message] = $now
+    if ((Test-Path -LiteralPath $logPath) -and (Get-Item -LiteralPath $logPath).Length -gt 1MB) {
+      Move-Item -LiteralPath $logPath -Destination "$logPath.old" -Force
+    }
     Add-Content -LiteralPath $logPath -Value "$(Get-Date -Format o) $Message" -Encoding utf8
   } catch { }
+}
+
+function Initialize-Native {
+  if ('LockIn.Native' -as [type]) { return }
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+namespace LockIn {
+  public static class Native {
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSQuerySessionInformation(IntPtr server, int session, int info, out IntPtr buffer, out int bytes);
+    [DllImport("wtsapi32.dll")]
+    private static extern void WTSFreeMemory(IntPtr buffer);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, bool inherit, int processId);
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("iphlpapi.dll")]
+    private static extern uint GetExtendedTcpTable(IntPtr table, ref int size, bool sorted, int family, int tableClass, int reserved);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, int flags, System.Text.StringBuilder name, ref int size);
+
+    // WTSConnectState (info class 8): 0 = WTSActive, 4 = WTSDisconnected.
+    // -1 when the state cannot be read.
+    public static int SessionState(int session) {
+      IntPtr buffer;
+      int bytes;
+      if (!WTSQuerySessionInformation(IntPtr.Zero, session, 8, out buffer, out bytes)) return -1;
+      try { return bytes < 4 ? -1 : Marshal.ReadInt32(buffer); }
+      finally { WTSFreeMemory(buffer); }
+    }
+
+    // An unknown state must remain protected, including failures during a
+    // session transition.
+    public static bool RequiresSensor(int session) {
+      return SessionState(session) != 4;
+    }
+
+    public static string ProcessImagePath(int processId) {
+      IntPtr process = OpenProcess(0x1000, false, processId); // PROCESS_QUERY_LIMITED_INFORMATION
+      if (process == IntPtr.Zero) return "";
+      try {
+        System.Text.StringBuilder name = new System.Text.StringBuilder(1024);
+        int size = name.Capacity;
+        return QueryFullProcessImageName(process, 0, name, ref size) ? name.ToString() : "";
+      } finally { CloseHandle(process); }
+    }
+
+    // Microseconds, where the WMI equivalent takes a large fraction of a second.
+    public static string ProcessOwnerSid(int processId) {
+      IntPtr process = OpenProcess(0x1000, false, processId); // PROCESS_QUERY_LIMITED_INFORMATION
+      if (process == IntPtr.Zero) return "";
+      try {
+        IntPtr token;
+        if (!OpenProcessToken(process, 0x0008, out token)) return ""; // TOKEN_QUERY
+        try {
+          using (WindowsIdentity identity = new WindowsIdentity(token)) {
+            return identity.User == null ? "" : identity.User.Value;
+          }
+        } finally { CloseHandle(token); }
+      } catch { return ""; }
+      finally { CloseHandle(process); }
+    }
+
+    // The process on the client side of an established IPv4 loopback
+    // connection to serverPort, or 0 when there is none.
+    public static int LoopbackClientProcessId(int clientPort, int serverPort) {
+      int size = 0;
+      GetExtendedTcpTable(IntPtr.Zero, ref size, false, 2, 5, 0); // AF_INET, TCP_TABLE_OWNER_PID_ALL
+      for (int attempt = 0; attempt < 4; attempt++) {
+        size += 4096;
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try {
+          uint result = GetExtendedTcpTable(buffer, ref size, false, 2, 5, 0);
+          if (result == 122) continue; // ERROR_INSUFFICIENT_BUFFER: the table grew
+          if (result != 0) return 0;
+          int count = Marshal.ReadInt32(buffer);
+          for (int index = 0; index < count; index++) {
+            int offset = 4 + index * 24; // MIB_TCPROW_OWNER_PID is six DWORDs
+            int state = Marshal.ReadInt32(buffer, offset);
+            int localAddress = Marshal.ReadInt32(buffer, offset + 4);
+            int localPort = PortOf(Marshal.ReadInt32(buffer, offset + 8));
+            int remotePort = PortOf(Marshal.ReadInt32(buffer, offset + 16));
+            if (state == 5 && localAddress == 0x0100007F && localPort == clientPort && remotePort == serverPort) {
+              return Marshal.ReadInt32(buffer, offset + 20);
+            }
+          }
+          return 0;
+        } finally { Marshal.FreeHGlobal(buffer); }
+      }
+      return 0;
+    }
+
+    private static int PortOf(int raw) { return ((raw & 0xFF) << 8) | ((raw >> 8) & 0xFF); }
+  }
+}
+'@
 }
 
 function New-DefaultState {
@@ -77,10 +214,11 @@ function New-DefaultState {
     privacyConsent = $false
     lastHeartbeatMs = 0L
     lastSampleMs = 0L
-    lastHost = ''
-    lastFocused = $false
     ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
     ownedAllowPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
+    # Brave/Chrome executables seen so far. Emergency firewall rules are kept
+    # for each one, so a per-user install in another account is covered too.
+    browserPaths = @()
   }
 }
 
@@ -95,6 +233,7 @@ function Ensure-StateShape($Value) {
   $Value.heartbeatTimeoutSeconds = $HeartbeatTimeoutSeconds
   if ($null -eq $Value.usage) { $Value.usage = [pscustomobject]@{} }
   if ($null -eq $Value.groups) { $Value.groups = @() }
+  $Value.browserPaths = @($Value.browserPaths | Where-Object { $_ } | ForEach-Object { [string]$_ })
   if ($null -eq $Value.ownedPolicyValues) {
     $Value.ownedPolicyValues = [pscustomobject]@{ chrome = @(); brave = @(); chrome32 = @(); brave32 = @() }
   }
@@ -112,12 +251,27 @@ function Ensure-StateShape($Value) {
   return $Value
 }
 
-function Save-State {
+function Request-Save {
+  $script:Dirty = $true
+  $script:SaveUrgent = $true
+}
+
+function Save-State([switch]$Force) {
   if (-not $script:Dirty) { return }
-  $temporary = "$statePath.tmp"
-  $script:State | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $temporary -Encoding utf8
-  Move-Item -LiteralPath $temporary -Destination $statePath -Force
-  $script:Dirty = $false
+  $now = Get-NowMs
+  if (-not $Force -and -not $script:SaveUrgent -and ($now - $script:LastSaveMs) -lt $script:SaveIntervalMs) { return }
+  # A backup or antivirus scan can hold the file for a moment. Nothing is lost
+  # by failing here: the state stays dirty and the next pass tries again.
+  try {
+    $temporary = "$statePath.tmp"
+    [IO.File]::WriteAllText($temporary, ($script:State | ConvertTo-Json -Depth 20), [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporary -Destination $statePath -Force
+    $script:Dirty = $false
+    $script:SaveUrgent = $false
+  } catch {
+    Write-WatchdogLog "Could not save state (will retry): $($_.Exception.Message)"
+  }
+  $script:LastSaveMs = $now
 }
 
 function Normalize-Domain([string]$Raw) {
@@ -229,7 +383,7 @@ function Update-DisarmExpiry([long]$Now) {
     # The property is known to exist here, so it is cleared in place rather
     # than through Add-Member, which will not bind a null value.
     $property.Value = $null
-    $script:Dirty = $true
+    Request-Save
     Write-WatchdogLog "Timed release expired; re-armed zone $([string]$group.id)."
   }
 }
@@ -261,13 +415,13 @@ function Test-WithinSchedule($Schedule, [long]$Now) {
   return $false
 }
 
-function Test-GroupMatchesHost($Group, [string]$HostName) {
+function Test-GroupMatchesHost($Group, [string]$HostName, [string]$Url = '') {
   foreach ($exception in @($Group.exceptions)) {
-    if (Test-SiteMatches ([string]$script:LastUrl) ([string]$exception)) { return $false }
+    if (Test-SiteMatches $Url ([string]$exception)) { return $false }
   }
   foreach ($domain in @($Group.domains)) {
     if ($domain -match '[/?:]') {
-      if (Test-SiteMatches ([string]$script:LastUrl) ([string]$domain)) { return $true }
+      if (Test-SiteMatches $Url ([string]$domain)) { return $true }
       continue
     }
     if ($HostName -eq $domain -or $HostName.EndsWith(".$domain", [StringComparison]::OrdinalIgnoreCase)) { return $true }
@@ -294,62 +448,109 @@ function Get-RemainingMs($Group, [long]$Now) {
   return [Math]::Max(0L, $limit - $used)
 }
 
-function Get-TickingGroups([string]$HostName, [long]$Now) {
+function Get-TickingGroups([string]$HostName, [string]$Url, [long]$Now) {
   return @($script:State.groups | Where-Object {
     $_.enabled -eq $true -and $null -ne $_.limit -and
     -not (Test-WithinSchedule $_.schedule $Now) -and
     (Get-RemainingMs $_ $Now) -gt 0 -and
-    (Test-GroupMatchesHost $_ $HostName)
+    (Test-GroupMatchesHost $_ $HostName $Url)
   })
 }
 
-function Add-ElapsedUsage([long]$Now) {
-  if ([long]$script:State.lastSampleMs -le 0) {
-    $script:State.lastSampleMs = $Now
-    $script:Dirty = $true
-    return
-  }
-  $deadline = [long]$script:State.lastHeartbeatMs + [long]$script:State.heartbeatTimeoutSeconds * 1000L
-  $until = [Math]::Min($Now, $deadline)
-  $elapsed = [Math]::Max(0L, $until - [long]$script:State.lastSampleMs)
-  if ($elapsed -gt 0 -and $script:State.lastFocused -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$script:State.lastHost)) {
-    foreach ($group in Get-TickingGroups ([string]$script:State.lastHost) $until) {
-      $entry = Get-UsageEntry ([string]$group.id) $until -Create
-      $entry.ms = [long]$entry.ms + $elapsed
-      $script:Dirty = $true
+# Sensors whose report should count as someone looking at the page right now:
+# fresh, focused, and in the Windows session that is actually in front. A
+# browser left running in a switched-away account keeps reporting its last
+# focused tab, and must not keep spending the allowance.
+function Get-WatchingSensors([long]$Now) {
+  return @($script:Sensors.Values | Where-Object {
+    $_.focused -and $_.active -and -not [string]::IsNullOrWhiteSpace($_.host) -and
+    ($Now - [long]$_.heartbeatMs) -le $script:UsageStaleMs
+  })
+}
+
+# Group ids ticking for the given sensors. The allowance belongs to the person,
+# not the account, so two accounts on the same site count the time once.
+function Get-TickingGroupIds($Sensors, [long]$Now) {
+  $ids = New-Object 'System.Collections.Generic.List[string]'
+  foreach ($sensor in @($Sensors)) {
+    foreach ($group in Get-TickingGroups ([string]$sensor.host) ([string]$sensor.url) $Now) {
+      if (-not $ids.Contains([string]$group.id)) { $ids.Add([string]$group.id) }
     }
   }
-  if ($until -gt [long]$script:State.lastSampleMs) {
-    $script:State.lastSampleMs = $until
-    $script:Dirty = $true
+  return @($ids)
+}
+
+function Add-ElapsedUsage([long]$Now) {
+  $last = [long]$script:State.lastSampleMs
+  $script:State.lastSampleMs = $Now
+  $script:Dirty = $true
+  if ($last -le 0) { return }
+  # Passes run every quarter second; anything much longer is a pause (sleep,
+  # a stalled machine) that nobody spent browsing.
+  $elapsed = [Math]::Min([Math]::Max(0L, $Now - $last), $script:UsageStaleMs)
+  if ($elapsed -le 0) { return }
+  foreach ($groupId in Get-TickingGroupIds (Get-WatchingSensors $Now) $Now) {
+    $entry = Get-UsageEntry $groupId $Now -Create
+    $entry.ms = [long]$entry.ms + $elapsed
   }
 }
 
 function Test-InteractiveBrowserSession([int]$SessionId) {
-  if (-not ('LockIn.SessionState' -as [type])) {
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-namespace LockIn {
-  public static class SessionState {
-    [DllImport("wtsapi32.dll", SetLastError = true)]
-    private static extern bool WTSQuerySessionInformation(IntPtr server, int session, int info, out IntPtr buffer, out int bytes);
-    [DllImport("wtsapi32.dll")]
-    private static extern void WTSFreeMemory(IntPtr buffer);
-    public static bool RequiresSensor(int session) {
-      IntPtr buffer;
-      int bytes;
-      // WTSConnectState = 8; WTSDisconnected = 4. An unknown state must
-      // remain protected, including failures during a session transition.
-      if (!WTSQuerySessionInformation(IntPtr.Zero, session, 8, out buffer, out bytes)) return true;
-      try { return bytes < 4 || Marshal.ReadInt32(buffer) != 4; }
-      finally { WTSFreeMemory(buffer); }
+  Initialize-Native
+  return [LockIn.Native]::RequiresSensor($SessionId)
+}
+
+function Get-ProcessOwnerSid([int]$ProcessId) {
+  try {
+    Initialize-Native
+    return [LockIn.Native]::ProcessOwnerSid($ProcessId)
+  } catch { return '' }
+}
+
+function Get-BrowserProcesses {
+  return @([Diagnostics.Process]::GetProcessesByName('chrome')) + @([Diagnostics.Process]::GetProcessesByName('brave')) |
+    ForEach-Object { [pscustomobject]@{ Id = $_.Id; SessionId = $_.SessionId } }
+}
+
+function Get-ProcessImagePath([int]$ProcessId) {
+  try {
+    Initialize-Native
+    return [LockIn.Native]::ProcessImagePath($ProcessId)
+  } catch { return '' }
+}
+
+# Remembers a browser executable so emergency firewall rules exist for it.
+# Chrome installed without admin rights lives in each account's own AppData,
+# so the second account's copy is only discovered once it runs.
+function Register-BrowserPath([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { return }
+  $known = @($script:State.browserPaths | Where-Object { $_ })
+  if ($known -contains $Path) { return }
+  $script:State.browserPaths = @($known + $Path | Sort-Object -Unique)
+  $script:FirewallRulesStale = $true
+  Request-Save
+  Write-WatchdogLog "Learned browser executable $Path."
+}
+
+function Register-InstalledBrowsers {
+  $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)})
+  try {
+    foreach ($profileKey in @(Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -ErrorAction Stop)) {
+      $profilePath = [string]$profileKey.GetValue('ProfileImagePath')
+      if ($profileKey.PSChildName -like 'S-1-5-21-*' -and $profilePath) { $roots += Join-Path $profilePath 'AppData\Local' }
+    }
+  } catch { }
+  foreach ($root in $roots) {
+    if (-not $root) { continue }
+    foreach ($relative in @('BraveSoftware\Brave-Browser\Application\brave.exe', 'Google\Chrome\Application\chrome.exe')) {
+      $candidate = Join-Path $root $relative
+      if (Test-Path -LiteralPath $candidate) { Register-BrowserPath $candidate }
     }
   }
 }
-'@
-  }
-  return [LockIn.SessionState]::RequiresSensor($SessionId)
+
+function Test-ProcessAlive([int]$ProcessId) {
+  try { return -not ([Diagnostics.Process]::GetProcessById($ProcessId)).HasExited } catch { return $false }
 }
 
 function Get-RunningProtectedUserSids([long]$Now) {
@@ -361,38 +562,25 @@ function Get-RunningProtectedUserSids([long]$Now) {
   if ($Now -lt $script:NextBrowserProbeMs) {
     return @($script:RunningProtectedUserSids)
   }
-
   $script:NextBrowserProbeMs = $Now + $script:BrowserProbeIntervalMs
   $script:BrowserOwnerLookupFailed = $false
-  try {
-    $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe' OR Name = 'brave.exe'" -ErrorAction Stop)
-  } catch {
-    # A SYSTEM task should be able to enumerate every session, but if WMI is
-    # temporarily unavailable, use the process list only to distinguish
-    # "nothing running" from "a browser whose owner we cannot verify".
-    $processes = @(Get-Process chrome, brave -ErrorAction SilentlyContinue)
-    $script:BrowserOwnerLookupFailed = $processes.Count -gt 0
-    if ($script:BrowserOwnerLookupFailed) {
-      $script:RunningProtectedUserSids = @('__unknown__')
-      Write-WatchdogLog "Could not enumerate browser owners: $($_.Exception.Message)"
-      return @($script:RunningProtectedUserSids)
-    }
-    $script:RunningProtectedUserSids = @()
-    return @()
-  }
 
+  $processes = @(Get-BrowserProcesses)
   if ($script:ProtectedAccounts.Count -eq 0) {
     $script:RunningProtectedUserSids = if ($processes.Count -gt 0) { @('__legacy__') } else { @() }
     return @($script:RunningProtectedUserSids)
   }
 
   $running = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-  # Every browser subprocess in a Windows session has the same owner. Resolve
-  # one live process per session instead of making a pair of WMI calls for every
-  # Brave/Chrome subprocess on every probe. Apart from avoiding listener
-  # starvation, trying the next process when one exits prevents normal browser
-  # churn from being mistaken for an unverified account.
+  # Every browser subprocess in a Windows session has the same owner, so one
+  # live process per session is enough. Trying the next one when a process
+  # exits mid-lookup keeps normal browser churn from looking like an
+  # unverifiable owner.
   foreach ($session in @($processes | Group-Object SessionId)) {
+    foreach ($process in @($session.Group)) {
+      $imagePath = Get-ProcessImagePath ([int]$process.Id)
+      if ($imagePath) { Register-BrowserPath $imagePath; break }
+    }
     # Fast user switching leaves browsers running in disconnected sessions.
     # Their missing sensors must not activate the machine-wide firewall.
     # A reconnected session is probed again and receives a fresh grace period.
@@ -400,16 +588,12 @@ function Get-RunningProtectedUserSids([long]$Now) {
     $ownerSid = ''
     $liveLookupFailed = $false
     foreach ($process in @($session.Group)) {
-      $ownerSid = Get-CimProcessOwnerSid $process
+      $ownerSid = Get-ProcessOwnerSid ([int]$process.Id)
       if (-not [string]::IsNullOrWhiteSpace($ownerSid)) { break }
-      if ($null -ne (Get-Process -Id ([int]$process.ProcessId) -ErrorAction SilentlyContinue)) {
-        $liveLookupFailed = $true
-      }
+      if (Test-ProcessAlive ([int]$process.Id)) { $liveLookupFailed = $true }
     }
     if (-not [string]::IsNullOrWhiteSpace($ownerSid)) {
-      if ($script:ProtectedAccounts.Contains($ownerSid)) {
-        [void]$running.Add([string]$ownerSid)
-      }
+      if ($script:ProtectedAccounts.Contains($ownerSid)) { [void]$running.Add([string]$ownerSid) }
     } elseif ($liveLookupFailed) {
       $script:BrowserOwnerLookupFailed = $true
     }
@@ -423,30 +607,91 @@ function Get-RunningProtectedUserSids([long]$Now) {
   return @($script:RunningProtectedUserSids)
 }
 
-function Set-FirewallBlocked([bool]$Blocked) {
+function Get-FirewallRuleName([string]$Path, [string]$Sid) {
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes("$($Path.ToLowerInvariant())|$Sid")) }
+  finally { $sha.Dispose() }
+  return 'LockIn-' + ([BitConverter]::ToString($hash, 0, 8)).Replace('-', '')
+}
+
+# Keeps one outbound block rule per (browser executable, protected account)
+# and enables exactly those for the accounts in $BlockedSids ('*' = all).
+# Each rule is scoped to its account with -LocalUser, so a missing sensor in
+# one account cuts off that account's browser and leaves the other's alone.
+function Set-FirewallBlocked([string[]]$BlockedSids, [long]$Now) {
+  $BlockedSids = @($BlockedSids | Where-Object { $_ } | Sort-Object -Unique)
+  $key = $BlockedSids -join ','
+  $changed = $key -cne $script:FirewallKey
   if ($TestMode) {
-    if ($script:FirewallBlocked -ne $Blocked) {
-      $script:FirewallBlocked = $Blocked
-      Write-WatchdogLog "Emergency browser firewall block: $Blocked"
-    }
+    if ($changed) { Write-WatchdogLog "Emergency browser firewall block: $(if ($key) { $key } else { 'none' })" }
+    $script:FirewallKey = $key
+    $script:FirewallBlocked = $BlockedSids.Count -gt 0
     return
   }
+  # Querying the firewall costs about a second, so it happens only when the
+  # wanted state or the set of browsers changes, or the tamper check is due.
+  if (-not $changed -and -not $script:FirewallRulesStale -and $Now -lt $script:NextFirewallReconcileMs) { return }
+  $script:NextFirewallReconcileMs = $Now + $script:FirewallReconcileIntervalMs
 
-  $rules = @(Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue)
-  $desiredEnabled = if ($Blocked) { 'True' } else { 'False' }
-  $needsUpdate = $script:FirewallBlocked -ne $Blocked -or $rules.Count -eq 0 -or
-    @($rules | Where-Object { [string]$_.Enabled -ne $desiredEnabled }).Count -gt 0
-  if ($needsUpdate -and $rules.Count -gt 0) {
-    $rules | Set-NetFirewallRule -Enabled $desiredEnabled
-  }
-  $script:FirewallBlocked = $Blocked
-  if ($needsUpdate) {
-    if ($rules.Count -eq 0) {
-      Write-WatchdogLog "Emergency browser firewall rules are missing; desired block is $Blocked."
-    } else {
-      Write-WatchdogLog "Emergency browser firewall block: $Blocked"
+  $blockAll = $BlockedSids -contains '*'
+  $ruleSids = if ($script:ProtectedAccounts.Count -gt 0) { @($script:ProtectedAccounts.Keys) } else { @('*') }
+  $desired = @{}
+  foreach ($path in @($script:State.browserPaths | Where-Object { $_ })) {
+    foreach ($sid in $ruleSids) {
+      $desired[(Get-FirewallRuleName $path $sid)] = [pscustomobject]@{
+        Path = $path
+        Sid = $sid
+        Enabled = if ($blockAll -or $BlockedSids -contains $sid) { 'True' } else { 'False' }
+      }
     }
   }
+
+  $failed = $false
+  $existing = @{}
+  foreach ($rule in @(Get-NetFirewallRule -Group $firewallGroup -ErrorAction SilentlyContinue)) { $existing[[string]$rule.Name] = $rule }
+  foreach ($name in @($existing.Keys)) {
+    if ($desired.ContainsKey($name)) { continue }
+    # Older installs made one rule per browser for every account at once.
+    try { Remove-NetFirewallRule -Name $name -ErrorAction Stop } catch { $failed = $true; Write-WatchdogLog "Could not remove firewall rule ${name}: $($_.Exception.Message)" }
+  }
+  foreach ($name in @($desired.Keys)) {
+    $want = $desired[$name]
+    try {
+      if ($existing.ContainsKey($name)) {
+        if ([string]$existing[$name].Enabled -ne $want.Enabled) { Set-NetFirewallRule -Name $name -Enabled $want.Enabled -ErrorAction Stop }
+        continue
+      }
+      $leaf = [IO.Path]::GetFileNameWithoutExtension($want.Path)
+      $account = if ($want.Sid -eq '*') { 'all accounts' } else { ([string]$script:ProtectedAccounts[$want.Sid] -split '\\')[-1] }
+      $ruleArguments = @{
+        Name = $name
+        DisplayName = "Lock In emergency block ($leaf, $account)"
+        Group = $firewallGroup
+        Direction = 'Outbound'
+        Action = 'Block'
+        Program = $want.Path
+        Profile = 'Any'
+        Enabled = $want.Enabled
+        ErrorAction = 'Stop'
+      }
+      if ($want.Sid -ne '*') { $ruleArguments.LocalUser = "D:(A;;CC;;;$($want.Sid))" }
+      New-NetFirewallRule @ruleArguments | Out-Null
+    } catch {
+      $failed = $true
+      Write-WatchdogLog "Could not update firewall rule for $($want.Path): $($_.Exception.Message)"
+    }
+  }
+  if ($desired.Count -eq 0 -and $BlockedSids.Count -gt 0) {
+    Write-WatchdogLog 'No Brave or Chrome executable is known yet; the emergency firewall block has nothing to apply to.'
+  }
+  if ($changed) { Write-WatchdogLog "Emergency browser firewall block: $(if ($key) { $key } else { 'none' })" }
+  $script:FirewallKey = $key
+  # A failure (the firewall service stopped, say) is retried after a short
+  # pause rather than on every pass: each attempt costs about a second, and
+  # retrying constantly would starve the sensor's requests again.
+  $script:FirewallRulesStale = $false
+  if ($failed) { $script:NextFirewallReconcileMs = $Now + 15000L }
+  $script:FirewallBlocked = $BlockedSids.Count -gt 0
 }
 
 function Test-RequestOrigin($Context) {
@@ -455,34 +700,19 @@ function Test-RequestOrigin($Context) {
   return $origin -match '^chrome-extension://[a-p]{32}$'
 }
 
-function Get-CimProcessOwnerSid($Process) {
-  try {
-    if ($null -eq $Process) { return '' }
-    $owner = Invoke-CimMethod -InputObject $Process -MethodName GetOwnerSid -ErrorAction Stop
-    if ([int]$owner.ReturnValue -ne 0) { return '' }
-    return [string]$owner.Sid
-  } catch { return '' }
-}
-
-function Get-ProcessOwnerSid([int]$ProcessId) {
-  try {
-    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
-    return Get-CimProcessOwnerSid $process
-  } catch { return '' }
-}
-
 function Get-RequestUserSid($Context) {
   try {
-    $clientPort = [int]$Context.Request.RemoteEndPoint.Port
-    $connection = Get-NetTCPConnection `
-      -LocalAddress '127.0.0.1' `
-      -LocalPort $clientPort `
-      -RemoteAddress '127.0.0.1' `
-      -RemotePort $Port `
-      -State Established `
-      -ErrorAction Stop | Select-Object -First 1
-    if ($null -eq $connection) { return '' }
-    return Get-ProcessOwnerSid ([int]$connection.OwningProcess)
+    Initialize-Native
+    $processId = [LockIn.Native]::LoopbackClientProcessId([int]$Context.Request.RemoteEndPoint.Port, $Port)
+    if ($processId -le 0) { return '' }
+    # Is the sending browser in the session that is actually in front? With
+    # fast user switching, the other account's browser keeps running (and
+    # reporting) behind the lock screen. An unreadable state counts as active.
+    try {
+      $sessionId = ([Diagnostics.Process]::GetProcessById($processId)).SessionId
+      $script:CurrentRequestSessionActive = [LockIn.Native]::SessionState($sessionId) -in @(0, -1)
+    } catch { $script:CurrentRequestSessionActive = $true }
+    return Get-ProcessOwnerSid $processId
   } catch {
     Write-WatchdogLog "Could not identify loopback client SID: $($_.Exception.Message)"
     return ''
@@ -491,6 +721,7 @@ function Get-RequestUserSid($Context) {
 
 function Test-ProtectedAccountRequest($Context, $Request) {
   $script:CurrentRequestUserSid = ''
+  $script:CurrentRequestSessionActive = $true
   if ($script:ProtectedAccounts.Count -eq 0) { return $true }
   $origin = [string]$Context.Request.Headers['Origin']
   if ([string]$Request.type -eq 'disarm' -and [string]::IsNullOrWhiteSpace($origin)) { return $true }
@@ -529,7 +760,7 @@ function Apply-BrowserPolicy([string]$Browser, [string[]]$Domains) {
     $candidate++
   }
   $script:State.ownedPolicyValues.$Browser = @($owned)
-  $script:Dirty = $true
+  Request-Save
 }
 
 function Apply-BrowserAllowPolicy([string]$Browser, [string[]]$Domains) {
@@ -557,7 +788,7 @@ function Apply-BrowserAllowPolicy([string]$Browser, [string[]]$Domains) {
     $candidate++
   }
   $script:State.ownedAllowPolicyValues.$Browser = @($owned)
-  $script:Dirty = $true
+  Request-Save
 }
 
 function Test-OwnedPoliciesCurrent([string[]]$Domains) {
@@ -609,6 +840,7 @@ function Evaluate-Enforcement([long]$Now) {
   $domains = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
   $reasons = New-Object 'System.Collections.Generic.List[string]'
   $script:FailClosedActive = $false
+  $missingSids = @()
   $enabledGroups = @($script:State.groups | Where-Object { $_.enabled -eq $true })
   $blockingGroups = @()
 
@@ -642,6 +874,9 @@ function Evaluate-Enforcement([long]$Now) {
           'unverified browser owner'
         } else { 'browser' }
         $missingAccounts += ($accountName -split '\\')[-1]
+        # Only a known protected account can be cut off on its own; an owner
+        # that could not be verified cuts off every protected account.
+        $missingSids += if ($script:ProtectedAccounts.Contains($runningUserSid)) { $runningUserSid } else { '*' }
       }
     }
     foreach ($knownSid in @($script:BrowserSeenAtMsBySid.Keys)) {
@@ -678,14 +913,25 @@ function Evaluate-Enforcement([long]$Now) {
   elseif ($reasons.Count -eq 0) { $script:EnforcementReason = 'open' }
   else { $script:EnforcementReason = $reasons -join ', ' }
   Apply-Policies @($script:BlockedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ }) @($script:AllowedDomains | ForEach-Object { ConvertTo-PolicyFilter $_ } | Where-Object { $_ })
-  Set-FirewallBlocked $script:FailClosedActive
+  $blockedSids = if ($script:FailClosedActive) { @($missingSids) } else { @() }
+  Set-FirewallBlocked $blockedSids $Now
 }
 
-function Get-Snapshot([long]$Now) {
-  $ticking = @()
-  if ($script:State.lastFocused -eq $true -and ($Now - [long]$script:State.lastHeartbeatMs) -le ([long]$script:State.heartbeatTimeoutSeconds * 1000L)) {
-    $ticking = @(Get-TickingGroups ([string]$script:State.lastHost) $Now | ForEach-Object { [string]$_.id })
-  }
+# $SensorKey scopes the "ticking now" hint to the account asking, so each
+# dashboard counts down only for what its own browser is showing.
+function Get-Snapshot([long]$Now, [string]$SensorKey = '') {
+  $watching = @(Get-WatchingSensors $Now)
+  if ($SensorKey) { $watching = @($watching | Where-Object { $_.key -eq $SensorKey }) }
+  $ticking = @(Get-TickingGroupIds $watching $Now)
+  $sensors = @(foreach ($sid in @($script:ProtectedAccounts.Keys)) {
+    $sensor = $script:Sensors[$sid]
+    [pscustomobject][ordered]@{
+      account = ([string]$script:ProtectedAccounts[$sid] -split '\\')[-1]
+      lastHeartbeatMs = if ($sensor) { [long]$sensor.heartbeatMs } else { 0L }
+      activeSession = [bool]($sensor -and $sensor.active)
+      browserRunning = @($script:RunningProtectedUserSids) -contains $sid
+    }
+  })
   $session = $null
   if ($ticking.Count -gt 0) { $session = [pscustomobject]@{ groupIds = $ticking; startedAt = $Now } }
   return [pscustomobject][ordered]@{
@@ -710,6 +956,7 @@ function Get-Snapshot([long]$Now) {
     enforcementReason = $script:EnforcementReason
     protectedWindowsAccount = (@($script:ProtectedAccounts.Values) -join ', ')
     protectedWindowsAccounts = @($script:ProtectedAccounts.Values)
+    sensors = $sensors
   }
 }
 
@@ -723,7 +970,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
         $script:State.lockMode = $Request.payload.lockMode -eq $true
         $script:State.privacyConsent = $Request.payload.privacyConsent -eq $true
         $script:State.configured = $true
-        $script:Dirty = $true
+        Request-Save
       }
       $script:State.lastSampleMs = $now
     }
@@ -733,7 +980,7 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
       $script:State.lockMode = $Request.payload.lockMode -eq $true
       $script:State.privacyConsent = $Request.payload.privacyConsent -eq $true
       $script:State.configured = $true
-      $script:Dirty = $true
+      Request-Save
     }
     'heartbeat' {
       Add-ElapsedUsage $now
@@ -745,12 +992,17 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
       $script:ConsecutiveHeartbeatsBySid[$sensorKey] = [int]$script:ConsecutiveHeartbeatsBySid[$sensorKey] + 1
       $script:SensorHeartbeatMsBySid[$sensorKey] = $now
       $script:State.lastHeartbeatMs = $now
-      $script:State.lastSampleMs = $now
-      $script:State.lastHost = Normalize-Domain ([string]$Request.payload.host)
-      $script:LastUrl = [string]$Request.payload.url
-      $script:State.lastFocused = $Request.payload.focused -eq $true
+      $script:Sensors[$sensorKey] = [pscustomobject]@{
+        key = $sensorKey
+        host = Normalize-Domain ([string]$Request.payload.host)
+        url = [string]$Request.payload.url
+        focused = $Request.payload.focused -eq $true
+        active = $TestMode -or $script:CurrentRequestSessionActive -ne $false
+        heartbeatMs = $now
+      }
       if ($script:State.configured -eq $true -and $script:State.enforcementArmed -ne $true -and [int]$script:ConsecutiveHeartbeatsBySid[$sensorKey] -ge 3) {
         $script:State.enforcementArmed = $true
+        Request-Save
       }
       $script:Dirty = $true
     }
@@ -764,44 +1016,114 @@ function Handle-Request($Request, [string]$RequestUserSid = '') {
       $script:State.enforcementArmed = $false
       $script:State.lastHeartbeatMs = $now
       $script:State.lastSampleMs = $now
-      $script:State.lastHost = ''
-      $script:LastUrl = ''
-      $script:State.lastFocused = $false
+      $script:Sensors.Clear()
       $script:ConsecutiveHeartbeatsBySid.Clear()
       $script:SensorHeartbeatMsBySid.Clear()
-      $script:Dirty = $true
+      Request-Save
     }
     'disarm' {
       $script:State.enforcementArmed = $false
       $script:ConsecutiveHeartbeatsBySid.Clear()
-      $script:Dirty = $true
+      Request-Save
     }
     default { throw "Unknown request type: $($Request.type)" }
   }
-  Evaluate-Enforcement $now
+  # The request itself has been applied. If enforcement cannot be brought up
+  # to date this instant, the main loop retries in a moment; the sensor must
+  # still get its answer, or it would report a disconnect that never happened.
+  try { Evaluate-Enforcement $now }
+  catch { Write-WatchdogLog "Enforcement after $($Request.type) failed: $($_.Exception.Message)" }
   Save-State
-  return Get-Snapshot $now
+  $sensorKey = if ([string]::IsNullOrWhiteSpace($RequestUserSid)) { '__legacy__' } else { $RequestUserSid }
+  return Get-Snapshot $now $sensorKey
 }
 
 function Write-JsonResponse($Context, [int]$StatusCode, $Body) {
-  $Context.Response.StatusCode = $StatusCode
-  $origin = [string]$Context.Request.Headers['Origin']
-  if ($origin -match '^chrome-extension://[a-p]{32}$') {
-    $Context.Response.Headers['Access-Control-Allow-Origin'] = $origin
-    $Context.Response.Headers['Vary'] = 'Origin'
+  # The client may already have given up on this request. A response nobody
+  # reads is not a watchdog failure, so nothing here is allowed to throw.
+  try {
+    $Context.Response.StatusCode = $StatusCode
+    $origin = [string]$Context.Request.Headers['Origin']
+    if ($origin -match '^chrome-extension://[a-p]{32}$') {
+      $Context.Response.Headers['Access-Control-Allow-Origin'] = $origin
+      $Context.Response.Headers['Vary'] = 'Origin'
+    }
+    $Context.Response.Headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    if ($Context.Request.Headers['Access-Control-Request-Private-Network'] -eq 'true') {
+      $Context.Response.Headers['Access-Control-Allow-Private-Network'] = 'true'
+    }
+    $Context.Response.Headers['Cache-Control'] = 'no-store'
+    if ($null -ne $Body) {
+      $bytes = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 20 -Compress))
+      $Context.Response.ContentType = 'application/json; charset=utf-8'
+      $Context.Response.ContentLength64 = $bytes.Length
+      $Context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+    }
+  } catch {
+    Write-WatchdogLog "Could not answer a request: $($_.Exception.Message)"
+  } finally {
+    try { $Context.Response.Close() } catch { }
   }
-  $Context.Response.Headers['Access-Control-Allow-Headers'] = 'Content-Type'
-  if ($Context.Request.Headers['Access-Control-Request-Private-Network'] -eq 'true') {
-    $Context.Response.Headers['Access-Control-Allow-Private-Network'] = 'true'
+}
+
+function Invoke-HttpRequest($Context) {
+  try {
+    if (-not (Test-RequestOrigin $Context)) {
+      Write-JsonResponse $Context 403 ([pscustomobject]@{ ok = $false; error = 'Only a Chrome extension origin may use this endpoint.' })
+      return
+    }
+    if ($Context.Request.HttpMethod -eq 'OPTIONS') { Write-JsonResponse $Context 204 $null; return }
+    if ($Context.Request.HttpMethod -eq 'GET' -and $Context.Request.Url.AbsolutePath -eq '/health') {
+      Write-JsonResponse $Context 200 ([pscustomobject]@{ ok = $true; data = Get-Snapshot (Get-NowMs) })
+      return
+    }
+    if ($Context.Request.HttpMethod -ne 'POST' -or $Context.Request.Url.AbsolutePath -ne '/api/request') {
+      Write-JsonResponse $Context 404 ([pscustomobject]@{ ok = $false; error = 'Not found' })
+      return
+    }
+    $reader = [IO.StreamReader]::new($Context.Request.InputStream, $Context.Request.ContentEncoding)
+    try { $request = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+    if (-not (Test-ProtectedAccountRequest $Context $request)) {
+      Write-JsonResponse $Context 403 ([pscustomobject]@{ ok = $false; error = 'This Windows account is not the protected Lock In sensor.' })
+      return
+    }
+    $data = Handle-Request $request $script:CurrentRequestUserSid
+    Write-JsonResponse $Context 200 ([pscustomobject]@{ ok = $true; requestId = $request.requestId; data = $data })
+  } catch {
+    Write-WatchdogLog "Request failed: $($_.Exception.Message)"
+    Write-JsonResponse $Context 400 ([pscustomobject]@{ ok = $false; error = $_.Exception.Message })
   }
-  $Context.Response.Headers['Cache-Control'] = 'no-store'
-  if ($null -ne $Body) {
-    $bytes = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 20 -Compress))
-    $Context.Response.ContentType = 'application/json; charset=utf-8'
-    $Context.Response.ContentLength64 = $bytes.Length
-    $Context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+}
+
+function Start-Listener {
+  $listener = [Net.HttpListener]::new()
+  $listener.Prefixes.Add("http://127.0.0.1:$Port/")
+  $listener.Start()
+  return $listener
+}
+
+function Stop-Listener($Listener) {
+  if ($null -eq $Listener) { return }
+  try { if ($Listener.IsListening) { $Listener.Stop() } } catch { }
+  try { $Listener.Close() } catch { }
+}
+
+# One pass of the enforcement engine. Everything it calls is cheap on the
+# common path; the slow system queries run on their own cadences.
+function Invoke-EnforcementPass {
+  $now = Get-NowMs
+  # A sleeping or hibernating machine resumes with every clock jumped forward.
+  # Without this, the sensor would be declared missing the instant the machine
+  # wakes, before the browser has had a chance to send a single heartbeat.
+  if ($script:LastLoopMs -gt 0 -and ($now - $script:LastLoopMs) -gt 15000) {
+    Write-WatchdogLog "Clock jumped $([long](($now - $script:LastLoopMs) / 1000)) s (sleep or resume); restarting sensor grace periods."
+    foreach ($key in @($script:BrowserSeenAtMsBySid.Keys)) { $script:BrowserSeenAtMsBySid[$key] = $now }
+    $script:NextBrowserProbeMs = 0L
   }
-  $Context.Response.Close()
+  $script:LastLoopMs = $now
+  Add-ElapsedUsage $now
+  Evaluate-Enforcement $now
+  Save-State
 }
 
 New-Item -ItemType Directory -Force -Path $DataDirectory | Out-Null
@@ -809,56 +1131,44 @@ if (Test-Path -LiteralPath $statePath) {
   try { $script:State = Ensure-StateShape (Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json) }
   catch { Write-WatchdogLog "State load failed, starting safely disarmed: $($_.Exception.Message)"; $script:State = New-DefaultState }
 } else { $script:State = New-DefaultState }
-$script:Dirty = $true
+Request-Save
+Initialize-Native
+try { Register-InstalledBrowsers } catch { Write-WatchdogLog "Could not look for installed browsers: $($_.Exception.Message)" }
 
-$listener = [Net.HttpListener]::new()
-$listener.Prefixes.Add("http://127.0.0.1:$Port/")
+# The watchdog must outlive any single failure: a registry hiccup, a firewall
+# cmdlet timing out, a client hanging up mid-response, or even the listener
+# itself dying. Each is logged and the loop carries on; only the process being
+# killed stops it, and the scheduled task brings it back from that.
+$listener = $null
+$pending = $null
+$announced = $false
 try {
-  Evaluate-Enforcement (Get-NowMs)
-  Save-State
-  $listener.Start()
-  Write-WatchdogLog "Watchdog started on loopback port $Port."
-  Write-Output 'LOCKIN_WATCHDOG_READY'
-  $pending = $listener.GetContextAsync()
-  while ($listener.IsListening) {
-    $now = Get-NowMs
-    Add-ElapsedUsage $now
-    Evaluate-Enforcement $now
-    Save-State
-    if (-not $pending.Wait([Math]::Max(50, $EvaluationIntervalMilliseconds))) { continue }
-    $context = $pending.Result
-    $pending = $listener.GetContextAsync()
+  while ($true) {
+    try { Invoke-EnforcementPass }
+    catch { Write-WatchdogLog "Enforcement pass failed: $($_.Exception.Message)" }
+
     try {
-      if (-not (Test-RequestOrigin $context)) {
-        Write-JsonResponse $context 403 ([pscustomobject]@{ ok = $false; error = 'Only a Chrome extension origin may use this endpoint.' })
-        continue
+      if ($null -eq $listener -or -not $listener.IsListening) {
+        Stop-Listener $listener
+        $pending = $null
+        $listener = Start-Listener
+        Write-WatchdogLog "Watchdog listening on loopback port $Port."
+        if (-not $announced) { Write-Output 'LOCKIN_WATCHDOG_READY'; $announced = $true }
       }
-      if ($context.Request.HttpMethod -eq 'OPTIONS') { Write-JsonResponse $context 204 $null; continue }
-      if ($context.Request.HttpMethod -eq 'GET' -and $context.Request.Url.AbsolutePath -eq '/health') {
-        Write-JsonResponse $context 200 ([pscustomobject]@{ ok = $true; data = Get-Snapshot (Get-NowMs) })
-        continue
-      }
-      if ($context.Request.HttpMethod -ne 'POST' -or $context.Request.Url.AbsolutePath -ne '/api/request') {
-        Write-JsonResponse $context 404 ([pscustomobject]@{ ok = $false; error = 'Not found' })
-        continue
-      }
-      $reader = [IO.StreamReader]::new($context.Request.InputStream, $context.Request.ContentEncoding)
-      try { $request = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-      if (-not (Test-ProtectedAccountRequest $context $request)) {
-        Write-JsonResponse $context 403 ([pscustomobject]@{ ok = $false; error = 'This Windows account is not the protected Lock In sensor.' })
-        continue
-      }
-      $data = Handle-Request $request $script:CurrentRequestUserSid
-      Write-JsonResponse $context 200 ([pscustomobject]@{ ok = $true; requestId = $request.requestId; data = $data })
+      if ($null -eq $pending) { $pending = $listener.GetContextAsync() }
+      if (-not $pending.Wait([Math]::Max(50, $EvaluationIntervalMilliseconds))) { continue }
+      $context = $pending.Result
+      $pending = $listener.GetContextAsync()
+      Invoke-HttpRequest $context
     } catch {
-      Write-WatchdogLog "Request failed: $($_.Exception.Message)"
-      Write-JsonResponse $context 400 ([pscustomobject]@{ ok = $false; error = $_.Exception.Message })
+      Write-WatchdogLog "Listener failed, restarting it: $($_.Exception.Message)"
+      Stop-Listener $listener
+      $listener = $null
+      $pending = $null
+      Start-Sleep -Milliseconds 1000
     }
   }
-} catch {
-  Write-WatchdogLog "Fatal watchdog error: $($_.Exception)"
-  throw
 } finally {
-  if ($listener.IsListening) { $listener.Stop() }
-  $listener.Close()
+  Save-State -Force
+  Stop-Listener $listener
 }

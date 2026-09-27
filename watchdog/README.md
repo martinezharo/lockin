@@ -5,12 +5,38 @@ It contains no custom executable and requires no certificate or online account.
 
 ## Install
 
-Extract the complete archive. Open PowerShell as administrator in the extracted folder and run:
+Extract the complete archive. Open PowerShell in the extracted folder and run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\install-windows-watchdog.ps1 -ProtectedWindowsUser 'user1,user2'
+.\install-windows-watchdog.ps1
 ```
+
+The installer asks for administrator rights itself and adds the account you ran
+it from to the protected accounts, keeping any already protected. Running it again
+updates the watchdog in place and restores the previous copy if the new one fails
+to start. `-ProtectedWindowsUser 'user1,user2'` replaces the protected set outright.
+
+### Several Windows accounts
+
+Load the extension in each account and run the installer once from each (or once
+with `-ProtectedWindowsUser` naming all of them). The watchdog then keeps each
+account apart:
+
+- only the account in front counts time. A browser left running behind a fast
+  user switch keeps reporting its last tab, and that is ignored;
+- when two accounts are on the same zone at once, the time is counted once: the
+  allowance belongs to the person, not the account;
+- the emergency firewall rules exist per browser *and* per account, so a missing
+  sensor cuts off only that account's browser. Browsers installed into an
+  account's own AppData are discovered when they first run;
+- zones and usage are shared: an edit made in one account reaches the other on
+  its next heartbeat.
+
+`watchdog-status.ps1` lists every protected account with its last heartbeat.
+
+If something looks wrong, `.\watchdog-status.ps1` shows whether the watchdog
+answers and, from an elevated window, its task state and recent log.
 
 Only those Windows accounts can configure the watchdog. Each active protected account must maintain its own heartbeat; a Lock In copy running under another account cannot prevent fail-closed enforcement.
 
@@ -59,9 +85,9 @@ during scheduled containment and after an allowance is spent, and time on them
 is not counted. Whole-domain and fragment exceptions are rejected. If another
 active zone contains the same page, its explicit block wins.
 
-Update the watchdog with `pnpm watchdog:update` from the repository and accept
-the UAC prompt, then reload the extension. The updater backs up the installed
-script, restarts the task, and verifies its health. Older watchdogs cannot
+Update the watchdog by running the installer again (`pnpm watchdog:update` from
+the repository) and accept the UAC prompt, then reload the extension. It backs
+up the installed script, restarts the task, and verifies its health. Older watchdogs cannot
 accept URL rules; the dashboard and bridge reject those writes until the
 watchdog advertises support.
 

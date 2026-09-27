@@ -33,14 +33,17 @@ test('the snapshot never reports a group the extension cannot read', async () =>
   assert.ok(client.includes('next.groups.length === 0 && (current.groups || []).length > 0'));
 });
 
-test('the watchdog client is pinned to loopback', () => {
+test('the watchdog client is pinned to loopback', async () => {
+  const watchdog = await readFile('watchdog/LockInWatchdog.ps1', 'utf8');
   assert.match(client, /127\.0\.0\.1:8765/);
   assert.match(installer, /New-ScheduledTaskPrincipal/);
   assert.match(installer, /SYSTEM/);
-  assert.match(installer, /New-NetFirewallRule/);
+  assert.match(watchdog, /New-NetFirewallRule/);
+  assert.match(watchdog, /LocalUser/);
   assert.match(installer, /MultipleInstances IgnoreNew/);
   assert.match(installer, /ProtectedWindowsUser/);
-  assert.match(client, /HEARTBEAT_MS = 1000/);
+  assert.match(client, /HEARTBEAT_MS = 2000/);
+  assert.match(installer, /RepetitionInterval/);
 });
 
 test('safe rollout arms only after the watchdog is reachable', async () => {
@@ -50,14 +53,6 @@ test('safe rollout arms only after the watchdog is reachable', async () => {
   assert.match(watchdog, /Set-FirewallBlocked/);
   assert.match(watchdog, /EvaluationIntervalMilliseconds = 250/);
   assert.match(watchdog, /Test-ProtectedAccountRequest/);
-  assert.match(watchdog, /Get-NetTCPConnection/);
-  assert.match(watchdog, /GetOwnerSid/);
-  assert.match(watchdog, /Get-CimInstance Win32_Process/);
-  assert.match(watchdog, /Group-Object SessionId/);
-  assert.match(watchdog, /Get-CimProcessOwnerSid \$process/);
-  assert.match(watchdog, /Invoke-CimMethod -InputObject \$Process/);
-  assert.doesNotMatch(watchdog, /Get-ProcessOwnerSid \(\[int\]\$process\.ProcessId\)/);
-  assert.doesNotMatch(watchdog, /Get-Process chrome, brave -IncludeUserName/);
   assert.match(installer, /ProtectedWindowsUser/);
   assert.match(installer, /ProtectedUserSids/);
   assert.match(watchdog, /SensorHeartbeatMsBySid/);
@@ -66,4 +61,18 @@ test('safe rollout arms only after the watchdog is reachable', async () => {
   assert.match(watchdog, /function Test-OwnedPoliciesCurrent/);
   assert.match(watchdog, /LastPolicyFingerprint.*Test-OwnedPoliciesCurrent/);
   assert.match(watchdog, /WOW6432Node\\Policies\\BraveSoftware\\Brave\\URLBlocklist/);
+});
+
+test('the watchdog loop stays fast and cannot be taken down by one failure', async () => {
+  const watchdog = await readFile('watchdog/LockInWatchdog.ps1', 'utf8');
+  // Each of these took hundreds of milliseconds to a second per call and ran
+  // on every pass, which made the sensor time out and disconnect.
+  assert.doesNotMatch(watchdog, /Get-NetTCPConnection|Get-CimInstance|Invoke-CimMethod/);
+  assert.match(watchdog, /LoopbackClientProcessId/);
+  assert.match(watchdog, /NextFirewallReconcileMs/);
+  // Answering a client that already hung up must never throw out of the loop.
+  assert.match(watchdog, /function Write-JsonResponse[\s\S]*?try \{[\s\S]*?\} catch \{/);
+  assert.match(watchdog, /while \(\$true\)/);
+  assert.match(watchdog, /Listener failed, restarting it/);
+  assert.match(watchdog, /Clock jumped/);
 });

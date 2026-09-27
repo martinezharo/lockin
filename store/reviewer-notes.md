@@ -39,7 +39,7 @@ The installer creates a `SYSTEM` scheduled task, protected local state and disab
 ## Fail-closed test
 
 1. With the watchdog armed, stop or reload the extension service worker while Chrome remains open.
-2. After 30 seconds, confirm the watchdog reports `sensor missing`, keeps every enabled zone in `URLBlocklist`, and enables the browser-specific outbound firewall rule.
+2. After 60 seconds, confirm the watchdog reports `sensor missing`, keeps every enabled zone in `URLBlocklist`, and enables the browser-specific outbound firewall rule.
 3. Reload the extension and confirm normal schedule/allowance evaluation resumes.
 
 ## Edit-lock and deletion tests

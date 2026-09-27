@@ -15,6 +15,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'watchdog\LockInWatchdog.ps1') -D
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-windows-watchdog.ps1') -Destination $staging
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'disarm-windows-watchdog.ps1') -Destination $staging
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall-windows-watchdog.ps1') -Destination $staging
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'watchdog-status.ps1') -Destination $staging
 Copy-Item -LiteralPath (Join-Path $projectRoot 'watchdog\README.md') -Destination $staging
 
 if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
