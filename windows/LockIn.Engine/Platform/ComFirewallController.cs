@@ -107,6 +107,37 @@ public sealed class ComFirewallController : IFirewallController
         return new FirewallReconcileResult(failed, fallback, warning);
     }
 
+    public void DisableAll()
+    {
+        try
+        {
+            var policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+            if (policyType is null) return;
+            dynamic policy = Activator.CreateInstance(policyType)!;
+            dynamic rules = policy.Rules;
+            foreach (var item in (System.Collections.IEnumerable)rules)
+            {
+                dynamic rule = item;
+                try
+                {
+                    if (string.Equals((string?)rule.Grouping, GroupName, StringComparison.Ordinal) && (bool)rule.Enabled)
+                    {
+                        rule.Enabled = false;
+                    }
+                }
+                catch
+                {
+                    // A rule that cannot be read is not one of ours to touch.
+                }
+            }
+        }
+        catch
+        {
+            // Emergency disarm has already disarmed the service; a firewall that
+            // cannot be reached here is retried by the next service pass.
+        }
+    }
+
     private static void AddRule(dynamic rules, FirewallRuleSpec spec, bool scoped)
     {
         var ruleType = Type.GetTypeFromProgID("HNetCfg.FwRule");

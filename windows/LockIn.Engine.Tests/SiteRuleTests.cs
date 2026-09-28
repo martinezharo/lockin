@@ -73,6 +73,25 @@ public sealed class SiteRuleTests
     }
 
     [Fact]
+    public void SendableUrlIsEmptyUnlessAConfiguredRuleMatches()
+    {
+        var groups = new List<Group>
+        {
+            new() { Domains = new List<string> { "youtube.com/watch?v=ABC" } }
+        };
+        Assert.Equal("", SiteRules.SendableUrl("https://youtube.com/watch?v=OTHER", groups));
+        Assert.Equal("https://youtube.com/watch?v=ABC", SiteRules.SendableUrl("https://youtube.com/watch?v=ABC#frag", groups));
+
+        var fragment = new List<Group>
+        {
+            new() { Domains = new List<string> { "chatgpt.com/#settings/Personalization" } }
+        };
+        Assert.Equal("https://chatgpt.com/#settings/Personalization",
+            SiteRules.SendableUrl("https://chatgpt.com/#settings/Personalization", fragment));
+        Assert.Equal("", SiteRules.SendableUrl("https://example.com/", groups));
+    }
+
+    [Fact]
     public void AppTargetsNormalizeToFileNames()
     {
         Assert.Equal("discord.exe", SiteRules.NormalizeAppTarget(@"C:\Users\x\AppData\Local\Discord\Discord.exe"));

@@ -70,6 +70,11 @@ public interface IFirewallController
     /// failure instead of throwing so the engine can back off and try again.
     /// </summary>
     FirewallReconcileResult Reconcile(IReadOnlyList<FirewallRuleSpec> desired);
+
+    /// <summary>Disables every rule in the LockInWatchdog group without removing it (emergency disarm).</summary>
+    void DisableAll()
+    {
+    }
 }
 
 public sealed class NullFirewallController : IFirewallController

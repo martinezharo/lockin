@@ -214,6 +214,39 @@ public static class SiteRules
     }
 
     /// <summary>
+    /// The URL an app sensor may report for a page: empty unless a configured
+    /// URL rule matches, credentials removed, and the fragment kept only when a
+    /// fragment rule matched. This is the same privacy gate the extension's
+    /// service worker applies before sending a heartbeat.
+    /// </summary>
+    public static string SendableUrl(string? pageUrl, IEnumerable<Group>? groups)
+    {
+        if (string.IsNullOrWhiteSpace(pageUrl) ||
+            !(pageUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+              pageUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "";
+        }
+        var rules = (groups ?? Enumerable.Empty<Group>())
+            .SelectMany(group => (group.Domains ?? new List<string>()).Concat(group.Exceptions ?? new List<string>()))
+            .Where(rule => rule.IndexOfAny(new[] { '/', '?', '#', ' ', ':' }) >= 0)
+            .Where(rule => TestSiteMatches(pageUrl, rule))
+            .ToList();
+        if (rules.Count == 0) return "";
+        try
+        {
+            var uri = new Uri(pageUrl);
+            var builder = new UriBuilder(uri) { UserName = "", Password = "" };
+            if (!rules.Any(rule => rule.Contains('#'))) builder.Fragment = "";
+            return builder.Uri.AbsoluteUri;
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>
     /// Executable targets are matched by file name, because Windows paths in an
     /// app zone would break the moment the app updates. The stored form is a
     /// bare lowercase file name such as `discord.exe`.
