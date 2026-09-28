@@ -5,3 +5,10 @@ dist/
 
 # Browser snapshots are temporary CI artifacts, not repository assets.
 /screenshots/
+
+# .NET build output and the published installer inputs.
+windows/**/bin/
+windows/**/obj/
+windows/**/publish/
+installer/Output/
+*.user
