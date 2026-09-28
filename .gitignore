@@ -12,3 +12,5 @@ windows/**/obj/
 windows/**/publish/
 installer/Output/
 *.user
+windows/.cache/
+

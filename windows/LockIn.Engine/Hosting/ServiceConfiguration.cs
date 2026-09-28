@@ -2,7 +2,7 @@ using System.Security.Principal;
 using LockIn.Engine.Engine;
 using Microsoft.Win32;
 
-namespace LockIn.Service;
+namespace LockIn.Engine.Hosting;
 
 /// <summary>
 /// The installer's settings, kept in HKLM\SOFTWARE\LockIn. Protected accounts

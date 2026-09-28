@@ -5,7 +5,7 @@ using LockIn.Engine.Engine;
 using LockIn.Engine.Platform;
 using LockIn.Engine.Protocol;
 
-namespace LockIn.Service;
+namespace LockIn.Engine.Hosting;
 
 /// <summary>
 /// The loopback endpoint the extension has always talked to. The protocol is

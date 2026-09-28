@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using LockIn.Engine.Engine;
 using LockIn.Engine.Protocol;
-using LockIn.Service;
+using LockIn.Engine.Hosting;
 using Xunit;
 
 namespace LockIn.Engine.Tests;

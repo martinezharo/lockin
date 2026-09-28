@@ -8,6 +8,7 @@
     <IsPackable>false</IsPackable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>LockIn.Engine.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);xUnit2012</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LockIn.Engine\LockIn.Engine.csproj" />
-    <ProjectReference Include="..\LockIn.Service\LockIn.Service.csproj" />
   </ItemGroup>
 
 </Project>

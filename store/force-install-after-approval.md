@@ -1,33 +1,37 @@
 # Force-install Lock In after Chrome Web Store approval
 
 The existing unlisted item ID is `ceggfchogfcdgnobpekajiojobghcggi`.
-Version 1.4.1 also requires the Windows watchdog to be installed
-before the extension update reaches the browser.
 
-## Windows policy
+The installer can write the Chrome and Brave `ExtensionInstallForcelist` policy itself, and it is
+switchable:
 
-1. Open Registry Editor as an administrator.
-2. Go to:
-   `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist`
-3. Create a new **String Value** using the next unused numeric name, such as
-   `1`.
-4. Set its value to:
-   `ceggfchogfcdgnobpekajiojobghcggi;https://clients2.google.com/service/update2/crx`
-5. Restart Chrome and check `chrome://policy` for
-   `ExtensionInstallForcelist`.
+- The account wizard asks **Guide me through loading the extension by hand** (default) or
+  **Force-install it from the Chrome Web Store**.
+- The default is the guide because the store listing currently serves an older build without the
+  watchdog. The tray app detects a browser with no Lock In sensor and offers to open the extensions
+  page.
+- After the store serves a watchdog-compatible version, run the installer again and pick the
+  force-install option, or set the switch directly from an elevated prompt:
+  `LockIn.Service.exe --setup-helper apply-config --force-extension 1` (add `--sids <sid,...>` to
+  keep a specific protected set; without it the existing set and the launching account are kept).
 
-Chrome will install and keep the extension enabled for every Windows user on
-the managed computer. Removing it then requires administrator access to remove
-the machine policy; it cannot be disabled from the normal Extensions page.
+The installer owns only the values it writes: it records them under
+`HKLM\SOFTWARE\LockIn\OwnedExtensionPolicy` and removes only values that still hold the Lock In
+extension id when the switch is turned off or Lock In is uninstalled. Existing administrator policy
+entries are never touched, and a new value is written under a free numeric name from 900 upwards.
 
-Keep the Web Store visibility set to **Unlisted**. The policy uses the Web Store
-update service, so no public search listing is required.
+The paths used are:
 
-For Brave, use the equivalent path:
-`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist`.
+- `HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist`
+- `HKLM\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist`
+
+Value format: `ceggfchogfcdgnobpekajiojobghcggi;https://clients2.google.com/service/update2/crx`.
+
+Keep the Web Store visibility set to **Unlisted**. The policy uses the Web Store update service, so
+no public search listing is required.
 
 After force installation, check both the extension policy and the watchdog:
 
 - `chrome://policy` or `brave://policy` shows `ExtensionInstallForcelist`.
 - The Lock In dashboard shows **Windows enforcement armed**.
-- Task Scheduler shows `Lock In Watchdog` running as `SYSTEM`.
+- `services.msc` shows `LockInWatchdog` running as `LocalSystem`.

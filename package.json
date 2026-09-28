@@ -12,6 +12,8 @@
     "watchdog:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-windows-watchdog.ps1",
     "watchdog:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/watchdog-status.ps1",
     "watchdog:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-watchdog-bundle.ps1",
+    "app:test": "dotnet test windows/LockIn.sln --nologo",
+    "app:build": "powershell -NoProfile -ExecutionPolicy Bypass -File windows/build-windows-app.ps1",
     "release": "bash scripts/build-release.sh",
     "verify": "pnpm check && pnpm test && pnpm watchdog:test",
     "store:token": "node scripts/get-store-refresh-token.mjs"

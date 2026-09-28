@@ -1,5 +1,6 @@
 using System.ServiceProcess;
 using LockIn.Engine.Engine;
+using LockIn.Engine.Hosting;
 
 namespace LockIn.Service;
 
@@ -38,6 +39,12 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        var helperIndex = Array.IndexOf(args, "--setup-helper");
+        if (helperIndex >= 0)
+        {
+            return SetupHelperCommands.Run(args.Skip(helperIndex + 1).ToArray());
+        }
+
         var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < args.Length; index++)

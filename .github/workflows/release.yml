@@ -49,8 +49,34 @@ jobs:
           path: dist/lock-in-*-windows-watchdog.zip*
           if-no-files-found: error
 
+  windows-app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the C# engine and service tests
+        run: dotnet test windows/LockIn.sln -c Release --nologo
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build the service, the tray app and the installer
+        shell: powershell
+        env:
+          SIGNING_CERT_BASE64: ${{ secrets.SIGNING_CERT_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./windows/build-windows-app.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/LockIn-Setup-*.exe*
+          if-no-files-found: error
+
   publish:
-    needs: [extension, watchdog]
+    needs: [extension, watchdog, windows-app]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -61,12 +87,14 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Publish the archives and their checksums
+      - name: Publish the archives, the installer and their checksums
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "Install both archives as described in the [README](https://github.com/martinezharo/lockin#install)."
+            echo "Download **LockIn-Setup-<version>.exe** from this release, double-click it, and approve the one UAC prompt. The installer sets up the Windows service, the tray app and the WebView2 runtime; the [README](https://github.com/martinezharo/lockin#install) describes the browser extension step."
+            echo
+            echo "The archive builds are kept for developers and for the old PowerShell watchdog."
             echo
             echo '## SHA-256'
             echo
@@ -77,6 +105,8 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "Lock In ${GITHUB_REF_NAME#v}" \
             --notes-file notes.md \
+            dist/LockIn-Setup-*.exe \
+            dist/LockIn-Setup-*.exe.sha256 \
             dist/lock-in-*-chrome-web-store.zip \
             dist/lock-in-*-chrome-web-store.zip.sha256 \
             dist/lock-in-*-windows-watchdog.zip \

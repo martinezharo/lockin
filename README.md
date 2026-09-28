@@ -1,200 +1,178 @@
-# Lock In — Site Blocker 👹
+# Lock In — Site & App Blocker 👹
 
-Lock In is a Manifest V3 extension plus a protected PowerShell watchdog for Windows. The extension is the dashboard and active-tab sensor. The watchdog owns elapsed time, applies Chrome/Brave `URLBlocklist` and `URLAllowlist` policy, and closes the disable-extension escape hatch with Windows Firewall.
+Lock In is a Windows app plus a Manifest V3 extension. The extension is the dashboard and the precise
+sensor for Chrome and Brave. A protected Windows service owns zones, schedules, daily allowances and
+fail-closed enforcement, applies Chrome/Brave `URLBlocklist` and `URLAllowlist` policy, and closes
+blocked applications. A per-account tray app reuses the extension's own pages as its dashboard and
+reads the foreground window as a fallback sensor for browsers without the extension.
 
 ## How it works
 
 ```text
-Lock In extension
-  ├─ dashboard, popup and edit challenge
-  ├─ active hostname + focused-window sensor
-  └─ heartbeat to http://127.0.0.1:8765
-                         │
-                         ▼
-LockInWatchdog.ps1 (scheduled task running as SYSTEM)
-  ├─ authoritative groups and daily usage
-  ├─ schedules and allowance decisions
-  ├─ owned Chrome/Brave URLBlocklist entries
-  ├─ owned Chrome/Brave URLAllowlist exceptions
-  └─ emergency browser firewall rules when the sensor disappears
+Lock In extension (Chrome/Brave)          Lock In tray app (per account)
+  ├─ dashboard, popup and edit challenge     ├─ dashboard in WebView2 (same pages)
+  ├─ active hostname + focused sensor        ├─ UIA foreground/address-bar sensor
+  └─ heartbeat to 127.0.0.1:8765             ├─ closes blocked applications
+                    │                        └─ status and notifications
+                    ▼                                  │
+              LockIn.Service (Windows service, LocalSystem)
+                ├─ authoritative zones, usage, schedules and allowances
+                ├─ owned Chrome/Brave/Edge URLBlocklist and URLAllowlist policy
+                ├─ per-account emergency firewall rules when a sensor disappears
+                ├─ UIA and extension sensors, deduplicated per account
+                └─ starts the tray app in active sessions if it is killed
 ```
 
-No custom executable, certificate, cloud account or external server is required.
-
-## Timed releases
-
-Disarming a zone asks how long containment should stay down: a preset (5m, 15m,
-30m, 1h, the rest of the day), any number of minutes up to a full day, or a
-release with no end — the open-ended disarm the dashboard has always had.
-Weakening containment still requires the typing challenge while edit lock is on.
-
-The deadline travels with the zone as `disarmedUntil`, and the watchdog is the
-side that enforces it: when the moment passes it arms the zone again in its own
-protected state, so closing the browser does not extend a release. The extension
-reaches the same conclusion from the same number, and the dashboard counts the
-release down in the zone row, on the day strip and in the popup. Arming a zone by
-hand ends a running release early.
-
-Older watchdogs cannot expire a release, so the dashboard offers only the
-open-ended one until the watchdog advertises `supportsTimedDisarm`.
-
-## Safe rollout and fail-closed behavior
-
-The watchdog starts disarmed and imports the extension's current groups. It arms only after three consecutive valid heartbeats. After it is armed:
-
-- scheduled zones are written to managed browser URL policy;
-- zones whose daily allowance is spent are written to the same policy;
-- zone-specific always-allowed paths stay open and do not consume allowance;
-- policy decisions are reevaluated every 250 ms; when a newly blocked domain is
-  already the active tab, Lock In reloads that tab once so the browser applies
-  the policy without a manual refresh; and
-- if Brave or Chrome is running and the sensor disappears for more than 60 seconds, all enabled zone domains are blocked and outbound network access for the browser executable is disabled.
-
-The firewall rule prevents disabling the extension from becoming an escape route while browser policy refreshes. Reconnecting the extension removes the emergency firewall block and returns to ordinary schedule/allowance evaluation. Configuration edits are queued across a temporary watchdog disconnect and replayed after reconnect.
-
-Lock In removes only registry values it recorded as its own. Its firewall rules have the group name `LockInWatchdog` and never modify unrelated rules.
-
-## Requirements
-
-- Windows 10 or 11.
-- Brave or Chrome. The installer stops if neither is installed.
-- An account that can approve one UAC prompt during installation.
-- Nothing else: no Node.js, no account, no certificate and no internet server.
+No account, certificate, cloud service or external server is required. Everything talks over loopback
+`127.0.0.1`; URLs are never written to disk.
 
 ## Install
 
-Only the first two steps live here. Everything after them — installing the watchdog, watching it arm,
-updating it and getting back out again — is a guide inside the extension, so it always describes the build
-that is actually running rather than whatever this file said when it was last edited.
+Nothing below needs a terminal.
 
-### 1. Load the extension
+### 1. Run the installer
 
-Download both archives from the [latest release](https://github.com/martinezharo/lockin/releases/latest) and
-check each one against the `.sha256` file published beside it.
+Download `LockIn-Setup-<version>.exe` from the [latest release](https://github.com/martinezharo/lockin/releases/latest),
+check it against the `.sha256` file published beside it, and double-click it. Windows asks for
+administrator rights once. Tick the local Windows accounts to protect — the account that launched the
+installer and any already-protected accounts are ticked already — and continue.
 
-Extract `lock-in-<version>-chrome-web-store.zip` into a folder you intend to keep. Brave and Chrome reload an
-unpacked extension from its original path on every start, so a temporary folder breaks it.
+The installer installs the service, the tray app for every protected account, and the WebView2 runtime
+if it is missing. It migrates an existing PowerShell watchdog's data, removes its scheduled task, and
+starts safely disarmed.
 
-1. Open `brave://extensions` or `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select the extracted folder.
+Unsigned builds show **Windows protected your PC**; choose **More info → Run anyway**. Tagged releases
+can be signed when a certificate is configured in CI, which removes that step.
+
+### 2. Install the browser extension
+
+The extension is the precise sensor for Chrome and Brave: it sees the exact page, path, query and
+`#fragment`. Once the Chrome Web Store serves a watchdog-compatible version, the installer can
+force-install it. Until then:
+
+1. Extract `lock-in-<version>-chrome-web-store.zip` into a folder you intend to keep.
+2. Open `brave://extensions` or `chrome://extensions`.
+3. Enable **Developer mode**, choose **Load unpacked**, and select the extracted folder.
 4. Accept the first-run local-data disclosure.
 
-The dashboard now reports **Local enforcement watchdog disconnected** and enforces nothing. That is expected.
+The tray app detects a browser with no Lock In sensor and offers to open the extensions page for you.
 
-### 2. Follow the super-strict guide in the dashboard
+### 3. Let it arm
 
-Because it was loaded unpacked rather than from the store, the dashboard shows a **Super-strict mode** banner
-above the day strip. Open it. The guide holds the elevated install command and what it does, the arming
-handshake, the updater, and the disarm and uninstall commands — and it ticks off the steps the watchdog has
-already reported, so it doubles as a status page. Its commands assume this repository's layout; from the
-release bundle `lock-in-<version>-windows-watchdog.zip` the same scripts sit at the archive root.
+The dashboard reports **Local enforcement watchdog disconnected** until the service answers. Three
+valid heartbeats later it shows **Windows enforcement armed**. Each protected account's sensor is
+tracked on its own.
 
-That banner is hidden for the Chrome Web Store copy, which has no watchdog to attach to.
+## Rules
 
-### About the Chrome Web Store listing
+Zones can contain sites, applications, or both:
 
-The unlisted store listing still serves version `1.3.0`, which predates the watchdog and blocks only with
-`declarativeNetRequest` from inside the browser. It installs in one click and needs no PowerShell, but it can
-be removed from the extensions page like any other extension. Install from a release above for the enforced
-build.
+- **Sites**: a domain (`youtube.com`), a section (`youtube.com/shorts/`), or a page
+  (`youtube.com/watch?v=ABC`). Paths and `#fragments` are case-sensitive prefixes; query tokens must
+  match but may be reordered. Tracking parameters are ignored. Fragments are enforced in the page by
+  the extension and never broadened into browser policy.
+- **Applications**: executable names such as `discord.exe`. Time is counted from the foreground
+  window of the session in front; when the gates are shut the tray app asks the app to close and
+  terminates it a few seconds later. A zone can optionally block the app's network for the protected
+  accounts. UIA cannot see in-app navigation or fragments, so app zones are approximate.
+- **Always allowed pages** stay open inside a site rule and never spend allowance. Applications have
+  no free pass.
+- **Scheduled hours** support several windows per day, overnight windows, and an all-day window.
+- **Daily allowances** run out until midnight; zero minutes is a permanent containment.
+- **Timed releases** (`disarmedUntil`) are enforced by the service even while the browser is closed.
+- **Edit lock** requires a typing challenge before weakening containment.
+
+## Multiple Windows accounts
+
+Tick every account to protect in the installer. Only the account in front spends allowance; two
+accounts on the same zone count the time once; the emergency firewall rules are per browser and per
+account, so a missing sensor cuts off only that account's browser. The service starts the tray app for
+each protected account at logon and puts it back if it is killed.
+
+## Recovery and removal
+
+- **Lock In Emergency Disarm** in the Start menu (or the tray menu) stops enforcement with one UAC
+  prompt and leaves everything installed.
+- **Windows Settings → Apps → Lock In → Uninstall** disarms first, then removes the service, the tray
+  app, the `LockInWatchdog` firewall rules and only the registry values Lock In wrote. Choose whether
+  to keep or erase `C:\ProgramData\LockIn` (default: keep).
+- Running a newer installer updates in place and keeps zones, usage and protected accounts. If the new
+  service does not become healthy, the previous installation is restored.
+
+## Privacy and security boundary
+
+Lock In has no account, analytics, advertising, remote code or internet server. The extension posts
+the active hostname and focus state only to loopback. The tray app reads only the foreground
+executable name and, for browsers, the address bar; hostnames and executable names are held in memory.
+Configuration and usage stay on the PC under `C:\ProgramData\LockIn`, ACL'd to SYSTEM and
+Administrators. Requests are authenticated by the loopback client's PID → owner SID, so only protected
+accounts can configure Lock In.
+
+This is a self-control tool, not protection against a determined administrator. A user who
+deliberately elevates with UAC can stop the service or remove its firewall rules. Using a separate
+administrator account strengthens that boundary.
 
 ## Build and test
 
-When switching Windows users, disconnected sessions do not require a browser
-sensor. Connected sessions still require their own sensor; reconnecting starts
-a fresh grace period. Scheduled blocks continue to apply machine-wide.
-
-For several Windows accounts, load the extension in each and run the installer
-once from each; every run adds its account to the protected set. Only the
-account in front spends allowance (a browser left behind a user switch keeps
-reporting its last tab and is ignored), time on the same zone from two accounts
-is counted once, and the emergency firewall rules are scoped per account, so a
-missing sensor cuts off only that account's browser. See `watchdog/README.md`.
-
-To update an existing watchdog without resetting its rules, usage, or armed
-state, run `pnpm watchdog:update` (the installer again) and accept the single
-UAC prompt. It keeps the protected accounts, backs up the installed script,
-restarts the SYSTEM task, verifies its health, and restores the backup if
-startup fails. `pnpm watchdog:status` reports whether the watchdog answers and
-how fast, plus — from an elevated window — its task state and recent log.
-UAC cannot be removed safely without allowing user-writable code to replace a
-SYSTEM process.
-Reload the unpacked extension in the current browser to activate client changes.
-
 ```powershell
-pnpm verify
-pnpm release
+pnpm verify          # release checks, extension tests, and the end-to-end loopback test
+pnpm app:test        # the C# engine, service and app tests (xUnit)
+pnpm app:build       # self-contained service + tray app + LockIn-Setup-<version>.exe
+pnpm watchdog:test   # the legacy PowerShell watchdog's safe-mode integration test
+pnpm release         # the Chrome Web Store archive
 ```
 
-`pnpm verify` runs the extension suite plus an end-to-end loopback watchdog test. The test proves three-heartbeat arming and fail-closed firewall activation without touching the real registry or firewall.
+`pnpm verify` proves three-heartbeat arming and fail-closed activation without touching the real
+registry or firewall. `pnpm app:test` includes the same end-to-end loopback test against the C#
+service (latency under 100 ms, aborted requests, garbage bodies, per-account 403s). Tagged releases
+build the installer on `windows-latest`; signing is pluggable through `SIGNING_CERT_BASE64` and
+`SIGNING_CERT_PASSWORD` secrets, and unsigned builds still install.
 
-The Chrome Web Store archive is written to `dist/lock-in-1.4.1-chrome-web-store.zip` with a SHA-256 file beside it. `pnpm watchdog:bundle` writes the companion `dist/lock-in-1.4.1-windows-watchdog.zip` the same way.
+The legacy PowerShell watchdog and its bundles remain buildable and tested
+(`pnpm watchdog:bundle`, `pnpm watchdog:update`); `watchdog/README.md` explains why it is deprecated.
+
+The Chrome Web Store archive is written to `dist/lock-in-<version>-chrome-web-store.zip` with a
+SHA-256 file beside it. The installer is written to `dist/LockIn-Setup-<version>.exe` the same way.
 
 ## Publish a release
 
-Both archives reach users through GitHub Releases. Bump the version in `manifest.json`, then push a matching tag:
+Bump the version in `manifest.json` and `package.json`, then push a matching tag:
 
 ```bash
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
-`.github/workflows/release.yml` refuses a tag that disagrees with the manifest, runs the release checks and the extension suite on Linux, proves three-heartbeat arming and fail-closed activation on Windows, builds both archives, and publishes them with their checksums. Nothing is published unless every check passes.
+`.github/workflows/release.yml` refuses a tag that disagrees with the manifest, runs the release
+checks and the extension suite on Linux, proves arming and fail-closed activation for both the C#
+service and the legacy watchdog on Windows, builds the installer and both archives, and publishes
+them with their checksums. Nothing is published unless every check passes.
 
-A final `store` job then uploads the same verified package to the Chrome Web Store and submits it for review. It runs only for tags, only after the GitHub release succeeds, and only through the `chrome-web-store` environment. Publishing keeps the listing's existing unlisted visibility.
-
-A required reviewer on that environment holds the store job until someone approves it, so a tag reaches GitHub on its own but never reaches the store unattended. That protection is available because this repository is public; it disappears if the repository is made private again on a free plan, and the job would then publish as soon as a tag passes its checks.
-
-The job needs four repository secrets. Without them it logs a notice and skips, leaving the GitHub release intact:
-
-```text
-CWS_CLIENT_ID          OAuth client id for the Chrome Web Store API
-CWS_CLIENT_SECRET      its client secret
-CWS_REFRESH_TOKEN      long-lived refresh token for the publisher account
-CWS_ITEM_ID            ceggfchogfcdgnobpekajiojobghcggi
-```
-
-Keep the Google Cloud OAuth consent screen in production. A consent screen left in testing expires the refresh token after seven days and the job then fails on the token exchange.
-
-To mint those credentials once: enable the Chrome Web Store API in a Google Cloud project, create an OAuth client of type **Desktop app** under Google Auth Platform → Clients, then run
-
-```bash
-pnpm store:token
-```
-
-and approve the printed URL as the publisher account. The helper listens on loopback, exchanges the returned code and prints the refresh token. It keeps the client secret on your machine. If the exchange reports no `refresh_token`, the account has already granted that client: revoke it at <https://myaccount.google.com/permissions> and run the helper again.
-
-Tagging publishes the extension and the watchdog bundle from one commit. That is deliberate: Chrome silently auto-updates the extension while the watchdog only updates when someone runs `pnpm watchdog:update`, so both halves must always be buildable from the same verified source. Any new watchdog-dependent feature must also announce its own capability flag, the way `supportsUrlRules` does, so an older watchdog degrades with a clear message instead of failing.
+A final `store` job uploads the same verified extension package to the Chrome Web Store and submits
+it for review, only through the `chrome-web-store` environment and only when the four `CWS_*` secrets
+are configured. See `store/` for the listing materials and `store/force-install-after-approval.md`
+for the switchable force-install policy.
 
 ## Repository layout
 
 ```text
 manifest.json                              extension entry points and permissions
-src/background.js                         heartbeat and state-mirror orchestration
-src/watchdog-client.js                    loopback HTTP client
-src/pages/options/strict-mode.js          the in-app super-strict setup guide
-src/shared/install-source.js              repository build or Chrome Web Store copy
-watchdog/LockInWatchdog.ps1               protected enforcement engine
-scripts/install-windows-watchdog.ps1      self-elevating install and in-place update
-scripts/watchdog-status.ps1               health, latency, task state and log tail
-scripts/disarm-windows-watchdog.ps1       emergency recovery
-scripts/uninstall-windows-watchdog.ps1    selective removal
-scripts/test-watchdog.mjs                 end-to-end safe-mode integration test
-scripts/get-store-refresh-token.mjs       one-time Chrome Web Store token helper
-tests/                                    deterministic extension tests
-store/                                    Chrome Web Store materials
-LICENSE                                   MIT terms
-.github/workflows/release.yml             tagged build and publication of both archives
+src/background.js                          heartbeat and state-mirror orchestration
+src/watchdog-client.js                     loopback HTTP client
+src/shared/apps.js                         application-target parsing
+src/pages/options/                         dashboard and the in-app setup guide
+windows/LockIn.Engine/                     rules, state, sensors, usage, firewall and policy ports
+windows/LockIn.Service/                    the Windows service, loopback server and installer helper
+windows/LockIn.App/                        the tray app, WebView2 dashboard and UIA sensor
+windows/LockIn.Engine.Tests/               xUnit tests, including the end-to-end loopback test
+installer/LockIn.iss                       Inno Setup script (account page, upgrade, rollback, uninstall)
+windows/build-windows-app.ps1              publish + installer + optional signing
+watchdog/LockInWatchdog.ps1                the legacy PowerShell watchdog (deprecated, still tested)
+scripts/                                   legacy watchdog and release helpers
+store/                                     Chrome Web Store materials
+docs/parity-checklist.md                   feature parity checklist with evidence
+.github/workflows/release.yml              tagged build and publication
 ```
-
-## Privacy and security boundary
-
-Lock In has no account, analytics, advertising, remote code or internet server. The extension posts the active hostname and focus state only to loopback (`127.0.0.1`). Configuration and usage stay on the PC.
-
-This is a self-control tool, not protection against a determined administrator. A user who deliberately elevates with UAC can unregister the task or remove its firewall rules. Using a separate administrator account would strengthen that boundary, but is not required for the current setup.
-
-No build or installation script commits or pushes Git changes.
 
 ## License
 

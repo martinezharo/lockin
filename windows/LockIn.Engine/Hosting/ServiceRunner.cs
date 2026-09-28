@@ -1,7 +1,7 @@
 using LockIn.Engine.Engine;
 using LockIn.Engine.Platform;
 
-namespace LockIn.Service;
+namespace LockIn.Engine.Hosting;
 
 /// <summary>
 /// Wires the engine, the loopback listener and the enforcement loop together.
