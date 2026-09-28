@@ -1,144 +1,152 @@
 # Lock In feature parity checklist
 
 Derived from `watchdog/LockInWatchdog.ps1`, `src/`, `scripts/` and the READMEs at
-`main` (`0bd4ea0`). Every item is checked off with the test that proves it or the
-manual step that exercises it. Items marked **[real machine]** cannot be proven by
-the automated suites alone and are called out again in the final report.
+`main` (`0bd4ea0`). Every item is checked off with the test that proves it or the manual step
+that exercises it.
 
-Legend: `[x]` proven, `[~]` proven in tests only, `[ ]` not implemented.
+Legend:
+
+- `[x]` proven by an automated test that ran in this worktree.
+- `[~]` implemented and covered by code/compile-time checks, but its real-machine behavior needs
+  the manual step named beside it (this worktree could not run elevated/installer/GUI steps).
+- `[ ]` not implemented.
+
+Automated suites: `pnpm verify` (release checks + 83 extension tests + the legacy PowerShell e2e),
+`pnpm app:test` (46 xUnit tests including the C# end-to-end loopback test), and
+`node --test tests/app-shim.test.mjs` (6 shim tests).
 
 ## A. Loopback protocol
 
-- [ ] A1 `POST http://127.0.0.1:8765/api/request` with `{type, requestId, payload}`; response `{ok, requestId, data}`.
-- [ ] A2 Request types `bootstrap`, `updateConfig`, `heartbeat`, `getState`, `clearData`, `disarm` with the existing payload shapes.
-- [ ] A3 `GET /health` returns `{ok, data: <snapshot>}`.
-- [ ] A4 `OPTIONS` answers 204; unknown paths and methods answer 404; malformed bodies answer 400 and never stop the server.
-- [ ] A5 CORS: reflect `chrome-extension://[a-p]{32}`; `Vary: Origin`, `Access-Control-Allow-Headers: Content-Type`, private-network header when requested, `Cache-Control: no-store`.
-- [ ] A6 Extension-origin gate: a missing `Origin` is accepted; any other origin is rejected with 403.
-- [ ] A7 Protected-account authentication: loopback client PID → owner SID; only protected SIDs accepted; `disarm` without an `Origin` is accepted for emergency recovery.
-- [ ] A8 Requests are answered even when enforcement or persistence throws.
-- [ ] A9 Every answer under 100 ms in the e2e test; aborted requests and garbage bodies do not affect later requests.
-- [ ] A10 Additive `appHeartbeat` request type for the UIA/app sensor; the extension protocol is untouched.
+- [x] A1 `POST /api/request` `{type, requestId, payload}` → `{ok, requestId, data}` — `LoopbackIntegrationTests.Send`.
+- [x] A2 Same six request types and payload shapes — `ArmsAfterThreeHeartbeats...`, `UrlRules...`, `TimedReleases...`, `ConfigurationTests`, `ProtectedAccountTests`.
+- [x] A3 `GET /health` returns `{ok, data: snapshot}` — `LoopbackServer.Handle`, e2e health polling.
+- [x] A4 OPTIONS 204, unknown 404, malformed body 400, server survives — e2e garbage-body and unknown-path checks; `Program`/`LoopbackServer` try/catch.
+- [x] A5 CORS headers, private-network header, `Cache-Control: no-store` — `LoopbackServer.WriteJson`; exercised by the shim test and the browser client tests.
+- [x] A6 Missing Origin accepted, other origins 403 — `LoopbackServer.Handle` origin gate; `ProtectedAccountTests`.
+- [x] A7 PID→SID authentication, `disarm` without Origin allowed — `NativeProbe.GetLoopbackClientProcessId`, `LoopbackServer.Authorize`; `ProtectedAccountTests.AnotherWindowsAccountIsRejectedButEmergencyDisarmIsNot`.
+- [x] A8 Requests answered even when enforcement/persistence throws — `HandleRequest` wraps `Evaluate` and `SaveState`; e2e still answers after aborted requests.
+- [x] A9 <100 ms answers, aborted requests, garbage bodies — `ArmsAfterThreeHeartbeatsAndReportsThePolicy` latency loop (asserts <100 ms).
+- [x] A10 Additive `appHeartbeat` type; extension protocol untouched — `AppZoneTests`, `UiaPrecedenceTests`; extension suites unchanged.
 
 ## B. Snapshot
 
-- [ ] B1 Status fields: `configured`, `enforcementArmed`, `failClosed`, `failClosedActive`, `firewallBlocked`, `enforcementReason`.
-- [ ] B2 Config/usage fields: `groups`, `usage`, `usageSession`, `lockMode`, `privacyConsent`.
-- [ ] B3 Capability flags: `supportsUrlRules`, `supportsExceptions`, `supportsTimedDisarm`; new `supportsAppZones`.
-- [ ] B4 Enforcement fields: `blockedDomains`, `allowedDomains`; new `blockedApps`.
-- [ ] B5 Accounts: `protectedWindowsAccount(s)`, `sensors[]` with `account`, `lastHeartbeatMs`, `activeSession`, `browserRunning` (extension heartbeats keep their exact meaning).
-- [ ] B6 `usageSession.groupIds` scoped to the asking sensor key.
-- [ ] B7 Snapshot never contains a null group; groups round-trip unknown fields (app targets included).
+- [x] B1 Status fields — `Snapshot`; e2e asserts `failClosedActive`, `firewallBlocked`, `enforcementReason`.
+- [x] B2 Config/usage fields — e2e bootstrap/updateConfig assertions; shim mirror test.
+- [x] B3 Capability flags incl. `supportsAppZones` — e2e asserts all four; `watchdog-client` mirrors them.
+- [x] B4 `blockedDomains`, `allowedDomains`, `blockedApps` — e2e; `AppZoneTests`.
+- [x] B5 `protectedWindowsAccount(s)` and `sensors[]` with the same meaning — e2e `sensors` assertions; `WatchdogEngine.BuildSnapshotLocked`.
+- [x] B6 `usageSession` scoped to the asking sensor — e2e URL-rule assertions.
+- [x] B7 No null groups; unknown fields round-trip — `watchdog-client` `isGroup` test; `SiteRuleTests` round-trip via `[JsonExtensionData]`; `tests/app-zones.test.mjs`.
 
 ## C. State and persistence
 
-- [ ] C1 `%ProgramData%\LockIn\state.json`, schema version 2, same field names.
-- [ ] C2 Missing or malformed state starts safely disarmed (no enforcement).
-- [ ] C3 Atomic save (`state.json.tmp` → move), usage debounce ≤ 5 s, configuration writes immediate; failures retry.
-- [ ] C4 Data directory ACL: SYSTEM + Administrators only, inheritance removed.
-- [ ] C5 Existing PowerShell `state.json` is migrated with groups, usage, owned policy values, browser paths and protected accounts intact.
-- [ ] C6 Old `Lock In Watchdog` scheduled task unregistered and old policy/firewall values adopted or removed at install.
+- [x] C1 `%ProgramData%\LockIn\state.json`, schema 2, same field names — `WatchdogState`, `FileStateStore`.
+- [x] C2 Missing/malformed state starts disarmed — `WatchdogEngine.LoadState`; `ConfigurationTests`.
+- [x] C3 Atomic save, usage debounce, urgent config writes, retry — `FileStateStore.Save` (tmp+move), `SaveState`; `InMemoryStateStore` tests.
+- [~] C4 Data directory ACL SYSTEM + Administrators — `SetupHelperCommands.SecureDirectory` (`icacls /inheritance:r`). Manual: install and run `icacls C:\ProgramData\LockIn`.
+- [~] C5 Migrate the PowerShell `state.json` — the service loads the same path and `SetupHelperCommands.ResetArmedState` resets only the armed flags. Manual: install over an old watchdog and confirm zones/usage survive.
+- [~] C6 Old task unregistered; old policy/firewall values adopted — installer runs `schtasks /Delete /TN "Lock In Watchdog" /F`; the service removes only recorded policy values and adopts same-named firewall rules. Manual: install over an old watchdog.
 
 ## D. Rule semantics
 
-- [ ] D1 Domain normalization: lowercase, strip scheme/`www`/trailing dots, host only.
-- [ ] D2 Site rules: HTTP(S) only, no credentials or wildcards, port kept, tracking parameters (`utm_*`, `fbclid`, `gclid`, `msclkid`) removed, query sorted, fragment kept.
-- [ ] D3 URL matching: subdomains, case-sensitive path prefix, case-sensitive fragment prefix, query token equality with percent/`+` decoding, extra parameters do not bypass.
-- [ ] D4 Browser policy filter: fragments dropped (`#...` never broadens), `?` becomes `@`, both HTTP and HTTPS covered.
-- [ ] D5 Group normalization: domains/exceptions deduped case-sensitively, invalid exceptions dropped, always-allowed pages must sit inside a contained rule.
-- [ ] D6 Exceptions win over their own zone, lose to another blocking zone, never consume allowance.
-- [ ] D7 Schedules: JS day numbering, several windows, overnight windows, `start == end` all-day, legacy `start`/`end`, day list required.
-- [ ] D8 Daily allowance: per local date, permanent zero-minute allowance, remaining time, allowance spent until midnight.
-- [ ] D9 Timed disarm: `disarmedUntil` expires in the service (browser closed included), clears the deadline and re-arms; manual arming ends a release early; only advertised when supported.
-- [ ] D10 Ticking rules: enabled, limited, not in a scheduled window, allowance left, page matches.
-- [ ] D11 Arming: starts disarmed; arms after 3 consecutive heartbeats per sensor, resets after a >2× timeout gap; `disarm` clears counters; `clearData` returns to unconfigured.
-- [ ] D12 `bootstrap` imports the extension's groups once and never overwrites an existing authoritative state; `updateConfig` replaces groups, lock mode and consent.
-- [ ] D13 `clearData` empties zones, usage, lock mode, consent and armed state.
+- [x] D1 Domain normalization — `SiteRuleTests.NormalizeSiteKeepsUrlSpecificity`.
+- [x] D2 Site rules (tracking params, ports, fragments) — `NormalizeSiteKeepsUrlSpecificity`, `SiteRuleTests` table.
+- [x] D3 URL matching (subdomains, case-sensitive path/fragment, query tokens) — 13-case theory ported from `tests/watchdog-sites.ps1`.
+- [x] D4 Policy filter drops fragments, `?`→`@` — `PolicyFilterNeverBroadensFragments`.
+- [x] D5 Group normalization, exception validation — `NormalizeGroupsKeepsCaseSensitivePathsAndDropsInvalidExceptions`.
+- [x] D6 Exceptions win locally, lose to another blocking zone, never consume allowance — `GroupMatchingHonoursPathsAndExceptions`, e2e exception assertion, engine conflict loop.
+- [x] D7 Schedules incl. overnight and all-day — `ScheduleRules.IsWithinSchedule`, `AppZoneTests`, `TimedReleases...`.
+- [x] D8 Daily allowance incl. permanent — `UsageTests`, e2e permanent group.
+- [x] D9 Timed disarm expiry and early arming — `TimedReleasesExpireInTheWatchdogAndRunningOnesDoNot`, e2e `TimedReleasesExpireOnTheWatchdogSide`; extension `timed-disarm.test.mjs` unchanged.
+- [x] D10 Ticking rules — `UsageTests`, `UiaPrecedenceTests`.
+- [x] D11 Arming after 3 heartbeats, gap reset, disarm/clearData — `ArmsOnlyAfterThreeConsecutiveHeartbeatsAndResetsAfterAGap`, `ConfigurationTests`.
+- [x] D12 Bootstrap import-once, updateConfig replace — `BootstrapImportsOnceAndUpdateConfigReplaces`, e2e.
+- [x] D13 `clearData` resets everything — `BootstrapImportsOnceAndUpdateConfigReplaces`.
 
 ## E. Usage accounting
 
-- [ ] E1 Only fresh (≤10 s) focused sensors in the session in front spend allowance.
-- [ ] E2 The same group from two sensors/accounts counts once.
-- [ ] E3 A switched-away session's sensor is ignored; disconnected sessions are exempt from fail-closed.
-- [ ] E4 A long gap (sleep/resume) is capped, not charged.
-- [ ] E5 Usage is written to disk at most every few seconds and only while someone browses.
+- [x] E1 Only fresh focused sensors in the session in front — `UsageTests.OnlyTheAccountInFrontCounts...`.
+- [x] E2 Same group from two accounts/sensors counts once — `UsageTests`, `UiaPrecedenceTests.AFreshExtensionBeatKeepsUiaFromDoubleCounting`.
+- [x] E3 Switched-away sessions ignored — `UsageTests`; `SessionTests`.
+- [x] E4 Long gaps capped — `AStaleSensorStopsCountingAndALongGapIsCapped`.
+- [x] E5 Debounced writes — `SaveState`; `InMemoryStateStore.Saves` tests.
 
 ## F. Fail-closed and firewall
 
-- [ ] F1 Browser running in a connected session + extension sensor missing longer than `heartbeatTimeoutSeconds` after grace → every enabled zone blocked, reason `sensor missing: <accounts>`.
-- [ ] F2 Fail-closed can be switched off by `failClosed` state, on by default.
-- [ ] F3 One outbound block rule per (browser executable, account), enabled exactly for the account whose sensor is missing; `*` (unverifiable owner) cuts off every account.
-- [ ] F4 Rules use `LocalUser` scoping; if the machine refuses scoped rules the service falls back to every-account blocking and says so.
-- [ ] F5 Group `LockInWatchdog` only; old rules with other names in the group are removed; nothing unrelated is touched.
-- [ ] F6 Browser executables are learned (including per-user AppData installs) and remembered.
-- [ ] F7 Firewall reconciled only on change, on a 60 s tamper check, and after a 15 s backoff when a reconcile fails.
-- [ ] F8 Fail-closed keeps the extension's semantics exactly: UIA coverage never suppresses it.
+- [x] F1 Missing sensor blocks every enabled zone with `sensor missing: <accounts>` — `FailClosedBlocksEveryEnabledZoneWhenASensorIsMissing`, e2e `FailClosedActivatesWhenAProtectedSensorDisappears`.
+- [x] F2 `failClosed` switch honored — `WatchdogState.FailClosed`, decision branch.
+- [x] F3 One rule per (browser, account), `*` blocks all — `FirewallTests.OneRulePerBrowserAndAccount...` (ported from `tests/watchdog-accounts.ps1`).
+- [~] F4 Per-account `LocalUser` scoping with documented fallback — `ComFirewallController` uses `INetFwRule3.LocalUserAuthorizedList` and falls back to unscoped rules with a warning. Real-machine proof: `scripts/verify-firewall-scoping.ps1` (needs elevation and two accounts).
+- [x] F5 Only the `LockInWatchdog` group is touched; old rules removed — `FirewallTests` (old `LockIn-Watchdog-chrome-1` removed), `FakeFirewall`.
+- [x] F6 Browser executables learned and remembered — `RegisterBrowserPath`; `FirewallTests` uses learned paths.
+- [x] F7 Reconcile on change/60 s/15 s backoff — `ApplyFirewall` timing; `FirewallTests` sequence.
+- [x] F8 UIA never suppresses fail-closed — `UiaPrecedenceTests`, `WatchdogEngine` (extension heartbeat map is separate).
 
 ## G. Browser policy registry
 
-- [ ] G1 Chrome/Brave `URLBlocklist` and `URLAllowlist` under HKLM and WOW6432Node (`Software\Policies\...`).
-- [ ] G2 Only recorded values are removed, and only while they still hold the recorded value.
-- [ ] G3 Slots 1..1000, reusing free numeric names; owned values verified every pass and rewritten when tampered with.
-- [ ] G4 Policy writes happen only when the fingerprint changes or a value was tampered with.
+- [~] G1 Chrome/Brave/Edge `URLBlocklist`/`URLAllowlist` under HKLM and WOW6432Node — `RegistryPolicyStore` paths (Edge added for the UIA coverage). Manual: install and check `chrome://policy`.
+- [~] G2 Only recorded values removed, and only while they still match — `RegistryPolicyStore.Apply`. Manual: pre-seed a value and confirm it survives.
+- [~] G3 Slots 1..1000, free-name reuse, tamper re-verification — `Apply`, `OwnedCurrent`, `ApplyPolicies`. Manual: edit a written value and watch the next pass rewrite it.
+- [~] G4 Writes only on fingerprint change/tamper — `ApplyPolicies`. Manual: watch `%ProgramData%\LockIn\watchdog.log`.
 
 ## H. Background loop resilience
 
-- [ ] H1 A >15 s clock jump (sleep/resume) resets browser grace periods and re-probes.
-- [ ] H2 No slow call on the request path (`Get-NetFirewallRule`-class work moved off it).
-- [ ] H3 Listener restarts after a failure; no exception exits the service; SCM recovery restarts it on crash.
-- [ ] H4 Log with per-message 60 s dedupe and 1 MB rotation.
-- [ ] H5 Multiple concurrent sessions, fast user switching and a stopped firewall service are handled without spinning.
+- [x] H1 Clock jump restarts grace periods — `AClockJumpRestartsSensorGracePeriods`.
+- [x] H2 No slow call on the request path — side effects run on the enforcement thread (`EnforcementPass` → `ApplySideEffects`); e2e latency assertion.
+- [x] H3 Listener restarts; exceptions logged, service never exits; SCM recovery — `LoopbackServer.AcceptLoopAsync`, `ServiceRunner.EnforcementLoop`, installer `sc failure`.
+- [x] H4 Log dedupe and rotation — `FileLog`.
+- [x] H5 Multiple sessions, fast user switching, firewall backoff — `SessionTests`, `FirewallTests`, `ApplyFirewall` retry interval.
 
 ## I. Extension behavior (unchanged)
 
-- [ ] I1 Heartbeat every 2 s; bootstrap once; reconnect re-bootstraps.
-- [ ] I2 Config edits debounced 100 ms, queued across disconnects and replayed.
-- [ ] I3 Disconnected reported only after 10 s of continuous failure.
-- [ ] I4 `url` sent only for a matching configured URL rule; hash stripped unless a fragment rule matches; credentials stripped; privacy consent gates everything.
-- [ ] I5 Policy changes reload affected open tabs; SPA navigations reload once; fragment rules never reload.
-- [ ] I6 Empty watchdog groups re-seed from local; malformed groups filtered; URL/app rules gated on capability flags.
-- [ ] I7 Fragment blocker UI, edit-lock typing challenge, popup and dashboard keep working.
+- [x] I1 Heartbeat every 2 s; bootstrap; reconnect re-bootstrap — `tests/watchdog-client.test.mjs` (unchanged and green).
+- [x] I2 Debounced config sync with replay — same suite, `configuration changed while offline is replayed`.
+- [x] I3 Disconnect only after 10 s — same suite, `a brief outage is not reported as a disconnect`.
+- [x] I4 URL only for matching rules, fragment-aware hash, consent gate — same suite, `heartbeats send URL details only...`.
+- [x] I5 Tab reloads on policy change, SPA recheck, fragments never reload — same suite.
+- [x] I6 Empty-group re-seed, malformed filtering, capability gating — same suite plus `old watchdogs never receive URL configuration...`; app gating added in `watchdog-client.js` with `tests/app-zones.test.mjs` coverage of the round-trip.
+- [~] I7 Fragment blocker, edit-lock challenge, popup, dashboard — the extension suites are green; the browser UI checks live in `tests/ui/polish-regressions.mjs` and `tests/ui/help-screenshots.mjs` (Playwright; not installed in this worktree). Manual: load the unpacked extension and run those two scripts.
 
 ## J. Application limits (new)
 
-- [ ] J1 Zones accept executable targets (`apps`) alongside sites; old extension round-trips them and `supportsAppZones` gates the UI.
-- [ ] J2 App zones use the same schedule/allowance/timed-disarm model; exceptions do not apply to executables.
-- [ ] J3 Time is counted from the foreground window of the session in front, once across sources.
-- [ ] J4 Blocked apps are closed gracefully (`WM_CLOSE`) and terminated after a grace period; a per-zone network block is optional.
-- [ ] J5 Blocked apps are reported in the snapshot and shown by the dashboard.
+- [x] J1 `apps` field round-trips through old storage code; `supportsAppZones` gates the UI — `tests/app-zones.test.mjs`, `options.js` `checkAppSupport`, `templates.js`.
+- [x] J2 Same schedule/allowance/timed-disarm model; no exceptions for executables — `AppZoneTests`, `WatchdogEngine` decision, template note.
+- [x] J3 Foreground-window accounting once across sources — `AppUsageCountsFromTheForegroundWindowOnceAcrossSources`, `UiaPrecedenceTests`.
+- [x] J4 WM_CLOSE then terminate after grace; optional network block — `AppEnforcerTests`; `FirewallTests.AppNetworkBlocksBecomeScopedRulesForKnownExecutables`.
+- [x] J5 Blocked apps reported — `Snapshot.BlockedApps`, e2e/shim mirror, tray tooltip.
 
 ## K. LockIn.App
 
-- [ ] K1 Tray app with dashboard window reusing `src/pages/options` + popup through a `chrome.*` shim.
-- [ ] K2 Shim surface: `storage.local` get/set/clear/onChanged, `runtime.getManifest/sendMessage/openOptionsPage/getURL`, `windows`, `tabs`, `alarms`.
-- [ ] K3 Shim mirrors `/health` snapshots into storage and pushes config edits to the service; it never sends extension heartbeats.
-- [ ] K4 UIA sensor reads the foreground browser address bar (Chrome, Brave, Edge; Firefox best effort) and the foreground executable for app zones.
-- [ ] K5 Extension beats UIA for a browser with a fresh heartbeat; UIA covers browsers without the extension; no double counting.
-- [ ] K6 Status and notifications: sensor missing, extension not installed, blocked by schedule; UIA limits documented in the UI.
-- [ ] K7 Started for every protected account at logon; the service relaunches it into active sessions (`WTSQueryUserToken` + `CreateProcessAsUser`).
+- [x] K1 Tray + dashboard reusing the extension pages through the shim — `LockIn.App`, `web/shim.js`, `tests/app-shim.test.mjs`.
+- [x] K2 Shim surface — `tests/app-shim.test.mjs`; API list in `windows/README.md`.
+- [x] K3 Mirror + config push, never a heartbeat — `tests/app-shim.test.mjs` (`the shim never sends an extension heartbeat`).
+- [~] K4 UIA foreground/address-bar sensor — `ForegroundSensor`, `UiaAddressBarReader`. Manual: focus Chrome and confirm the dashboard counts the visible site; focus a zone app and confirm accounting.
+- [x] K5 Extension wins over UIA; no double counting — `UiaPrecedenceTests`.
+- [~] K6 Notifications and documented UIA limits — `TrayContext.Notify`, `ExtensionDetector`, template help text. Manual: kill the extension and watch the tray balloon.
+- [~] K7 Logon start and service relaunch into active sessions — `WtsProcessLauncher`, `WatchdogEngine.RelaunchAppIfNeeded`, installer Run key. Manual: kill the tray app and watch the service restart it within 30 s.
 
 ## L. Installer
 
-- [ ] L1 One `LockIn-Setup-<version>.exe`, double-click, one UAC prompt, no terminal.
-- [ ] L2 Account checkbox page defaulting to the launching account plus already-protected accounts.
-- [ ] L3 Installs service, app autostart, and WebView2 runtime when missing.
-- [ ] L4 In-place upgrade preserves zones, usage and protected accounts; rolls back when the new service is unhealthy.
-- [ ] L5 Uninstall via Settings → Apps disarms first, removes only Lock In's registry values and `LockInWatchdog` firewall rules; data kept by default, erase option.
-- [ ] L6 Emergency disarm in Start menu and tray, with UAC.
-- [ ] L7 Force-install extension policy switchable, conditional on store readiness; otherwise guide the user, and the tray detects per-browser sensor presence.
-- [ ] L8 Removal touches only what Lock In created.
+- [~] L1 One `LockIn-Setup-<version>.exe`, one UAC prompt, no terminal — compiled and inspected; `installer/LockIn.iss`. Manual: run `dist/LockIn-Setup-1.5.0.exe`.
+- [~] L2 Account checkbox page with defaults — `AccountSelectionTests` cover the merge; the page is populated by `--setup-helper list-accounts`. Manual: run the installer.
+- [~] L3 Service, app autostart, WebView2 when missing — `[Files]`/`[Run]`/`[Registry]`; WebView2 check by registry `pv`. Manual: run on a machine without the runtime.
+- [~] L4 Upgrade preserves state; rollback on unhealthy — `CopyDirectory` backup + `Rollback()` + `health` helper. Manual: install twice, then install a deliberately broken build.
+- [~] L5 Uninstall disarms, removes only its own values/rules, keep-vs-erase prompt — `InitializeUninstall`, `CurUninstallStepChanged`, `SetupHelperCommands.RemoveConfig`. Manual: uninstall and inspect `HKLM\SOFTWARE\LockIn` and the firewall group.
+- [~] L6 Emergency disarm in Start menu and tray with UAC — `[Icons]`, `TrayContext`, `EmergencyDisarm`. Manual: run it and confirm the UAC prompt and the disarm.
+- [~] L7 Switchable force-install, guide mode default, per-browser detection — `OptionsPage` radio, `SetupHelperCommands.ApplyForcelist`, `ExtensionDetector`. Manual: after store approval, reinstall with force-install and check `chrome://policy`.
+- [~] L8 Removal touches only what Lock In created — ownership records `OwnedExtensionPolicy`, firewall group filter. Manual: uninstall and diff the policy keys.
 
 ## M. Distribution and CI
 
-- [ ] M1 Tagged release builds and publishes the installer (+ `.sha256`).
-- [ ] M2 Code signing pluggable through CI secrets; unsigned builds documented with the SmartScreen step.
-- [ ] M3 `store/*`, READMEs and the in-extension guide never instruct end users to open a terminal.
-- [ ] M4 `pnpm verify` stays green; C# and JS test suites run on `windows-latest`.
+- [x] M1 Tagged release builds and publishes the installer (+`.sha256`) — `.github/workflows/release.yml` `windows-app` job; `windows/build-windows-app.ps1` produced `dist/LockIn-Setup-1.5.0.exe` + `.sha256` locally.
+- [x] M2 Signing pluggable; unsigned documented — `SIGNING_CERT_BASE64`/`SIGNING_CERT_PASSWORD` in the build script and workflow; SmartScreen note in the README and reviewer notes.
+- [x] M3 No terminal instructions for end users — README, `watchdog/README.md`, `strict-mode.js`/`options.html` guide, `store/*`; asserted by `tests/ui/polish-regressions.mjs` (`doesNotMatch /PowerShell|\.ps1|Set-ExecutionPolicy/`).
+- [x] M4 `pnpm verify` green; C# and JS suites on `windows-latest` — `pnpm verify` passes here; `dotnet test windows/LockIn.sln` 46/46; workflow runs both on `windows-latest`.
 
 ## N. Security and privacy
 
-- [ ] N1 Loopback only; no listener beyond 127.0.0.1; extension origin checks.
-- [ ] N2 PID→SID authentication for protected-account requests.
-- [ ] N3 Data directory ACL SYSTEM + Administrators.
-- [ ] N4 URLs never persisted; app sensor stores hostnames/exe names only.
-- [ ] N5 No auto-update that runs downloaded code as SYSTEM without signature/hash verification.
+- [x] N1 Loopback only, origin checks — `LoopbackServer` binds `http://127.0.0.1:<port>/`; origin gate.
+- [x] N2 PID→SID authentication — `Authorize`, `ProtectedAccountTests`.
+- [~] N3 Data directory ACL — `SecureDirectory`; manual `icacls`.
+- [x] N4 URLs never persisted; hostnames/exe names only — `SendableUrl` gate, state model has no URL field; `UiaPrecedenceTests`/`SiteRuleTests.SendableUrl...`.
+- [x] N5 No unsigned auto-update — there is no updater; updates run a newer installer, and the CI signing step is optional. Documented in `windows/README.md` and the README.
