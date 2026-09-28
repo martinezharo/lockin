@@ -92,7 +92,7 @@ Automated suites: `pnpm verify` (release checks + 83 extension tests + the legac
 ## H. Background loop resilience
 
 - [x] H1 Clock jump restarts grace periods — `AClockJumpRestartsSensorGracePeriods`.
-- [x] H2 No slow call on the request path — side effects run on the enforcement thread (`EnforcementPass` → `ApplySideEffects`); e2e latency assertion.
+- [x] H2 No slow call on the request path — decisions are in-memory; registry writes, firewall reconciliation and process probing run on the enforcement thread (`EnforcementPass` → `ApplySideEffects`). The only disk touch is the debounced state write (at most once per 5 s, immediate on configuration changes), and the e2e latency loop asserts answers stay under 100 ms.
 - [x] H3 Listener restarts; exceptions logged, service never exits; SCM recovery — `LoopbackServer.AcceptLoopAsync`, `ServiceRunner.EnforcementLoop`, installer `sc failure`.
 - [x] H4 Log dedupe and rotation — `FileLog`.
 - [x] H5 Multiple sessions, fast user switching, firewall backoff — `SessionTests`, `FirewallTests`, `ApplyFirewall` retry interval.
