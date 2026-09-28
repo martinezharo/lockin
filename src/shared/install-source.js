@@ -18,6 +18,17 @@ export function isRepoBuild() {
   }
 }
 
+// The Windows app injects a chrome.lockin marker before the pages run. It is
+// the one way a page can tell it is running inside the app rather than in a
+// browser, which the setup guide uses to point at the installer.
+export function isWindowsApp() {
+  try {
+    return chrome.lockin?.app === true;
+  } catch {
+    return false;
+  }
+}
+
 export function extensionVersion() {
   try {
     return chrome.runtime.getManifest().version;

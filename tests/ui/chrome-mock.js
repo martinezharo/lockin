@@ -54,11 +54,16 @@
       supportsUrlRules: true,
       supportsExceptions: true,
       supportsTimedDisarm: true,
+      supportsAppZones: true,
       configured: true,
       enforcementArmed: watchdog === 'armed',
       failClosed: true,
       failClosedActive: false,
       blockedDomains: watchdog === 'armed' ? ['youtube.com', 'twitch.tv'] : [],
+      blockedApps: [],
+      sensors: watchdog !== 'off'
+        ? [{ account: 'you', lastHeartbeatMs: Date.now(), activeSession: true, browserRunning: true }]
+        : [],
       enforcementReason: watchdog === 'armed' ? 'schedule' : 'not armed',
       lastHeartbeatMs: Date.now(),
       updatedAt: Date.now()

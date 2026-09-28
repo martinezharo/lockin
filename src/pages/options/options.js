@@ -3,6 +3,7 @@
 
 import { Storage } from '../../shared/storage.js';
 import { uid, normalizeSiteInput, parseSiteList, exceptionFitsDomains, siteMatches } from '../../shared/domains.js';
+import { normalizeAppInput, parseAppList } from '../../shared/apps.js';
 import { timeValueToMinutes, isArmed, rearmAt } from '../../shared/schedule.js';
 import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { enforcementReasonText } from '../../shared/enforcement.js';
@@ -119,6 +120,9 @@ const removeDomain = (id, domain) =>
 const removeException = (id, exception) =>
   updateGroup(id, (g) => { g.exceptions = (g.exceptions || []).filter((item) => item !== exception); });
 
+const removeApp = (id, app) =>
+  updateGroup(id, (g) => { g.apps = (g.apps || []).filter((item) => item !== app); });
+
 // Changing the rules can loosen an existing block — later gate hours, a bigger
 // allowance, a rule switched off entirely — so the whole save gets the same
 // typing-challenge friction as disarming a zone.
@@ -167,6 +171,32 @@ async function addDomain(id, input) {
   input.value = '';
   return updateGroup(id, (g) => {
     if (!g.domains.includes(domain)) g.domains.push(domain);
+  });
+}
+
+async function checkAppSupport(input) {
+  const { nativeStatus } = await chrome.storage.local.get('nativeStatus');
+  if (nativeStatus?.supportsAppZones !== true) {
+    input.setCustomValidity('Update the Windows watchdog and reload the extension before adding application targets.');
+    input.reportValidity();
+    return false;
+  }
+  return true;
+}
+
+async function addApp(id, input) {
+  const app = normalizeAppInput(input.value);
+  if (!app) {
+    input.setCustomValidity('Enter an executable name such as discord.exe.');
+    input.reportValidity();
+    return;
+  }
+  if (!(await checkAppSupport(input))) return;
+  input.setCustomValidity('');
+  input.value = '';
+  return updateGroup(id, (g) => {
+    g.apps ||= [];
+    if (!g.apps.includes(app)) g.apps.push(app);
   });
 }
 
@@ -334,23 +364,30 @@ function resetNewGroupForm() {
 }
 
 document.getElementById('groupDomains').addEventListener('input', (e) => e.target.setCustomValidity(''));
+document.getElementById('groupApps').addEventListener('input', (e) => e.target.setCustomValidity(''));
 
 newGroupForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('groupName').value.trim();
   const sitesInput = document.getElementById('groupDomains');
+  const appsInput = document.getElementById('groupApps');
   let domains;
+  let apps;
   try { domains = parseSiteList(sitesInput.value); }
   catch (error) { sitesInput.setCustomValidity(error.message); sitesInput.reportValidity(); return; }
+  try { apps = parseAppList(appsInput.value); }
+  catch (error) { appsInput.setCustomValidity(error.message); appsInput.reportValidity(); return; }
   sitesInput.setCustomValidity('');
-  if (!name || domains.length === 0) return;
+  appsInput.setCustomValidity('');
+  if (!name || (domains.length === 0 && apps.length === 0)) return;
   if (!(await checkUrlSupport(domains, sitesInput))) return;
+  if (apps.length > 0 && !(await checkAppSupport(appsInput))) return;
 
   const rules = readRules(rulesControls);
   if (!rules) return;
 
   await updateGroups((groups) => {
-    groups.push({ id: uid(), name, domains, exceptions: [], enabled: true, ...rules, createdAt: Date.now() });
+    groups.push({ id: uid(), name, domains, apps, exceptions: [], enabled: true, ...rules, createdAt: Date.now() });
   });
 
   resetNewGroupForm();
@@ -380,11 +417,13 @@ function paintDayStrip(groups, now, usage, session) {
 }
 
 async function render() {
-  const [groups, usage, session] = await Promise.all([
+  const [groups, usage, session, { nativeStatus }] = await Promise.all([
     Storage.getGroups(),
     Storage.getUsage(),
-    Storage.getUsageSession()
+    Storage.getUsageSession(),
+    chrome.storage.local.get('nativeStatus')
   ]);
+  const capabilities = { supportsAppZones: nativeStatus?.supportsAppZones === true };
   const now = Date.now();
 
   groups.sort((a, b) => b.createdAt - a.createdAt);
@@ -397,7 +436,7 @@ async function render() {
   emptyStateEl.hidden = groups.length > 0;
   paintNowPanel(groups, now, usage, session);
   paintDayStrip(groups, now, usage, session);
-  groupsListEl.innerHTML = groups.map((g) => zoneRowHtml(g, now, openIds, usage, session)).join('');
+  groupsListEl.innerHTML = groups.map((g) => zoneRowHtml(g, now, openIds, usage, session, capabilities)).join('');
 
   refreshLockSwitch();
 }
@@ -527,6 +566,11 @@ const ZONE_ACTIONS = {
   },
   'remove-domain': (id, btn) => removeDomain(id, btn.dataset.domain),
   'remove-exception': (id, btn) => removeException(id, btn.dataset.exception),
+  'remove-app': (id, btn) => removeApp(id, btn.dataset.app),
+  'add-app': (id, btn) => {
+    const input = btn.closest('.zone').querySelector('[data-add-app-input]');
+    addApp(id, input);
+  },
   'add-domain': (id, btn) => {
     const input = btn.closest('.zone').querySelector('[data-add-domain-input]');
     addDomain(id, input);

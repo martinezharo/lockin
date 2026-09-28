@@ -128,9 +128,16 @@
 
                 <label class="field">
                   <span class="field-label">Forbidden tunnels</span>
-                  <textarea id="groupDomains" rows="4" placeholder="x.com&#10;youtube.com/shorts/&#10;youtube.com/watch?v=ABC" required></textarea>
-                  <span class="field-hint">One per line, or separated by commas.</span>
+                  <textarea id="groupDomains" rows="4" placeholder="x.com&#10;youtube.com/shorts/&#10;youtube.com/watch?v=ABC"></textarea>
+                  <span class="field-hint">One per line, or separated by commas. Sites and applications can be mixed in one zone.</span>
                   <span class="site-help">Domains cover subdomains. URL paths and #fragments match by prefix (case-sensitive); /shorts/ or #settings/Personalization can cover one section. Query parameters identify pages, e.g. youtube.com/watch?v=ABC. Extra parameters do not bypass a block; tracking parameters are ignored. HTTP and HTTPS are both covered.</span>
+                </label>
+
+                <label class="field">
+                  <span class="field-label">Applications (optional)</span>
+                  <textarea id="groupApps" rows="2" placeholder="discord.exe&#10;steam.exe"></textarea>
+                  <span class="field-hint">Executable names, one per line or separated by commas.</span>
+                  <span class="site-help">Time is counted while the app is in front. When the gates are shut the app is asked to close and terminated a few seconds later. Read from the foreground window, so in-app navigation and fragments cannot be seen.</span>
                 </label>
               </div>
 
@@ -205,15 +212,17 @@
       </div>
 
       <p class="modal-instructions" id="strictIntro">
-        Loaded from the repository, Lock In is a dashboard and a sensor: it draws your day and
-        watches the active tab, but nothing outside the browser is stopping you. These three
-        steps move every decision to a Windows task the browser cannot switch off.
+        Lock In is a dashboard and a sensor: it draws your day and watches the active tab, but
+        nothing outside the browser is stopping you until the Windows app is installed. The
+        installer moves every decision to a Windows service the browser cannot switch off —
+        no terminal, no commands, one UAC prompt.
       </p>
 
       <ul class="strict-points">
         <li>Scheduled zones and spent allowances become Brave/Chrome <code>URLBlocklist</code> policy, applied by Windows rather than by the extension.</li>
         <li>Always-allowed pages stay open through the matching <code>URLAllowlist</code> and never spend allowance.</li>
         <li>If the browser is running and the sensor disappears for a minute, every enabled zone is blocked and that account's browser loses outbound network access until Lock In reports back. Other accounts keep theirs.</li>
+        <li>Application zones are tracked from the foreground window and closed by the tray app when their gates are shut.</li>
         <li>Zones, usage and enforcement state move to <code>C:\ProgramData\LockIn</code>, owned by SYSTEM. Only the Windows accounts you name can configure them.</li>
       </ul>
 
@@ -221,53 +230,55 @@
         <li>Windows 10 or 11</li>
         <li>Brave or Chrome</li>
         <li>one UAC prompt</li>
-        <li>no Node, account, certificate or server</li>
+        <li>no terminal, account, certificate or server</li>
       </ul>
 
       <ol class="strict-steps">
-        <li class="strict-step">
+        <li class="strict-step" id="strictStepInstall">
           <span class="strict-step-mark" aria-hidden="true">1</span>
           <div class="strict-step-body">
-            <h4 class="strict-step-title">Give this build a permanent home</h4>
-            <p>
-              Brave and Chrome reload an unpacked extension from the exact folder it was loaded
-              from on every start, so a temporary download breaks the first time you tidy up.
-              Keep the clone — or the extracted <code id="strictExtensionArchive">chrome-web-store.zip</code> —
-              somewhere you intend to keep, then load it from <code>brave://extensions</code> or
-              <code>chrome://extensions</code> with <strong>Developer mode</strong> on.
-            </p>
-          </div>
-        </li>
-
-        <li class="strict-step" id="strictStepInstall">
-          <span class="strict-step-mark" aria-hidden="true">2</span>
-          <div class="strict-step-body">
             <h4 class="strict-step-title">
-              Install the protected watchdog
+              Run the Lock In installer
               <span class="strict-step-state" id="strictStepInstallState">not yet</span>
             </h4>
             <p>
-              Open PowerShell in that same folder and run it. It asks for administrator rights
-              itself and protects the Windows account you ran it from. Use more than one
-              Windows account? Load the extension in each one and run the installer once from
-              each: every run adds its account and keeps the others. Running it again later
-              updates the watchdog in place.
+              Download <code id="strictInstallerArchive">LockIn-Setup.exe</code> from the latest
+              release and double-click it. Windows asks for administrator rights once; tick the
+              local Windows accounts to protect and continue. There is no terminal and nothing
+              to type.
             </p>
-            <div class="strict-command">
-              <button type="button" class="strict-copy" data-copy>copy</button>
-              <pre><code>Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install-windows-watchdog.ps1</code></pre>
-            </div>
             <ul class="strict-substeps">
-              <li>copies the watchdog to <code>C:\Program Files\Lock In</code>;</li>
-              <li>registers <code>Lock In Watchdog</code> as an automatic SYSTEM task that restarts itself;</li>
-              <li>checks every minute that it is still running, and restarts it if not;</li>
-              <li>creates disabled outbound firewall rules for the installed Brave and Chrome executables; and</li>
+              <li>installs the Lock In service, which owns zones, schedules, allowances and fail-closed enforcement;</li>
+              <li>installs the Lock In tray app for every protected account and starts it at logon;</li>
+              <li>installs the WebView2 runtime if it is missing;</li>
+              <li>migrates any existing Lock In data and removes the old scheduled task; and</li>
               <li>starts safely disarmed, importing the zones you already have.</li>
             </ul>
+          </div>
+        </li>
+
+        <li class="strict-step" id="strictStepExtension">
+          <span class="strict-step-mark" aria-hidden="true">2</span>
+          <div class="strict-step-body">
+            <h4 class="strict-step-title">
+              Install the browser extension
+              <span class="strict-step-state" id="strictStepExtensionState">checking…</span>
+            </h4>
+            <p>
+              The extension is the precise sensor for Chrome and Brave: it sees the exact page,
+              path, query and #fragment. Once the Chrome Web Store serves a watchdog-compatible
+              version the installer force-installs it; until then, load it by hand:
+            </p>
+            <ul class="strict-substeps">
+              <li>extract <code id="strictExtensionArchive">lock-in-chrome-web-store.zip</code> into a folder you intend to keep;</li>
+              <li>open <code>brave://extensions</code> or <code>chrome://extensions</code>;</li>
+              <li>turn on <strong>Developer mode</strong> and choose <strong>Load unpacked</strong>; and</li>
+              <li>select the extracted folder.</li>
+            </ul>
             <p class="strict-aside">
-              From the release bundle <code id="strictWatchdogArchive">windows-watchdog.zip</code>
-              the same script sits at the root, as <code>.\install-windows-watchdog.ps1</code>.
+              The tray app notices when a browser has no Lock In sensor and offers to open the
+              extensions page for you. Its notifications also say when a zone is blocked by
+              schedule or when the extension's sensor is missing.
             </p>
           </div>
         </li>
@@ -296,16 +307,16 @@
 
       <div class="strict-exits">
         <h4 class="strict-exits-title">Ways back out 🐭</h4>
-        <p>From PowerShell in the same folder (each asks for administrator rights itself):</p>
+        <p>Everything below lives in Windows, not in a terminal:</p>
         <dl>
-          <dt><code>.\scripts\disarm-windows-watchdog.ps1</code></dt>
-          <dd>stops enforcing now and leaves everything installed.</dd>
-          <dt><code>.\scripts\uninstall-windows-watchdog.ps1</code></dt>
-          <dd>removes the task, the rules and the installed copy. Add <code>-PurgeData</code> to erase configuration and usage as well.</dd>
-          <dt><code>.\scripts\install-windows-watchdog.ps1</code></dt>
-          <dd>run again to update the watchdog in place, keeping its zones, usage and protected accounts.</dd>
-          <dt><code>.\scripts\watchdog-status.ps1</code></dt>
-          <dd>shows whether the watchdog answers and, from an elevated window, its task state and recent log.</dd>
+          <dt><strong>Lock In Emergency Disarm</strong> — Start menu, or the tray menu</dt>
+          <dd>stops enforcing now, with one UAC prompt, and leaves everything installed.</dd>
+          <dt><strong>Windows Settings → Apps → Lock In → Uninstall</strong></dt>
+          <dd>disarms first, then removes the service, the tray app and Lock In's own registry values and firewall rules. Choose whether to keep or erase the local data.</dd>
+          <dt><strong>Run a newer LockIn-Setup</strong></dt>
+          <dd>updates in place, keeping zones, usage and protected accounts.</dd>
+          <dt><strong>The tray app</strong></dt>
+          <dd>shows status and notifications and opens the dashboard; the service starts it again if it is killed.</dd>
         </dl>
       </div>
 

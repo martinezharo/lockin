@@ -25,6 +25,8 @@ const live = document.getElementById('strictLive');
 
 const stepInstall = document.getElementById('strictStepInstall');
 const stepInstallState = document.getElementById('strictStepInstallState');
+const stepExtension = document.getElementById('strictStepExtension');
+const stepExtensionState = document.getElementById('strictStepExtensionState');
 const stepArm = document.getElementById('strictStepArm');
 const stepArmState = document.getElementById('strictStepArmState');
 
@@ -88,6 +90,10 @@ export function paintStrictMode(nativeStatus) {
   live.dataset.strictState = key;
 
   paintStep(stepInstall, stepInstallState, key !== 'off', 'installed');
+  // A protected account whose sensor has ever reported means the extension is
+  // present in at least one browser; the tray app detects the rest per browser.
+  const extensionSeen = (nativeStatus?.sensors || []).some((sensor) => sensor.lastHeartbeatMs > 0);
+  paintStep(stepExtension, stepExtensionState, extensionSeen, 'sensor seen');
   paintStep(stepArm, stepArmState, key === 'armed', 'armed');
 }
 
@@ -145,32 +151,13 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// Retyping an elevated PowerShell line by hand is the one piece of friction
-// here that buys nothing, so the command blocks hand themselves over.
-modal.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-copy]');
-  if (!button) return;
-  const command = button.parentElement.querySelector('code')?.textContent ?? '';
-  try {
-    await navigator.clipboard.writeText(command);
-    button.textContent = 'copied ✓';
-    button.classList.add('is-copied');
-  } catch {
-    button.textContent = 'select it by hand';
-  }
-  setTimeout(() => {
-    button.textContent = 'copy';
-    button.classList.remove('is-copied');
-  }, 2000);
-});
-
 export function initStrictMode() {
   if (!isRepoBuild()) return;
   enabled = true;
   const version = extensionVersion();
   if (version) {
+    document.getElementById('strictInstallerArchive').textContent = `LockIn-Setup-${version}.exe`;
     document.getElementById('strictExtensionArchive').textContent = `lock-in-${version}-chrome-web-store.zip`;
-    document.getElementById('strictWatchdogArchive').textContent = `lock-in-${version}-windows-watchdog.zip`;
   }
   banner.hidden = false;
 }

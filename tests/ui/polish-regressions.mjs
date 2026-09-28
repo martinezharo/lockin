@@ -102,8 +102,9 @@ try {
   assert.equal(await guide.evaluate((element) => getComputedStyle(element).overflowY), 'hidden');
   assert.equal(await guideScroll.evaluate((element) => getComputedStyle(element).overflowY), 'auto');
   assert.ok(await guideScroll.evaluate((element) => element.scrollHeight > element.clientHeight));
-  assert.match(await guide.innerText(), /install-windows-watchdog\.ps1/);
-  assert.match(await guide.innerText(), /disarm-windows-watchdog\.ps1/);
+  assert.match(await guide.innerText(), /LockIn-Setup/);
+  assert.match(await guide.innerText(), /Windows Settings → Apps/);
+  assert.doesNotMatch(await guide.innerText(), /PowerShell|\.ps1|Set-ExecutionPolicy/);
   assert.match(await strict.locator('#strictLive').innerText(), /no watchdog is answering/);
   assert.equal(await strict.locator('.strict-step.is-done').count(), 0);
   await strict.keyboard.press('Escape');
@@ -119,7 +120,7 @@ try {
   await strict.goto('http://127.0.0.1:4178/src/pages/options/options.html', { waitUntil: 'networkidle' });
   await strict.locator('#strictBanner[data-strict-state="armed"]').waitFor();
   await strict.locator('#strictBannerOpen').click();
-  assert.equal(await strict.locator('.strict-step.is-done').count(), 2);
+  assert.equal(await strict.locator('.strict-step.is-done').count(), 3);
 
   // And the Chrome Web Store copy is never invited to install a watchdog.
   await strict.goto('http://127.0.0.1:4178/src/pages/options/options.html?build=store', { waitUntil: 'networkidle' });

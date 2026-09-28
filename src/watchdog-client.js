@@ -1,6 +1,7 @@
-// Loopback bridge between the MV3 service worker and the protected PowerShell
-// watchdog. The watchdog remains the enforcement authority; the extension
-// only mirrors state and nudges an already-open active tab to re-run policy.
+// Loopback bridge between the MV3 service worker and the protected Windows
+// watchdog service. The service remains the enforcement authority; the
+// extension only mirrors state and nudges an already-open active tab to re-run
+// policy.
 
 import { Storage, isGroup, serializeGroup } from './shared/storage.js';
 import { siteMatches, normalizeDomainInput } from './shared/domains.js';
@@ -239,11 +240,13 @@ export class WatchdogClient {
     const configRequest = ['bootstrap', 'updateConfig'].includes(type);
     const needsUrlRules = payload.groups?.some(g => g.domains.some(rule => /[/?# :]/.test(rule)));
     const needsExceptions = payload.groups?.some(g => (g.exceptions || []).length > 0);
-    if (configRequest && (needsUrlRules || needsExceptions)) {
+    const needsApps = payload.groups?.some(g => (g.apps || []).length > 0);
+    if (configRequest && (needsUrlRules || needsExceptions || needsApps)) {
       const health = await fetch('http://127.0.0.1:8765/health', { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: 'no-store' });
       const status = await health.json();
       if (!health.ok || status.data?.supportsUrlRules !== true) throw new Error('Update the Windows watchdog before using URL rules.');
       if (needsExceptions && status.data?.supportsExceptions !== true) throw new Error('Update the Windows watchdog before using always-allowed pages.');
+      if (needsApps && status.data?.supportsAppZones !== true) throw new Error('Update the Windows watchdog before using application targets.');
     }
     const requestId = `${Date.now()}-${++this.requestNumber}`;
     const controller = new AbortController();
@@ -289,6 +292,7 @@ export class WatchdogClient {
           supportsUrlRules: snapshot.supportsUrlRules === true,
           supportsExceptions: snapshot.supportsExceptions === true,
           supportsTimedDisarm: snapshot.supportsTimedDisarm === true,
+          supportsAppZones: snapshot.supportsAppZones === true,
           configured: snapshot.configured === true,
           enforcementArmed: snapshot.enforcementArmed === true,
           failClosed: snapshot.failClosed === true,
@@ -299,6 +303,8 @@ export class WatchdogClient {
           protectedWindowsAccounts: snapshot.protectedWindowsAccounts || [],
           blockedDomains: snapshot.blockedDomains || [],
           allowedDomains: snapshot.allowedDomains || [],
+          blockedApps: snapshot.blockedApps || [],
+          sensors: snapshot.sensors || [],
           enforcementReason: snapshot.enforcementReason || 'open',
           updatedAt: Date.now()
         }

@@ -507,6 +507,24 @@ function chipsHtml(g) {
     .join('');
 }
 
+function appChipsHtml(g) {
+  const apps = g.apps || [];
+  if (apps.length === 0) return '<span class="muted">no forbidden applications yet</span>';
+  return apps.map((app) => {
+    const safe = escapeHtml(app);
+    return `
+      <span class="chip app-chip">
+        <span class="app-mark" aria-hidden="true">▣</span>
+        <span class="site-label" title="${safe}">${safe}</span>
+        <button type="button" data-action="remove-app" data-group="${g.id}" data-app="${safe}"
+          title="Release ${safe}" aria-label="Release ${safe} from containment">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </span>`;
+  }).join('');
+}
+
 function exceptionChipsHtml(g) {
   const exceptions = g.exceptions || [];
   if (exceptions.length === 0) return '<span class="muted">no secret passages yet</span>';
@@ -535,8 +553,9 @@ function meterHtml(g, now, usage, session) {
     </div>`;
 }
 
-function zoneBodyHtml(g, now, usage, session) {
+function zoneBodyHtml(g, now, usage, session, capabilities = {}) {
   const armed = isArmed(g, now);
+  const appTargetsSupported = capabilities.supportsAppZones === true;
   return `
     <div class="zone-body">
       <div class="zone-name-editor">
@@ -558,7 +577,27 @@ function zoneBodyHtml(g, now, usage, session) {
               aria-label="Add a forbidden tunnel to ${escapeHtml(g.name)}" />
             <button type="button" class="ghost" data-action="add-domain" data-group="${g.id}">Add</button>
           </div>
-          <div class="exception-box">
+          <div class="app-box">
+            <div class="exception-heading">
+              <span class="col-label">Applications</span>
+              <span class="free-pass">foreground apps 🖥️</span>
+            </div>
+            <p class="site-help">Executable names, e.g. discord.exe. Time is counted while the app is in front. When the gates are shut the app is asked to close and terminated a few seconds later. Read from the foreground window, so in-app navigation and fragments cannot be seen.</p>
+            <div class="domain-chips app-chips">${appChipsHtml(g)}</div>
+            ${appTargetsSupported
+              ? `<div class="add-domain-row">
+            <input type="text" placeholder="discord.exe" data-add-app-input="${g.id}"
+              aria-label="Add an application to ${escapeHtml(g.name)}" />
+            <button type="button" class="ghost" data-action="add-app" data-group="${g.id}">Add app</button>
+          </div>`
+              : `<p class="rule-note">⚠️ Update the Windows watchdog and reload the extension to add application targets.</p>`}
+          </div>
+          ${g.domains.length === 0
+            ? `<div class="exception-box">
+            <div class="exception-heading"><span class="col-label">Always allowed</span></div>
+            <p class="site-help">Applications have no free pass: an always-allowed page needs a site rule to live inside. Add one above first.</p>
+          </div>`
+            : `<div class="exception-box">
             <div class="exception-heading">
               <span class="col-label">Always allowed</span>
               <span class="free-pass">free pass 🐭</span>
@@ -570,7 +609,7 @@ function zoneBodyHtml(g, now, usage, session) {
                 aria-label="Add an always-allowed page to ${escapeHtml(g.name)}" />
               <button type="button" class="ghost exception-add" data-action="add-exception" data-group="${g.id}">Allow</button>
             </div>
-          </div>
+          </div>`}
         </div>
 
         <div class="zone-col rules-col">
@@ -600,11 +639,12 @@ function zoneBodyHtml(g, now, usage, session) {
     </div>`;
 }
 
-export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
+export function zoneRowHtml(g, now, openIds, usage = null, session = null, capabilities = {}) {
   const open = openIds.has(g.id);
   const state = zoneStateClass(g, now, usage, session);
   const exceptionCount = (g.exceptions || []).length;
-  const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}${exceptionCount ? ` · ${exceptionCount} free pass${exceptionCount === 1 ? '' : 'es'}` : ''}`;
+  const appCount = (g.apps || []).length;
+  const count = `${g.domains.length} tunnel${g.domains.length === 1 ? '' : 's'}${appCount ? ` · ${appCount} app${appCount === 1 ? '' : 's'}` : ''}${exceptionCount ? ` · ${exceptionCount} free pass${exceptionCount === 1 ? '' : 'es'}` : ''}`;
 
   // Arming is free and strengthens containment, so a disarmed row gets the
   // shortcut right there — including a row whose release is still running,
@@ -631,6 +671,6 @@ export function zoneRowHtml(g, now, openIds, usage = null, session = null) {
         </button>
         ${armShortcut}
       </div>
-      <div id="zone-body-${g.id}" ${open ? '' : 'hidden'}>${open ? zoneBodyHtml(g, now, usage, session) : ''}</div>
+      <div id="zone-body-${g.id}" ${open ? '' : 'hidden'}>${open ? zoneBodyHtml(g, now, usage, session, capabilities) : ''}</div>
     </div>`;
 }
