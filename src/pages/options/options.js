@@ -9,6 +9,7 @@ import { MINUTES_PER_DAY, formatClock } from '../../shared/timeline.js';
 import { enforcementReasonText } from '../../shared/enforcement.js';
 import { withLockCheck, toggleLockMode } from './lock-gate.js';
 import { initStrictMode, paintStrictMode } from './strict-mode.js';
+import { initBackupDialog } from './backup-dialog.js';
 import { lockIconHtml } from '../../shared/lock-icon.js';
 import {
   zoneRowHtml,
@@ -809,4 +810,5 @@ refreshPrivacyConsent().then((accepted) => {
   if (accepted) render();
 });
 initStrictMode();
+initBackupDialog({ onRestored: render });
 refreshServiceStatus();
