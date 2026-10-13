@@ -42,11 +42,14 @@ test('a backup file reads back as the zones that were exported', () => {
 });
 
 test('the envelope carries its kind and version, and the file name dates itself', () => {
-  const backup = buildBackup([zone()], Date.UTC(2026, 9, 13));
+  // A local date, because the file name is local: the same instant west of
+  // UTC would honestly be named with the previous day.
+  const stamp = new Date(2026, 9, 13).getTime();
+  const backup = buildBackup([zone()], stamp);
   assert.equal(backup.kind, BACKUP_KIND);
   assert.equal(backup.version, BACKUP_VERSION);
-  assert.equal(backup.exportedAt, new Date(Date.UTC(2026, 9, 13)).toISOString());
-  assert.equal(backupFileName(Date.UTC(2026, 9, 13)), 'lock-in-zones-2026-10-13.json');
+  assert.equal(backup.exportedAt, new Date(stamp).toISOString());
+  assert.equal(backupFileName(stamp), 'lock-in-zones-2026-10-13.json');
 });
 
 test('a bare array of zones is accepted, so a hand-made file still imports', () => {
@@ -97,6 +100,17 @@ test('a schedule day or a time outside the week and day is refused', () => {
   assert.throws(
     () => readBackup(JSON.stringify([zone({ schedule: { days: [1], windows: [{ start: 0, end: 1441 }] } })])),
     /outside the day/
+  );
+});
+
+test('a window list that is not a list of windows is refused, not crashed on', () => {
+  assert.throws(
+    () => readBackup(JSON.stringify([zone({ schedule: { days: [1], windows: [null] } })])),
+    /time window Lock In cannot read/
+  );
+  assert.throws(
+    () => readBackup(JSON.stringify([zone({ schedule: { days: [1], windows: 'soon' } })])),
+    /time window list Lock In cannot read/
   );
 });
 

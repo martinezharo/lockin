@@ -64,6 +64,15 @@ function readSchedule(raw, name) {
   if (days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) {
     fail(`“${name}” has a schedule day that is not one of the seven.`);
   }
+  // scheduleWindows destructures each entry, so entries that are not objects
+  // have to be refused here rather than allowed to throw a TypeError at it.
+  if (raw.windows !== undefined && !Array.isArray(raw.windows)) {
+    fail(`“${name}” has a time window list Lock In cannot read.`);
+  }
+  if (Array.isArray(raw.windows) && raw.windows.some((window) =>
+    !window || typeof window !== 'object' || Array.isArray(window))) {
+    fail(`“${name}” has a time window Lock In cannot read.`);
+  }
   const windows = scheduleWindows(raw).map(({ start, end }) => ({
     start: Number(start ?? 0),
     end: Number(end ?? 0)
