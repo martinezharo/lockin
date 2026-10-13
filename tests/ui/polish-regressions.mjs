@@ -1,5 +1,6 @@
 // Browser assertions for things that screenshots alone cannot certify.
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
@@ -17,7 +18,7 @@ try {
 
   await page.locator('#groupsList .zone-toggle').first().click();
   const zone = page.locator('.zone.is-open');
-  assert.match(await zone.locator('.exception-heading').innerText(), /free pass 🐭/iu);
+  assert.match(await zone.locator('.exception-box .exception-heading').innerText(), /free pass 🐭/iu);
   assert.match(await zone.locator('.paperwork-flag').innerText(), /🔒/u);
   assert.match(await zone.locator('[data-action="save-rules"]').innerText(), /🔒/u);
   const ruleHeadings = await zone.locator('.rule-head').allTextContents();
@@ -127,6 +128,53 @@ try {
   await strict.locator('#groupsList .zone-toggle').first().waitFor();
   assert.equal(await strict.locator('#strictBanner').isVisible(), false);
 
+  /* Export / import: one small footer button, a real file carrying its kind
+     and version, and a restore that is read, shown and gated before it can
+     replace anything. */
+  const backupPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await backupPage.goto('http://127.0.0.1:4178/src/pages/options/options.html', { waitUntil: 'networkidle' });
+  await backupPage.locator('#groupsList .zone-toggle').first().waitFor();
+  const backupDialog = backupPage.locator('#backupModal');
+  assert.equal(await backupDialog.isVisible(), false);
+  await backupPage.locator('#backupOpen').click();
+  await backupDialog.waitFor();
+  assert.match(await backupDialog.locator('#backupTitle').innerText(), /🧳/u);
+
+  const [download] = await Promise.all([
+    backupPage.waitForEvent('download'),
+    backupDialog.locator('[data-backup="export"]').click()
+  ]);
+  assert.match(download.suggestedFilename(), /^lock-in-zones-\d{4}-\d{2}-\d{2}\.json$/);
+  const exported = JSON.parse(await readFile(await download.path(), 'utf8'));
+  assert.equal(exported.kind, 'lock-in-zones');
+  assert.equal(exported.groups.length, 3);
+  assert.match(await backupDialog.locator('[data-backup="status"]').innerText(), /3 zones/);
+
+  await backupDialog.locator('[data-backup="file"]').setInputFiles({
+    name: 'two-little-pits.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify([
+      { name: 'Imported pit', domains: ['example.com'], enabled: true, limit: { minutes: 10 } }
+    ]))
+  });
+  await backupDialog.locator('[data-backup="confirm"]').waitFor();
+  assert.match(await backupDialog.locator('[data-backup="confirm-copy"]').innerText(), /carries 1 zone.*replaces the 3 zones/s);
+
+  // Restoring is behind the edit lock, and backing out of the challenge leaves
+  // the picked file sitting exactly where it was.
+  await backupDialog.locator('[data-backup="apply"]').click();
+  await backupPage.locator('#challengeModal:not(.hidden)').waitFor();
+  assert.equal(await backupDialog.isVisible(), true);
+  await backupPage.locator('#challengeCancel').click();
+  assert.equal(await backupDialog.locator('[data-backup="confirm"]').isVisible(), true);
+  assert.equal(await backupPage.locator('#groupsList .zone').count(), 3);
+
+  await backupPage.evaluate(async () => { await chrome.storage.local.set({ lockMode: false }); });
+  await backupDialog.locator('[data-backup="apply"]').click();
+  await backupPage.locator('#groupsList').getByText('Imported pit').waitFor();
+  assert.equal(await backupPage.locator('#groupsList .zone').count(), 1);
+  assert.equal(await backupDialog.isVisible(), false);
+
   const popup = await browser.newPage({ viewport: { width: 268, height: 420 } });
   await popup.goto('http://127.0.0.1:4178/src/pages/popup/popup.html', { waitUntil: 'networkidle' });
   await popup.locator('.zone-row').first().waitFor();
@@ -135,7 +183,7 @@ try {
   assert.match(await popup.locator('#serviceRow').innerText(), /⚠|●/u);
   assert.match(await popup.locator('.zone-row').last().innerText(), /\d+m off/);
   assert.match(await popup.locator('#nextLabel').innerText(), /re-arms/);
-  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, super-strict guide, timed releases, and popup indicators.');
+  console.log('Polish regression checks passed: emoji, timeline accessibility, watchdog layout, super-strict guide, timed releases, export/import, and popup indicators.');
 } finally {
   await browser.close();
 }

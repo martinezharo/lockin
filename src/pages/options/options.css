@@ -1375,6 +1375,69 @@ select:focus {
 
 .privacy-footer button { padding: 7px 13px; font-size: 11.5px; }
 
+/* ---------- Export / import ----------
+   The footer button is deliberately the smallest thing down here. The dialog
+   it opens stays a calm paper card: for a restore, the ceremony that matters
+   is the typing challenge served on top of it, not the card underneath. */
+
+.modal-overlay.backup-overlay { z-index: 40; }
+
+/* Two classes so the paper ground beats .modal-card's amber, which is written
+   later in this file for the challenge and the super-strict guide. */
+.modal-card.backup-card {
+  max-width: 540px;
+  background: var(--panel);
+}
+
+.backup-intro {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.backup-status {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  border: var(--stroke-w-thin) dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--c-paper-bright);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.backup-status[data-tone="error"] {
+  border-color: var(--rust-line);
+  background: var(--rust-wash);
+  color: var(--rust);
+}
+
+.backup-confirm {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: var(--stroke-w-thin) dashed var(--line-soft);
+}
+
+.backup-confirm-copy {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.backup-card .modal-actions { margin-top: 18px; }
+
 .privacy-consent-card { max-width: 590px; }
 
 .privacy-points {

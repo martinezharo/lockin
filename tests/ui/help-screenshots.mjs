@@ -36,11 +36,13 @@ try {
   const zone = page.locator('.zone.is-open');
   await zone.locator('.info-button').first().waitFor();
   assert.equal(await zone.locator('.site-help, .rule-hint').count(), 0);
-  assert.equal(await zone.locator('.info-button').count(), 4);
+  // Tunnels, applications, always-allowed pages, schedule and allowance: the
+  // open zone carries one dialog button for each explanation it folded away.
+  assert.equal(await zone.locator('.info-button').count(), 5);
   await mkdir('screenshots', { recursive: true });
   await zone.screenshot({ path: 'screenshots/compact-zone.png' });
 
-  const forbidden = zone.getByRole('button', { name: 'About forbidden tunnels' });
+  const forbidden = zone.getByRole('button', { name: 'About forbidden tunnels' }).first();
   await forbidden.click();
   const dialog = page.getByRole('dialog', { name: 'About forbidden tunnels' });
   await dialog.waitFor();
@@ -64,7 +66,7 @@ try {
   await page.locator('#newZoneToggle').click();
   await page.locator('#groupDomains').fill('example.com');
   assert.equal(await page.locator('#groupDomains').inputValue(), 'example.com');
-  assert.equal(await page.locator('#newGroupForm .info-button').count(), 3);
+  assert.equal(await page.locator('#newGroupForm .info-button').count(), 4);
   await page.locator('#newZone').screenshot({ path: 'screenshots/new-zone-compact.png' });
   await page.locator('#newZoneCancel').click();
   // Away from the row it just closed, so the board is photographed at rest
@@ -75,6 +77,29 @@ try {
   // The whole board, and the same board in a half-width window: the two views
   // where alignment problems show up and a cropped panel cannot.
   await page.screenshot({ path: 'screenshots/dashboard.png', fullPage: true });
+
+  // The export / import button in the footer, the dialog it opens, and a file
+  // read back for checking before it can replace anything.
+  await page.locator('.privacy-footer').screenshot({ path: 'screenshots/footer-export-import.png' });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('#backupOpen').click();
+  const backupDialog = page.locator('#backupModal');
+  await backupDialog.waitFor();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: 'screenshots/export-import.png' });
+  await backupDialog.locator('[data-backup="file"]').setInputFiles({
+    name: 'lock-in-zones-2026-10-01.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify([
+      { name: 'Imported pit', domains: ['example.com', 'news.example'], enabled: true, limit: { minutes: 10 } },
+      { name: 'Imported tunnels', domains: ['youtube.com'], apps: ['discord.exe'], enabled: true, schedule: { days: [1, 2, 3, 4, 5], windows: [{ start: 540, end: 1020 }] } }
+    ]))
+  });
+  await backupDialog.locator('[data-backup="confirm"]').waitFor();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: 'screenshots/export-import-ready.png' });
+  await backupDialog.locator('[data-backup="close"]').first().click();
+
   await page.setViewportSize({ width: 760, height: 900 });
   await page.waitForTimeout(200);
   await page.locator('.zones-section').screenshot({ path: 'screenshots/zones-narrow.png' });
@@ -86,7 +111,7 @@ try {
   await popup.locator('.wrap').screenshot({ path: 'screenshots/popup.png' });
 
   assert.deepEqual(errors, [], 'No uncaught page errors');
-  console.log('Help UI checks passed; 6 actual browser screenshots captured.');
+  console.log('Help UI checks passed; 10 actual browser screenshots captured.');
 } finally {
   await browser.close();
 }
